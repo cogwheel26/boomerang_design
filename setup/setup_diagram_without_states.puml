@@ -1,4 +1,3 @@
-' This is the canonical message passing diagram for the setup ceremony. An Ascii output without the notes should be placed inside the SPEC file.
 @startuml setup_diagram_without_states
 skinparam sequenceMessageAlign left
 title Setup Sequence Diagram (Without States)

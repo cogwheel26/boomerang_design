@@ -1,4 +1,3 @@
-' This is the canonical message passing diagram for the initiator's withdrawal ceremony. An Ascii output without the notes  should be placed inside the SPEC file.
 @startuml initiator_withdrawal_diagram_without_states
 skinparam sequenceMessageAlign left
 title Initiator Withdrawal Sequence Diagram (Without States)
