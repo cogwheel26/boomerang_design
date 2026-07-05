@@ -85,7 +85,8 @@ This is the path the protocol wants you to use first.
 It requires every peer in the current design profile. Each peer contributes a key that is made from two parts:
 
 - a normal, recoverable key backed by a mnemonic; and
-- a non-exportable key share held inside the peer’s Boomlet.
+- a key share that is unavailable to the host and exportable only inside the
+  authenticated, target-bound Boomlet-to-Boomletwo backup envelope.
 
 The Boomlet does not simply sign on command. It tracks a withdrawal ceremony and only becomes ready after reaching a secret internal value called its **mystery**.
 
@@ -117,37 +118,18 @@ That is the “boomerang” idea: the process comes back with a result, but not 
 
 A Boomerang withdrawal is a ceremony, not a single click.
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Peers
-    participant Boomlets
-    participant WT as Watchtower
-    participant SAR as Rescue service
-    participant BTC as Bitcoin network
+1. The initiator proposes a PSBT and confirms its transaction ID through ST.
+2. Every peer independently reviews and approves the same transaction.
+3. Each Boomlet performs a duress check and commits to the transaction.
+4. WT relays every encrypted placeholder to SAR and waits for acknowledgement.
+5. Boomlets exchange fresh pings and pongs until all private mystery thresholds
+   have been reached.
+6. Each peer completes its MuSig2 signing exchange using Iso and Boomlet.
+7. WT verifies, aggregates, and broadcasts the final transaction.
 
-    User->>WT: Propose withdrawal transaction
-    WT->>Peers: Ask peers to review it
-    Peers->>WT: Approve or abort
-
-    Peers->>Boomlets: Commit to the transaction
-    Boomlets->>WT: Send progress + emergency-signal placeholder
-    WT->>SAR: Relay placeholder
-    SAR-->>WT: Signed acknowledgement
-
-    loop Until every Boomlet is ready
-        Boomlets->>WT: Fresh progress ping
-        WT-->>Boomlets: Fresh progress pong
-    end
-
-    Peers->>Boomlets: Final signing ceremony
-    Boomlets->>WT: Signed fragments
-    WT->>BTC: Broadcast final transaction
-```
-
-The Watchtower coordinates messages and liveness. It is not supposed to custody funds. The rescue service receives encrypted placeholders and only learns meaningful identity or rescue information if a duress signal is actually sent.
-
----
+Every post-commitment object is bound to both `setup_instance_id` and `tx_id`.
+The exact state machine and message schemas are defined in
+[`spec/SPEC.md`](spec/SPEC.md).
 
 ## Emergency signaling, without making it obvious
 
@@ -211,8 +193,9 @@ Start here if you are new:
 3. **[`GLOSSARY.md`](GLOSSARY.md)** — decode the names: Boomlet, Iso, Niso, ST, WT, SAR, mystery, fallback, and more.
 4. **[`TECHNICAL_OVERVIEW.md`](TECHNICAL_OVERVIEW.md)** — preserves the previous root README material as a denser technical overview.
 5. **[`spec/SPEC.md`](spec/SPEC.md)** — the canonical protocol narrative and the best place to check exact behavior.
-6. **[`DEEPDIVE.md`](DEEPDIVE.md)** — motivation, economics, design rationale, and broader context.
-7. **[`security_models/`](security_models/README.md)** — threat model, assumptions, risk register, and design gaps.
+6. **[`security_models/`](security_models/README.md)** — threat model, assumptions, risk register, and design gaps.
+7. **[`security_models/coercion_economics.md`](security_models/coercion_economics.md)** — optional non-normative deterrence rationale.
+8. **[`adr/`](adr/README.md)** — accepted architecture and cryptographic decisions with rationale and trade-offs.
 
 Subsystem docs:
 
@@ -223,7 +206,8 @@ Subsystem docs:
 | Duress mechanism | [`duress_protection/`](duress_protection/README.md) | How hidden emergency signaling is intended to work |
 | Secure Terminal | [`secure_terminal/`](secure_terminal/README.md) | Why an air-gapped UI exists and what it must protect |
 | Threat model | [`security_models/`](security_models/README.md) | Assumptions, attacks, mitigations, and known gaps |
-| Protocol spec | [`spec/SPEC.md`](spec/SPEC.md) | The canonical protocol behavior, status, and TODOs |
+| Protocol spec | [`spec/SPEC.md`](spec/SPEC.md) | The canonical protocol behavior, status, and open issues |
+| Decision records | [`adr/`](adr/README.md) | Why major protocol and cryptographic choices were accepted |
 
 ---
 
@@ -249,7 +233,7 @@ The project is intentionally open about unfinished pieces. Useful contributions 
 
 - choosing safe and usable timing parameters;
 - improving reorg and chain-view disagreement policy;
-- specifying exact cryptographic encodings, KDFs, AEAD choices, and transcript binding;
+- assigning final wire schema IDs and publishing ECDH/KDF, AES-CBC/CMAC envelope, canonical-encoding, and setup phase-binding test vectors;
 - hardening Boomlet and Secure Terminal assumptions;
 - designing backup and device-replacement procedures;
 - improving timeout, blame, and failover rules;
@@ -266,7 +250,7 @@ A good contribution does not need to “finish Boomerang.” A good contribution
 High-impact help would come from:
 
 - Bitcoin protocol engineers reviewing the Taproot and timelock structure;
-- cryptographers reviewing transcript binding, MuSig2 usage, and encrypted placeholder design;
+- cryptographers reviewing setup phase binding, withdrawal transcript binding, MuSig2 usage, and encrypted placeholder design;
 - secure-element and JavaCard developers reviewing Boomlet feasibility;
 - embedded engineers reviewing Secure Terminal feasibility;
 - threat modelers and red-teamers attacking the assumptions;
