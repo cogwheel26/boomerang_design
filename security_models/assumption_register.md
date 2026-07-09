@@ -1,6 +1,6 @@
 # Boomerang Threat-Model Assumption Register And Derived Design Gaps
 
-> Last change: 2026-07-05 | Change: Marked design gaps fully resolved by the Fix/session-binding specification update;
+> Last change: 2026-07-09 | Change: Aligned assumptions and derived gaps with current `SPEC.md`;
 
 ## Table of Contents
 
@@ -51,6 +51,7 @@ The register below was compiled from the full repository as it exists today.
 ### Core protocol and overview docs
 
 - `README.md`
+- `spec/SPEC.md`
 - `DEEPDIVE.md`
 - `setup/README.md`
 - `withdrawal/README.md`
@@ -58,6 +59,10 @@ The register below was compiled from the full repository as it exists today.
 - `secure_terminal/README.md`
 - `security_models/README.md`
 - `security_models/forced_determinism.md`
+- `adr/0001-setup-replay-and-phase-checkpoints.md`
+- `adr/0002-java-card-cryptographic-profile.md`
+- `adr/0003-single-sar-per-peer.md`
+- `adr/0004-per-channel-directional-keys.md`
 
 ### Canonical and supporting diagrams
 
@@ -110,14 +115,17 @@ An item was entered into the register when at least one of the following was tru
 - `Explicit`: stated directly in the repo.
 - `Implicit`: necessary for the design to work, but not stated as a first-class assumption.
 - `Open/WIP`: acknowledged in the repo as unresolved, deferred, or ancillary.
+- `Resolved`: closed by the cited specification or ADR work.
 - `Prototype tension`: the repo assumes something stronger than the currently referenced prototype hardware or process obviously guarantees.
 
 ## Source Legend
 
 - `R`: `README.md`
+- `SPEC`: `spec/SPEC.md`
 - `DD`: `DEEPDIVE.md`
 - `SM`: `security_models/README.md`
 - `FD`: `security_models/forced_determinism.md`
+- `ADR`: `adr/*.md`
 - `SU`: `setup/README.md`
 - `WD`: `withdrawal/README.md`
 - `DP`: `duress_protection/README.md`
@@ -140,10 +148,10 @@ An item was entered into the register when at least one of the following was tru
 ## High-Level Observations Before The Register
 
 - The design already recognizes that many of its most important security guarantees are assumption-heavy: Boomlet behavior, ST integrity, peer cooperation, SAR and WT availability, and user rollover discipline.
-- The WIP integrity sheets show multiple data items whose integrity is only recovered indirectly, by later checks in other entities, rather than being authoritatively verified at first receipt.
+- The specification uses `setup_instance_id`, chained setup checkpoints, `withdrawal_id`, `approved_withdrawal_id`, directional channel contexts, approval-set attestations, and exact SAR placeholder acknowledgements to close several integrity and binding gaps.
 - The WIP freshness sheet shows some messages with explicit freshness guarantors and some with no direct freshness guarantor or freshness inferred from broader context.
 - The hardware materials for the ST prototype emphasize flexibility, bootloader/debug access, exposed connectors, and prototyping convenience. The ST design doc assumes a much more appliance-like trust model.
-- The repository already knows several hard gaps: forced determinism, Boomletwo activation, setup uniqueness, ancillary procedures, jurisdictional rescue limits, and the lack of final parameter selection.
+- The repository already knows several hard gaps: forced determinism, Boomletwo activation, ancillary procedures, jurisdictional rescue limits, and the lack of final parameter selection.
 
 ## Assumption Register
 
@@ -151,8 +159,8 @@ An item was entered into the register when at least one of the following was tru
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-01 | The current Markdown docs and sequence diagrams are internally consistent enough to define one security-relevant withdrawal meaning for the current deliverable. | `R`, `DD`, `SU`, `WD`, `SP`, `WI`, `WN` | Different components or future implementations may satisfy different security semantics while all claiming to implement "Boomerang". | Explicit |
-| AR-03 | The security story is centered on the current 5-peer N-of-N shape described in the docs. | `R`, `DD`, `SM` | Claims about one honest peer preserving Boomerang guarantees would not generalize. | Explicit |
+| AR-01 | The current `SPEC.md`, Markdown docs, ADRs, and sequence diagrams are internally consistent enough to define one security-relevant setup and withdrawal meaning for the current deliverable. | `SPEC`, `R`, `DD`, `SU`, `WD`, `SP`, `WI`, `WN`, `ADR` | Different components or future implementations may satisfy different security semantics while all claiming to implement "Boomerang". | Explicit |
+| AR-03 | The security story is centered on the current exactly five-peer, 5-of-5 Boomerang profile described in the docs. | `SPEC`, `R`, `DD`, `SM` | Claims about one honest peer preserving Boomerang guarantees would not generalize. | Explicit |
 | AR-04 | The separate PoC and any future implementation will preserve the same trust boundaries and message semantics described here. | `R`, `DD` | The register would not describe the system that actually gets built. | Implicit |
 | AR-05 | Security-critical properties deferred to ancillaries, implementation detail, or operator discipline can be postponed without invalidating the current-stage security story. | `DD`, `SM` | Real-world safety and integrity may depend on unresolved implementation and operating assumptions more than the current design narrative admits. | Open/WIP |
 
@@ -174,13 +182,13 @@ An item was entered into the register when at least one of the following was tru
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-15 | Schnorr, MuSig2, ECDH, hashing, and the chosen symmetric encryption construction are secure as used. | `R`, `DD`, `SU`, `WD`, `DP` | Core funds, identity, and duress guarantees fail. | Explicit |
-| AR-16 | Every component serializes and interprets the same message content identically. | `SU`, `WD`, `SP`, `WI`, `WN` | Signatures can validate over mismatched semantics, or peers can disagree about what was approved. | Implicit |
+| AR-15 | Schnorr, MuSig2, ECDH, tagged hashing, SP 800-108 CMAC KDF, AES-256-CBC/PKCS#7, and AES-CMAC encrypt-then-MAC are secure as specified and implemented. | `SPEC`, `R`, `DD`, `SU`, `WD`, `DP`, `ADR` | Core funds, identity, and duress guarantees fail. | Explicit |
+| AR-16 | Every component serializes and interprets the same canonical message content identically. | `SPEC`, `SU`, `WD`, `SP`, `WI`, `WN` | Signatures, CMACs, and identifiers can validate over mismatched semantics, or peers can disagree about what was approved. | Implicit |
 | AR-17 | RNG quality is sufficient across Boomlet, ST, WT, SAR, and supporting hardware. | `R`, `DD`, `DP`, `ST`, `HW-H7` | Mystery, nonces, keys, and duress spaces can be biased or predictable. | Explicit |
-| AR-18 | Nonces plus recency checks are sufficient replay protection for the current message set. | `DP`, `WD`, `DD`, `WIP-WF` | Old approvals, checks, or commitments may be replayed into new contexts. | Explicit |
-| AR-19 | `tx_id` commitment is strong enough to anchor transaction-authorization correctness throughout the ceremony. | `WD`, `WI`, `WN`, `DD` | A participant may believe they are approving one spend while another spend is actually signed. | Implicit |
-| AR-20 | Randomized encryption/IV use makes safe placeholders and duress placeholders indistinguishable to WT. | `DP`, `WD`, `DCW` | WT or an observer can learn whether duress was signaled from ciphertext behavior. | Explicit |
-| AR-21 | `doxing_key -> doxing_data_identifier` is unique enough operationally to locate the right SAR record without ambiguity. | `SU`, `DP`, `SM` | SAR may fail to rescue the right user or may treat malformed inputs incorrectly. | Implicit |
+| AR-18 | Nonces, setup and withdrawal scope IDs, chained setup checkpoints, sequence numbers, freshness checks, and SAR replay tuples are sufficient replay protection for the current message set. | `SPEC`, `DP`, `WD`, `DD`, `WIP-WF`, `ADR` | Old approvals, checks, placeholders, or commitments may be replayed into new contexts. | Explicit |
+| AR-19 | `tx_id`, `withdrawal_id`, `approved_withdrawal_id`, approval-set attestations, signing-package verification, and final transaction revalidation are strong enough to anchor transaction-authorization correctness throughout the ceremony. | `SPEC`, `WD`, `WI`, `WN`, `DD` | A participant may believe they are approving one spend while another spend is actually signed. | Explicit |
+| AR-20 | Fresh CBC IVs, context-bound SAR placeholder envelopes, status-free acknowledgements, and timing/error discipline make safe placeholders and duress placeholders indistinguishable to WT and external observers within the specified protocol surface. | `SPEC`, `DP`, `WD`, `DCW` | WT or an observer can learn whether duress was signaled from ciphertext behavior, acknowledgement behavior, or service-visible side effects. | Explicit |
+| AR-21 | `doxing_key_for_sar -> doxing_data_identifier` is unique enough operationally to locate the right setup-bound SAR record without ambiguity. | `SPEC`, `SU`, `DP`, `SM` | SAR may fail to rescue the right user or may treat malformed inputs incorrectly. | Implicit |
 
 ### D. Boomlet And Boomletwo
 
@@ -191,7 +199,7 @@ An item was entered into the register when at least one of the following was tru
 | AR-24 | Boomlet faithfully enforces one-way state such as "reached mystery" and does not regress after a flag is set. | `WD`, `WI`, `WN` | Peers can be desynchronized or coerced into incorrect liveness behavior. | Implicit |
 | AR-25 | Boomlet can preserve state for months of coordinated ping/pong updates and then safely clear withdrawal-specific state after signing. | `WD`, `DD` | The ceremony may fail midstream or leak stale state into later withdrawals. | Implicit |
 | AR-26 | Java Card-class hardware can perform the required cryptography and state updates within practical time and endurance limits. | `DD`, `FD` | The protocol becomes too slow, too fragile, or impossible to execute as designed. | Open/WIP |
-| AR-27 | Backing up Boomlet state without copying `mystery` is sufficient to preserve intended liveness and security properties. | `SM`, `SU`, `DD` | The backup may either weaken non-determinism or fail to give useful recovery. | Implicit |
+| AR-27 | Backing up Boomlet state without copying the active `mystery`, and requiring Boomletwo to generate its own mystery after authenticated import, is sufficient to preserve intended liveness and security properties before activation is defined. | `SPEC`, `SM`, `SU`, `DD` | The backup may either weaken non-determinism or fail to give useful recovery. | Implicit |
 | AR-28 | Only one of Boomlet and Boomletwo will ever be active, even though activation/deactivation is not yet specified. | `R`, `SM`, `DD` | Duplicate active devices or confused ownership can undermine both safety and liveness. | Open/WIP |
 | AR-29 | Losing both Boomlet and Boomletwo is rare enough that fallback-only recovery remains acceptable. | `FD`, `DD` | Funds protection depends too heavily on rare but catastrophic device loss patterns. | Implicit |
 | AR-30 | Secure-element supply chain, lifecycle, and side-channel properties are acceptable for a Bitcoin custody system. | `R`, `DD`, `SM` | A hidden hardware weakness can destroy the central Boomerang guarantee. | Explicit |
@@ -229,7 +237,7 @@ An item was entered into the register when at least one of the following was tru
 | --- | --- | --- | --- | --- |
 | AR-48 | At least one honest peer exists in the N-of-N Boomerang regime. | `R`, `SM`, `DD` | The "one honest peer preserves the promise" argument disappears. | Explicit |
 | AR-49 | Peers honestly exchange and verify peer IDs and Tor addresses out of band. | `R`, `SU`, `SP`, `SM` | Impersonation or routing attacks can be injected before Tor is even used. | Explicit |
-| AR-50 | Users and peers meaningfully verify `boomerang_params_seed`, tx identifiers, and peer data when prompted. | `SU`, `WD`, `SP`, `WI`, `WN` | Human checks become ceremonial only, leaving host-mediated substitution attacks alive. | Implicit |
+| AR-50 | Users and peers meaningfully verify ordered peer setup records, WT order, milestone blocks, `setup_instance_id`, transaction identifiers, and peer data when prompted. | `SPEC`, `SU`, `WD`, `SP`, `WI`, `WN` | Human checks become ceremonial only, leaving host-mediated substitution attacks alive. | Implicit |
 | AR-51 | Peers remain available across randomized delays, recurring duress checks, and long withdrawal timelines. | `DD`, `FD`, `BD` | Honest liveness fails under normal operational conditions. | Implicit |
 | AR-52 | Non-cooperation is rare enough that N-of-N remains acceptable despite known liveness cost. | `R`, `FD`, `DD` | The system regularly falls back to deterministic recovery or deadlock. | Explicit |
 | AR-53 | Peers will not exploit deterministic fallback once they can predict or wait out Boomerang timing. | `FD`, `DD` | The normal regime becomes an insider bypass path rather than only a liveness valve. | Implicit |
@@ -239,12 +247,12 @@ An item was entered into the register when at least one of the following was tru
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-55 | WT stays available and responsive for the entire setup or withdrawal ceremony. | `R`, `SM`, `WD`, `WIP-DP` | Coordination and counter progression stop even when peers are honest. | Explicit |
+| AR-55 | The one active WT stays available and responsive for the entire setup or withdrawal ceremony. | `SPEC`, `R`, `SM`, `WD`, `WIP-DP` | Coordination and counter progression stop even when peers are honest. | Explicit |
 | AR-56 | WT signs only correct protocol statements and forwards messages without selective censorship or bias. | `WD`, `WI`, `WN`, `SM` | A non-custodial service can still force desynchronization or liveness failure. | Implicit |
 | AR-57 | WT's block-height view is trustworthy enough to act as the protocol heartbeat. | `R`, `DD`, `SM`, `WD` | Freshness windows and progress rules rest on an attacker-controlled clock. | Explicit |
 | AR-58 | WT redundancy, switching, and recovery can be designed later as ancillaries. | `SM`, `DD` | A single service dependency remains a critical current design weakness. | Open/WIP |
 | AR-59 | SAR securely stores encrypted doxing data, identifiers, and related metadata over long periods. | `R`, `SM`, `SU`, `DP` | Off-chain safety data become a privacy or rescue failure point. | Implicit |
-| AR-60 | SAR reliably detects positive duress, suppresses duplicates correctly, and returns acknowledgements Boomlet can trust. | `SM`, `WD`, `DP`, `DCW` | Positive duress may be missed, or Boomlet may continue under false delivery assumptions. | Implicit |
+| AR-60 | Each setup-bound SAR reliably detects positive duress, suppresses duplicates by the specified replay tuple, and returns acknowledgements over the exact encrypted placeholder envelope that Boomlet can trust. | `SPEC`, `SM`, `WD`, `DP`, `DCW` | Positive duress may be missed, or Boomlet may continue under false delivery assumptions. | Implicit |
 | AR-61 | SAR will be able to act effectively, lawfully, and in the relevant jurisdiction once duress occurs. | `R`, `DD`, `SM` | Duress signaling may work cryptographically while failing in the real world. | Explicit |
 | AR-62 | Reputation and SAR operator selection are an acceptable control for WT and SAR social trust. | `DD`, `SM` | Operational trust becomes a hand-waved placeholder rather than a designed control. | Explicit |
 | AR-63 | SAR will not become a later attacker after identity is revealed during a rescue event. | `DD`, `SM` | Duress rescue itself may create a future targeting or coercion channel. | Implicit |
@@ -264,7 +272,7 @@ An item was entered into the register when at least one of the following was tru
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-70 | Setup-instance uniqueness gaps can be fixed later without invalidating current setup security reasoning. | `DD`, `SU`, `WIP-SD` | Replay and cross-instance confusion may already be materially under-modeled. | Open/WIP |
+| AR-70 | ~~Setup-instance uniqueness gaps can be fixed later without invalidating current setup security reasoning.~~ Setup-instance uniqueness is now a resolved historical assumption: the current design uses `peer_setup_nonce`, `setup_instance_id`, ST review, and chained setup checkpoints. | `SPEC`, `DD`, `SU`, `WIP-SD`, `ADR` | ~~Replay and cross-instance confusion may already be materially under-modeled.~~ Remaining risk is implementation conformance and evidence retention, not missing setup identity. | Resolved |
 | AR-71 | Ancillary procedures can be deferred: WT switch, Boomletwo activation, Phone change, Niso change, ST change, SAR-set change, timeout handling, blame handling. | `DD`, `SM` | Realistic operations break long before the core withdrawal logic is reached. | Open/WIP |
 | AR-72 | The protocol's complexity will not produce hidden failure modes beyond what later analysis can catch. | `R`, `DD`, `SM` | Emergent bugs and unsafe interactions may outpace informal reasoning. | Explicit |
 | AR-73 | Dynamic simulation, threat-model completion, and later implementation work will eventually validate the timing and liveness claims. | `DD`, `SM` | The current security story may never become operationally defensible. | Open/WIP |
@@ -292,7 +300,7 @@ Pure tractability choices, translation mechanics, and similar model-internal con
 
 - `FM-03`: protected cryptographic payloads stay secret unless the protocol explicitly escalates them.
   The model idealizes the relevant privacy boundary: placeholder instances are opaque, and SAR learns actionable identity only after positive duress and escalation.
-  Why this matters: the current repo no longer claims a checked WT privacy theorem; the remaining privacy boundary is still perfect-cryptography style.
+  Why this matters: the checked privacy boundary is perfect-cryptography style and does not cover WT telemetry, logs, timing, or transport metadata.
 
 - `FM-04`: freshness evidence is trustworthy at the modeled level.
   The model abstracts freshness to `seen_block`, `blockHeight`, and `FreshnessWindow`, and the core model further compresses the many source-specific timing edges into a smaller set of proof-relevant freshness classes plus acceptance-time witness maps.
@@ -308,7 +316,7 @@ Pure tractability choices, translation mechanics, and similar model-internal con
 
 - `FM-09`: replay resistance reduces to freshness plus single-use placeholder instances inside a sequential-session model.
   The model enforces freshness guards, single-use placeholder-instance replay memory at SAR, and reset-separated sequential sessions. It does not model concurrent sessions.
-  Why this matters: the anti-replay claims established here are stronger than the earlier one-session core, but still do not cover concurrent multi-session deployment behavior.
+  Why this matters: the anti-replay claims do not cover concurrent multi-session deployment behavior.
 
 - `FM-10`: fallback predicates are truthful, and fallback activation cannot be attacker-forced outside the modeled conditions.
   The formal model reduces fallback to hardware loss plus milestone gating and does not model a compromised device lying about loss or the unfinished Boomletwo activation ceremony.
@@ -323,16 +331,16 @@ These assumptions were made explicit while merging the narrow PlusCal withdrawal
   Why this matters: the model does not itself prove that setup artifacts were generated correctly or transferred safely into withdrawal.
 
 - `FM-14`: an authenticated withdrawal-session identifier exists across the ceremony.
-  The model uses explicit `session_id` binding for initiator approval, peer approvals, commitments, pings, readiness, signing tickets, and reset-separated reuse prevention.
-  Why this matters: the design docs strongly imply this kind of binding, but they do not yet specify a canonical, authenticated session token or transcript object that carries it.
+  The model uses explicit `session_id` binding for initiator approval, peer approvals, commitments, pings, readiness, signing tickets, and reset-separated reuse prevention. Current `SPEC.md` resolves the design counterpart with `withdrawal_id` for approval fan-out and `approved_withdrawal_id` for every post-approval replay scope.
+  Why this matters: ~~the design docs strongly imply this kind of binding, but they do not yet specify a canonical, authenticated session token or transcript object that carries it.~~ The remaining risk is implementation conformance between the formal `session_id` abstraction and the two concrete SPEC identifiers.
 
 - `FM-15`: hydration and signing preserve the committed transaction intent in a way every honest peer can verify.
-  The model now includes an explicit non-initiator local PSBT-review gate, role-specific approval-window ordering around WT approval, and an explicit hydration step that must preserve the locked `tx_id`, but it still abstracts away satisfiability checks, exact sighash/outputs/fees verification, and the independent operator-side PSBT review discussed in the design corpus.
-  Why this matters: the model's transaction-tampering guarantees assume there is a well-defined rule for which PSBT mutations are allowed before final signing, how peers re-check them, and when `tx_id` continuity is not by itself enough.
+  The model includes an explicit non-initiator local PSBT-review gate, role-specific approval-window ordering around WT approval, and an explicit hydration step that must preserve the locked `tx_id`. `SPEC.md` adds descriptor membership, transaction semantics, reached-collection, signing-package, and final broadcast `tx_id` checks, while exact implementation test vectors and operator procedures remain outside the model.
+  Why this matters: the model's transaction-tampering guarantees assume the concrete SPEC re-check rules are implemented faithfully and that `tx_id` continuity is paired with the specified signing and broadcast validation.
 
 - `FM-16`: SAR acknowledgements are bound to the exact placeholder instance they acknowledge.
-  The model lets progress depend on settling the latest commit or ping placeholder delivery before moving forward.
-  Why this matters: without instance-bound acknowledgement semantics, a stale acknowledgement could satisfy the model's guards while failing to prove real delivery of the current duress-bearing payload.
+  The model lets progress depend on settling the latest commit or ping placeholder delivery before moving forward. `SPEC.md` uses SAR signatures over the exact encrypted `duress_placeholder` envelope and Boomlet verification that the signed content matches byte-for-byte.
+  Why this matters: this remains a critical implementation invariant because a stale acknowledgement could otherwise satisfy progress guards while failing to prove real delivery of the current duress-bearing payload.
 
 - `FM-17`: liveness claims rely on explicit fairness assumptions, not only on enabled transitions.
   The repository now carries a separate `SpecWithFairness` and liveness cfg for narrow service-progress properties, not a full honest-path completion theorem.
@@ -343,19 +351,19 @@ These assumptions were made explicit while merging the narrow PlusCal withdrawal
   Why this matters: the security story depends not just on checking freshness once, but on later protocol steps still being grounded in the right accepted evidence.
 
 - `FM-19`: the model assumes exactly one SAR per peer.
-  The canonical withdrawal model treats SAR as single per peer, with one acknowledgement stream and one replay-memory set per peer.
+  The canonical withdrawal model treats SAR as single per peer, with one acknowledgement stream and one replay-memory set per peer. `SPEC.md` and ADR 0003 define one selected SAR identity per peer and setup-bound SAR routing.
   Why this matters: the checked results no longer leave that part ambiguous, but they also do not prove any quorum, redundancy, or disagreement behavior because that is out of scope.
 
 - `FM-22`: each security-relevant placeholder instance has a unique replay-relevant identity.
-  The proof assumes that a commit/ping placeholder can be distinguished from stale prior placeholders well enough for replay suppression and acknowledgement binding to be meaningful, even though the design docs do not yet define one canonical transcript representation for that identity.
-  Why this matters: if "the current placeholder" cannot be identified unambiguously for security purposes, then acknowledgement binding and replay suppression claims become much weaker than the model suggests.
+  The proof assumes that a commit/ping placeholder can be distinguished from stale prior placeholders well enough for replay suppression and acknowledgement binding to be meaningful. `SPEC.md` uses fresh `CbcCmacEnvelope` IVs, `approved_withdrawal_id` context binding, and SAR replay tuples `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}`.
+  Why this matters: if "the current placeholder" cannot be identified unambiguously for security purposes in an implementation, then acknowledgement binding and replay suppression claims become much weaker than the model suggests.
 
 - `FM-23`: SAR can enforce replay suppression for the relevant placeholder identity at least on a per-peer basis.
-  The proof assumes SAR can recognize that the same security-relevant placeholder has already been seen for that peer and will not accept it again as fresh delivery evidence.
+  The proof assumes SAR can recognize that the same security-relevant placeholder has already been seen for that peer and will not accept it again as fresh delivery evidence. `SPEC.md` requires SAR replay memory keyed by `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}` and idempotent repeated delivery under an existing valid tuple.
   Why this matters: without reliable replay suppression at SAR, stale placeholder traffic or stale acknowledgements could satisfy the modeled delivery guards without proving delivery of the current payload.
 
 - `FM-28`: recurring duress cadence now follows the design’s modulo trigger, but the PRNG itself is still abstract.
-  The current core and wire models no longer treat recurring duress as a free Boolean choice. They fire a repeated check only when an abstract bounded draw satisfies `draw % DURESS_CHECK_INTERVAL_IN_BLOCKS = 0`. The design corpus is clear on that modulo rule, but it still does not define one canonical PRNG seed, persistent state, entropy source, or cross-peer independence contract.
+  The core and wire models fire a repeated check only when an abstract bounded draw satisfies `draw % DURESS_CHECK_INTERVAL_IN_BLOCKS = 0`. The design corpus defines that modulo rule, but not one canonical PRNG seed, persistent state, entropy source, or cross-peer independence contract.
   Why this matters: the checked results now align with the documented cadence rule, but they still do not prove any implementation-specific RNG construction or bias-resistance story beyond the existing RNG assumptions.
 
 ### Formal Proof-Scope Limits That Narrow The Checked Security Claims
@@ -382,15 +390,15 @@ These assumptions were made explicit while merging the narrow PlusCal withdrawal
 
 - `FM-24`: successful post-broadcast reset clears volatile withdrawal state before a later withdrawal session starts.
   The model supports sequential withdrawals in one run, but only by explicit reset after successful broadcast. Concurrent sessions are still outside the model.
-  Why this matters: the model can now catch stale cross-session message acceptance bugs in a way the old single-session model could not, but it still assumes one active withdrawal at a time.
+  Why this matters: stale cross-session message acceptance is checked only for reset-separated sequential sessions; one active withdrawal at a time is still assumed.
 
 - `FM-25`: ST/Boomlet nonce transcripts are modeled explicitly, but the challenge content remains symbolic rather than a literal country-grid/UI encoding.
   The model now carries explicit nonce-bound `tx_id` and duress transcript records and requires exact challenge-response agreement on `{sid, tx_id, peer, stage, seq, nonce}` before approval, commit, or recurring-check-dependent ping emission. It still abstracts the displayed challenge space to a Boolean `consent_match` outcome rather than the design's literal five-column country-set interaction.
   Why this matters: replay and phase-mixup resistance at the ST boundary are now represented directly, but UI-level ambiguity, country-grid encoding mistakes, and exact human-factor failure cases remain outside the checked proof surface.
 
 - `FM-26`: end-to-end duress indistinguishability is modeled only at the message-envelope level, not at the timing/service-behavior level.
-  The model checks that private duress choice does not alter the abstract public envelope shape at the modeled decision points, but it does not prove equal processing latency, equal error behavior, equal retry behavior, or equal total ceremony duration after duress is signaled.
-  Why this matters: the design corpus promises both unchanged observable messages and unchanged withdrawal duration under duress; the current TLA+ result only supports a narrower structural surrogate.
+  The model checks that private duress choice does not alter the abstract public envelope shape at the modeled decision points, but it does not prove equal processing latency, equal error behavior, equal retry behavior, or equal total ceremony duration after duress is signaled. `SPEC.md` specifies equal WT-visible acknowledgement shape, retry, timing class, logging, metrics, and failure behavior for valid safe and duress placeholders.
+  Why this matters: the TLA+ result supports only a narrower structural surrogate, so implementation and service audits must verify the broader operational indistinguishability contract in the SPEC.
 
 ## Derived Design Gaps
 
@@ -406,9 +414,9 @@ The gaps below are derived from the security-relevant register above. A gap is l
 | DG-01 | `AR-10`, `AR-11`, `AR-14`, `AR-57`, `AR-69` | No explicit reorg and block-oracle policy | The protocol heavily relies on "most work block height", but the repo does not define reorg handling, node trust boundaries, or what to do on divergent chain views. |  | Critical |
 | DG-02 | `AR-07`, `AR-09`, `AR-13`, `AR-14`, `AR-74` | No parameter-selection framework for milestones, mystery range, and freshness windows | The security story depends on the right timing constants existing, but the repo does not yet specify how to choose or validate them. |  | Critical |
 | DG-03 | `AR-09`, `AR-13`, `AR-29`, `AR-52`, `AR-53`, `AR-54` | Forced determinism is still controlled mostly by user discipline and peer behavior | The repo explicitly acknowledges late start, device loss, and non-cooperation as collapse paths, but the mitigation is still "roll over in time and operate carefully." |  | Critical |
-| DG-04 | `AR-27`, `AR-28`, `AR-71` | Boomletwo activation and anti-clone semantics are unspecified | Backup existence is described, but the safe way to deactivate Boomlet and activate Boomletwo without creating duplicate authority is not yet designed. |  | Critical |
-| DG-05 | `AR-18`, `AR-70` | Setup uniqueness and anti-replay are incomplete | The repo explicitly says some setup messages are not unique to a specific setup instance, which means replay resistance is not yet closed end-to-end. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by `setup_instance_id`, `peer_setup_nonce`, and setup checkpoints. | High |
-| DG-06 | `AR-15`, `AR-16`, `AR-17`, `AR-20`, `AR-21` | The cryptographic profile is under-specified | The docs name primitives and flows, but not the final AEAD mode, KDF choices, transcript binding rules, canonical encodings, or test vectors needed for interoperable security. |  | Critical |
+| DG-04 | `AR-27`, `AR-28`, `AR-71` | Boomletwo activation and anti-clone semantics are unspecified | Current `SPEC.md` defines authenticated backup import excluding active `mystery`, but the safe way to deactivate Boomlet and activate Boomletwo without creating duplicate authority is not yet designed. |  | Critical |
+| DG-05 | `AR-18`, `AR-70` | ~~Setup uniqueness and anti-replay are incomplete~~ Setup uniqueness and anti-replay are preserved as a resolved historical gap | ~~The repo explicitly says some setup messages are not unique to a specific setup instance, which means replay resistance is not yet closed end-to-end.~~ Current `SPEC.md` defines `setup_instance_id`, `peer_setup_nonce`, and setup checkpoints. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by `setup_instance_id`, `peer_setup_nonce`, and setup checkpoints. | High |
+| DG-06 | `AR-15`, `AR-16`, `AR-17`, `AR-20`, `AR-21` | ~~The cryptographic profile is under-specified~~ Cryptographic implementation evidence remains incomplete | ~~The docs name primitives and flows, but not the final AEAD mode, KDF choices, transcript binding rules, canonical encodings, or test vectors needed for interoperable security.~~ Current `SPEC.md` fixes AES-256-CBC/PKCS#7, AES-CMAC encrypt-then-MAC, SP 800-108 CMAC KDF contexts, canonical bytes, and scope-specific binding. | Current `SPEC.md` resolves primitive and context selection; production test vectors, interop vectors, audits, and implementation profiles remain open. | Critical |
 | DG-07 | `AR-22`, `AR-23`, `AR-24`, `AR-25`, `AR-26`, `AR-30` | Boomlet assurance is assumed, not demonstrated | The central trust anchor is expected to resist extraction, side channels, bias, cloning, and endurance failures, but there is no attestation, audit, or hardware assurance story in this repo. |  | Critical |
 | DG-08 | `AR-31`, `AR-32`, `AR-33`, `AR-34`, `AR-35`, `AR-38`, `AR-39`, `AR-75` | The ST trust model is stronger than the current prototype evidence | The ST is treated like a single-purpose trusted appliance, while the referenced Portenta/Breakout materials emphasize prototyping, boot modes, debug, exposed signals, and flexible I/O. |  | Critical |
 | DG-09 | `AR-38`, `AR-39`, `AR-75` | Prototype attack surface is not converted into a hardened ST build profile | The repo does not yet define which interfaces are removed, fused off, sealed, or monitored in the ST build, despite the prototype exposing multiple attack-friendly interfaces. |  | High |
@@ -419,21 +427,21 @@ The gaps below are derived from the security-relevant register above. A gap is l
 | DG-14 | `AR-48`, `AR-49`, `AR-50`, `AR-51`, `AR-52`, `AR-53`, `AR-54`, `AR-71` | Peer governance is under-specified for blame, timeout, and non-cooperation | N-of-N is intentional, but the repo still lacks final procedures for peer delay, blame, expulsion, recovery from silence, or coordination breakdown. |  | High |
 | DG-15 | `AR-14`, `AR-35`, `AR-36`, `AR-51`, `AR-74` | Human availability is not yet reconciled with random duress checks and freshness limits | The design wants unpredictable checks, but also recognizes users sleep, travel, live in different time zones, and can be delayed under ordinary conditions. |  | High |
 | DG-16 | `AR-66`, `AR-67`, `AR-68`, `AR-69` | Privacy leakage is inventoried but not yet turned into a minimization strategy | The WIP leakage workbook shows large sensitive-data surface area, but the repo does not yet consolidate which disclosures are acceptable, avoidable, or must be redesigned. |  | High |
-| DG-17 | `AR-18`, `AR-19`, `AR-20`, `AR-21`, `AR-60` | Several safety properties are still context-derived rather than explicitly bound per message | The WIP freshness and integrity artifacts show messages whose safety is recovered indirectly, by outer context or later checks, rather than by direct authoritative binding. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by canonical envelope contexts, scope IDs, and directional channel keys. | High |
+| DG-17 | `AR-18`, `AR-19`, `AR-20`, `AR-21`, `AR-60` | ~~Several safety properties are still context-derived rather than explicitly bound per message~~ Message binding is preserved as a resolved historical gap | ~~The WIP freshness and integrity artifacts show messages whose safety is recovered indirectly, by outer context or later checks, rather than by direct authoritative binding.~~ Current `SPEC.md` defines canonical envelope contexts, scope IDs, and directional channel keys. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by canonical envelope contexts, scope IDs, and directional channel keys. | High |
 | DG-18 | `AR-64`, `AR-65`, `AR-66`, `AR-69` | The network trust model is incomplete | Tor is assumed for privacy and availability, direct RPC is assumed safe enough, and signed onion addresses are assumed sufficient, but correlation, censorship, and routing edge cases are not fully modeled. |  | Medium |
 | DG-19 | `AR-72`, `AR-73`, `AR-74` | The protocol is not yet backed by formal or simulation-based validation of timing behavior | The repo itself notes that complexity and dynamic behavior may produce unexpected delays and failures, but the validating simulations are still future work. |  | High |
 | DG-20 | `AR-05`, `AR-71`, `AR-72` | Too many security-critical properties are still expressed as future ancillaries or operator discipline | The current design can explain how the happy path works, but many real-world safety properties still live outside the protocol core. |  | High |
-| DG-21 | `AR-18`, `AR-19`, `AR-70`, `FM-14` | Withdrawal-session binding is still implicit rather than protocol-canonical | The design relies on approvals, commitments, pings, and signing readiness all belonging to one withdrawal attempt, but it does not yet define one authenticated session identifier or transcript bundle spanning the whole ceremony. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by `withdrawal_id` and `approved_withdrawal_id`. | Critical |
-| DG-22 | `AR-12`, `AR-16`, `AR-19`, `AR-50`, `FM-15` | The transaction-authorization contract between early approval and final signing is under-specified | The withdrawal docs require the hydrated PSBT to preserve the committed `tx_id`, but they do not yet specify the exact allowed mutations, satisfiability checks, authoritative hydrator behavior, independent operator-side verification duties, or rejection rules when hydration changes more than expected. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by PSBT hydration constraints and signing-package verification. | High |
-| DG-23 | `AR-18`, `AR-20`, `AR-60`, `FM-16`, `FM-23` | SAR acknowledgement semantics are still under-specified at the protocol-document level | The model now binds acknowledgements to exact placeholder instances and replay memory, but the design docs still do not give one canonical transcript object or operational failure policy for SAR acknowledgement delivery. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by exact placeholder acknowledgements, retry/failure handling, and replay memory. | High |
+| DG-21 | `AR-18`, `AR-19`, `AR-70`, `FM-14` | ~~Withdrawal-session binding is still implicit rather than protocol-canonical~~ Withdrawal-session binding is preserved as a resolved historical gap | ~~The design relies on approvals, commitments, pings, and signing readiness all belonging to one withdrawal attempt, but it does not yet define one authenticated session identifier or transcript bundle spanning the whole ceremony.~~ Current `SPEC.md` uses `withdrawal_id` and `approved_withdrawal_id`. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by `withdrawal_id` and `approved_withdrawal_id`. | Critical |
+| DG-22 | `AR-12`, `AR-16`, `AR-19`, `AR-50`, `FM-15` | ~~The transaction-authorization contract between early approval and final signing is under-specified~~ Transaction-authorization binding is preserved as a resolved historical gap | ~~The withdrawal docs require the hydrated PSBT to preserve the committed `tx_id`, but they do not yet specify the exact allowed mutations, satisfiability checks, authoritative hydrator behavior, independent operator-side verification duties, or rejection rules when hydration changes more than expected.~~ Current `SPEC.md` requires PSBT hydration constraints, reached-collection checks, signing-package verification, and final `tx_id` equality. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by PSBT hydration constraints and signing-package verification. | High |
+| DG-23 | `AR-18`, `AR-20`, `AR-60`, `FM-16`, `FM-23` | ~~SAR acknowledgement semantics are still under-specified at the protocol-document level~~ SAR acknowledgement binding is preserved as a resolved historical gap | ~~The model now binds acknowledgements to exact placeholder instances and replay memory, but the design docs still do not give one canonical transcript object or operational failure policy for SAR acknowledgement delivery.~~ Current `SPEC.md` defines exact placeholder acknowledgements, retry/failure behavior, and replay memory. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by exact placeholder acknowledgements, retry/failure handling, and replay memory. | High |
 | DG-24 | `AR-14`, `AR-55`, `AR-58`, `AR-60`, `AR-71`, `FM-17` | Honest-path liveness still depends on unstated fairness and timeout policy | The protocol narrative says withdrawal should complete when parties cooperate, but the docs still do not define the scheduler, retry, timeout, or service-progress assumptions precisely enough to support unqualified liveness claims. |  | High |
 | DG-25 | `AR-14`, `AR-18`, `AR-57`, `FM-18` | Freshness evidence retention and auditability are not yet protocol-canonical | The security story depends on later steps still being grounded in the right accepted freshness evidence, but the design docs still do not define how such evidence is serialized, retained, or audited later when chain height keeps moving. |  | High |
-| DG-26 | `AR-59`, `AR-60`, `AR-62`, `FM-19` | The single-SAR-per-peer contract is not yet stated canonically in the design corpus | The formal model now treats SAR as exactly one SAR per peer, but the design corpus still needs to say that explicitly and remove residual ambiguous wording. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by ADR 0003 and setup-bound SAR routing. | High |
+| DG-26 | `AR-59`, `AR-60`, `AR-62`, `FM-19` | ~~The single-SAR-per-peer contract is not yet stated canonically in the design corpus~~ The single-SAR-per-peer contract is preserved as a resolved historical gap | ~~The formal model now treats SAR as exactly one SAR per peer, but the design corpus still needs to say that explicitly and remove residual ambiguous wording.~~ Current `SPEC.md` states one selected SAR identity per peer and setup-bound SAR routing. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by ADR 0003 and setup-bound SAR routing. | High |
 | DG-28 | `AR-09`, `AR-13`, `AR-71`, `FM-21` | Mid-ceremony interaction between boomerang progress and fallback opening is under-specified | The model can represent fallback availability before broadcast and fairness-backed fallback progress, but the design docs still do not define one canonical operator procedure for what honest peers should do when boomerang progress and deterministic fallback availability overlap. |  | High |
-| DG-29 | `AR-18`, `AR-20`, `FM-22`, `FM-23` | Placeholder-instance lifecycle is not yet protocol-canonical | The model now depends on unique opaque placeholder instances and replay memory, but the design docs still describe that mostly through narrative IV language rather than one canonical transcript/data structure. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by per-instance IVs, `approved_withdrawal_id` binding, and SAR replay tuples. | High |
+| DG-29 | `AR-18`, `AR-20`, `FM-22`, `FM-23` | ~~Placeholder-instance lifecycle is not yet protocol-canonical~~ Placeholder-instance lifecycle is preserved as a resolved historical gap | ~~The model now depends on unique opaque placeholder instances and replay memory, but the design docs still describe that mostly through narrative IV language rather than one canonical transcript/data structure.~~ Current `SPEC.md` binds placeholders to `approved_withdrawal_id`, requires fresh IVs, and records SAR replay tuples. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by per-instance IVs, `approved_withdrawal_id` binding, and SAR replay tuples. | High |
 | DG-30 | `AR-25`, `AR-71`, `FM-24` | Post-withdrawal cleanup and reset semantics are still only partly specified in the design corpus | The model now carries explicit reset and `mystery` regeneration after successful broadcast, but the design docs still need one canonical cross-component cleanup contract and failure policy if cleanup is interrupted. |  | High |
-| DG-31 | `AR-18`, `AR-31`, `AR-33`, `FM-25` | ST/Boomlet transcript encoding is still under-specified below the nonce-bound transcript level | The model now includes explicit nonce-bound `tx_id` and duress transcripts, but the design corpus still does not define one canonical serialized transcript object, one canonical ST prompt encoding, or one canonical country-grid representation that implementations must share. |  | High |
-| DG-32 | `AR-20`, `AR-55`, `AR-60`, `AR-66`, `FM-06`, `FM-26` | End-to-end duress indistinguishability still lacks a timing and error-discipline contract | The design promises no observable message change and no duration change under duress, but the current formal model only checks a structural public-envelope surrogate and does not cover service latency, retries, timing equalization, or distinguishable operational side effects at WT/SAR. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by timing, retry, logging, and externally observable failure rules. | Critical |
+| DG-31 | `AR-18`, `AR-31`, `AR-33`, `FM-25` | ST/Boomlet transcript encoding is still under-specified below the nonce-bound transcript level | Current `SPEC.md` defines nonce-bound ST/Boomlet challenge-response contexts and the duress vocabulary; implementation-level serialized prompt/test-vector coverage remains incomplete. | Current `SPEC.md` partially resolves this; UI-level encoding, parser vectors, and human-factor validation remain open. | High |
+| DG-32 | `AR-20`, `AR-55`, `AR-60`, `AR-66`, `FM-06`, `FM-26` | ~~End-to-end duress indistinguishability still lacks a timing and error-discipline contract~~ Duress indistinguishability service discipline is preserved as a resolved historical gap | ~~The design promises no observable message change and no duration change under duress, but the current formal model only checks a structural public-envelope surrogate and does not cover service latency, retries, timing equalization, or distinguishable operational side effects at WT/SAR.~~ Current `SPEC.md` defines identical WT-visible acknowledgement shape, retry, timing class, logging, metrics, and failure behavior for valid safe and duress placeholders. | Resolved in 96734855a35db6af7c6d8be06d72d452433bbc6b by timing, retry, logging, and externally observable failure rules. | Critical |
 | DG-33 | `AR-17`, `AR-23`, `AR-74`, `FM-28` | Recurring-duress PRNG source and state are still not protocol-canonical | The withdrawal docs and diagrams are clear that repeated duress checks are triggered by a modulo test on a pseudo-random number, but they still do not say what is being sampled, whether the PRNG state is persistent, how draws are audited, or whether peers must have independent PRNG streams. The models therefore implement the modulo rule directly while leaving the generator semantics as an explicit proof-boundary abstraction. |  | High |
 | DG-34 | `AR-76` | Software supply chain and service implementation security remain under-specified | The threat model already treats update/build compromise and WT/SAR service compromise as first-class risks, but the design corpus still lacks a final trust model for build provenance, update authorization, deployment hardening, patching discipline, and secure service operation. |  | High |
 
