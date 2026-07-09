@@ -4,7 +4,7 @@ This glossary translates Boomerang’s internal names into plain language. It is
 
 ---
 
-## Table of Contents
+## Table of contents
 
 - [Big-picture terms](#big-picture-terms)
 - [Actors and components](#actors-and-components)
@@ -36,7 +36,7 @@ This glossary translates Boomerang’s internal names into plain language. It is
 | --- | --- |
 | **Peer** | One member of the custody group. In the current design profile, Boomerang assumes five peers. |
 | **User** | The human operating one peer’s devices. |
-| **Boomlet** | The active secure element or smartcard-like device. It holds a non-exportable key share, tracks withdrawal progress, enforces the mystery threshold, and evaluates emergency-signal challenges. |
+| **Boomlet** | The active secure element or smartcard-like device. Its key share is unavailable to the host and may be exported only inside the authenticated backup envelope for an authorized Boomletwo. It also tracks withdrawal progress, enforces the mystery threshold, and evaluates emergency-signal challenges. |
 | **Boomletwo** | A backup secure element. Its activation and lifecycle details are still design work. |
 | **Iso** | The isolated/offline environment used for sensitive operations such as normal-key derivation and final signing. |
 | **Niso** | The networked environment used for coordination, peer communication, Bitcoin node access, and Watchtower interaction. |
@@ -54,7 +54,7 @@ This glossary translates Boomerang’s internal names into plain language. It is
 | **Taproot output** | The Bitcoin output that holds the funds and contains the Boomerang and fallback spending branches. |
 | **Descriptor** | A precise description of the spending policy for the Bitcoin output. |
 | **Normal key** | A recoverable key backed by mnemonic/passphrase material. It is used in fallback paths and as one part of a Boomerang key. |
-| **Boom key share** | A non-exportable key share generated and held inside the Boomlet. |
+| **Boom key share** | A key share generated and held inside Boomlet. It is never exposed in plaintext or to the host; the only permitted export is the encrypted, target-bound Boomletwo backup. |
 | **Boom pubkey** | The combined public key for a peer’s Boomerang signing role, produced from the normal key and Boomlet-held share. |
 | **MuSig2** | A multisignature-style signing method used to aggregate signing keys. The exact implementation profile belongs in the spec and implementation docs. |
 | **Timelock** | A Bitcoin rule that prevents a branch from being spendable until a specified block height or time condition. |
@@ -90,7 +90,7 @@ This glossary translates Boomerang’s internal names into plain language. It is
 | **Duress placeholder** | An encrypted payload included in ordinary protocol messages. It should look structurally normal whether the user is safe or signaling duress. |
 | **Safe placeholder** | A placeholder that decrypts to inert material, such as zeros or padding. |
 | **Duress placeholder with unlock material** | A placeholder that gives SAR enough information to identify and decrypt the user’s encrypted rescue information. |
-| **Rescue information** | The information SAR would need to identify and help the user in an emergency. Some older project docs call this `doxing data`; this glossary uses `rescue information` because the intended purpose is emergency response, not public exposure. |
+| **Rescue information** | The information SAR would need to identify and help the user in an emergency. |
 | **Plausible deniability** | The property that the visible protocol flow does not obviously reveal whether the user signaled safe or duress. |
 
 ---

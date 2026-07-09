@@ -4,7 +4,7 @@ Boomerang has a lot of moving parts. Read it in layers instead of trying to abso
 
 ---
 
-## Table of Contents
+## Table of contents
 
 - [If you have 10 minutes](#if-you-have-10-minutes)
 - [If you have 30 minutes](#if-you-have-30-minutes)
@@ -76,10 +76,10 @@ Read in this order:
 1. [`README.md`](README.md)
 2. [`GLOSSARY.md`](GLOSSARY.md)
 3. [`spec/SPEC.md`](spec/SPEC.md)
-4. [`DEEPDIVE.md`](DEEPDIVE.md)
-5. [`security_models/README.md`](security_models/README.md)
-6. [`security_models/assumption_register.md`](security_models/assumption_register.md)
-7. [`security_models/forced_determinism.md`](security_models/forced_determinism.md)
+4. [`security_models/README.md`](security_models/README.md)
+5. [`security_models/assumption_register.md`](security_models/assumption_register.md)
+6. [`security_models/forced_determinism.md`](security_models/forced_determinism.md)
+7. [`security_models/coercion_economics.md`](security_models/coercion_economics.md)
 
 Questions to keep in mind:
 
@@ -149,7 +149,8 @@ Focus on:
 
 ### Technical writing
 
-Start anywhere that feels confusing. Useful writing contributions include:
+Start with [`STYLE.md`](STYLE.md), then read any document that feels confusing.
+Useful writing contributions include:
 
 - replacing acronyms with names on first use;
 - moving threat details after the mental model;

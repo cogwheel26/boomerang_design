@@ -4,6 +4,7 @@
 
 > **Status:** Not production ready.
 > This repository contains the **design/specification** (message diagrams + docs). A separate repo contains a Rust PoC.
+> [`spec/SPEC.md`](spec/SPEC.md) is normative; this document is explanatory.
 
 **TL;DR:** Boomerang is a coercion-aware Bitcoin cold-storage protocol that enforces a **bounded but unpredictable withdrawal time** in hardware and embeds **plausibly deniable duress signaling** into the normal withdrawal flow — **without changing Bitcoin consensus**.
 
@@ -18,7 +19,7 @@ Boomerang explores a different primitive:
 
 ----
 
-## Table of Contents
+## Table of contents
 
 - [Motivation](#motivation)
 - [Core Idea](#core-idea)
@@ -81,7 +82,9 @@ Boomerang regime                Normal regime
 - Requires **N-of-N MuSig2 aggregated keys**.
 - Each aggregated key includes:
   - a recoverable **normal key** (mnemonic-backed), and
-  - a **non-exportable hardware key share** inside a secure element (**Boomlet**).
+  - a hardware key share inside a secure element (**Boomlet**) that is not
+    available to the host and is exportable only to an authorized Boomletwo
+    through the authenticated backup envelope.
 - Withdrawals require a coordinated protocol and only become signable after a secret, per-device threshold (“**mystery**”) is reached.
 - **No participant (including the victim) can know in advance when signing becomes possible.**
 
@@ -229,7 +232,7 @@ This diagram reflects the setup and withdrawal design constraints:
 
 ## How Withdrawal Works
 
-Withdrawal is a multi-phase ceremony coordinated through WT, with repeated human verification and duress opportunities. The full step-by-step protocol is defined in the PlantUML diagrams and the detailed specs (see [Repository Map](#repository-map)).
+Withdrawal is a multi-phase ceremony coordinated through WT, with repeated human verification and duress opportunities. The normative state machine and message rules are in [`spec/SPEC.md`](spec/SPEC.md); the PlantUML diagrams are explanatory views.
 
 ### Conceptual Withdrawal Flow
 
@@ -309,7 +312,7 @@ Boomlet then produces a **duress placeholder** included in normal messages:
 * Safe: an encrypted zero/padding placeholder
 * Duress: an encrypted key that allows SAR to unlock the user’s encrypted doxing data
 
-WT forwards these placeholders to SAR, and SAR responds with a signed acknowledgement while keeping protocol flow consistent.
+WT forwards these placeholders to SAR, and SAR responds with a signed acknowledgment while keeping protocol flow consistent.
 
 ----
 
@@ -388,7 +391,6 @@ The protocol is a distributed state machine with many checks. Complexity increas
 This repository contains the design artifacts and specs:
 
 * [SPEC.md](spec/SPEC.md) — RFC-style protocol specification and canonical protocol narrative
-* [DEEPDIVE.md](DEEPDIVE.md) — comprehensive technical deep dive (recommended for experts)
 * [setup/](setup/README.md)
 
   * `setup_diagram_without_states.puml` (+ SVG render) — setup message sequence diagram
@@ -401,8 +403,11 @@ This repository contains the design artifacts and specs:
 * [duress_protection/](duress_protection/README.md) — duress mechanism design and rationale
 * [secure_terminal/](secure_terminal/README.md) — ST design requirements and threat assumptions
 * [security_models/](security_models/README.md) — threat analyses including forced determinism discussions
+* [coercion_economics.md](security_models/coercion_economics.md) — optional non-normative deterrence rationale
 
-For the full protocol, start with [SPEC.md](spec/SPEC.md). The sequence diagrams, DEEPDIVE, and subsystem folders remain companion references and should be kept aligned with the spec.
+For the full protocol, start with [SPEC.md](spec/SPEC.md). The sequence
+diagrams, threat model, and subsystem folders remain companion references and
+should be kept aligned with the spec.
 
 ----
 
