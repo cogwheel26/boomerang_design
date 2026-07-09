@@ -1962,7 +1962,7 @@ Unauthenticated CBC is forbidden. CMAC verification precedes decryption and padd
 
 ### 19.4 Password entropy
 
-`doxing_key` is a tagged SHA-256 derivation, not a memory-hard password KDF. Low-entropy passwords permit offline guessing if rescue ciphertext leaks. Users require high-entropy values. SAR should minimize retained ciphertext and metadata.
+`doxing_key` is a tagged SHA-256 derivation from a user-chosen `doxing_password`, not a memory-hard password KDF. Low-entropy or reused passwords permit offline guessing if rescue ciphertext leaks. The protocol does not require a fixed entropy threshold or another 12-word secret.
 
 ### 19.5 Hardware
 
