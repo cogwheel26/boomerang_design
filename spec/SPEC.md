@@ -1602,7 +1602,9 @@ Each Boomlet verifies:
 Boomlet increments `counter` only when:
 
 - the pong is valid for the active ceremony;
-- `niso_i_event_block_height` is greater than or equal to `last_seen_block`;
+- `niso_i_event_block_height` is strictly greater than the Boomlet's current
+  `last_seen_block`, so the local chain view has advanced since the previous
+  accepted ping;
 - at least one included previous peer ping for an unreached peer satisfies:
 
 ```text
@@ -1619,15 +1621,15 @@ prev_ping_i.last_seen_block <= niso_i_event_block_height
 After successful advancement:
 
 ```text
+previous_last_seen_block = last_seen_block
 counter = counter + 1
 
-if last_seen_block < niso_i_event_block_height:
-  last_seen_block =
-    min(
-      niso_i_event_block_height,
-      last_seen_block +
-        JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET
-    )
+last_seen_block =
+  min(
+    niso_i_event_block_height,
+    previous_last_seen_block +
+      JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET
+  )
 ```
 
 `last_seen_block` MUST be monotonic within the ceremony. `ping_seq_num`,
