@@ -1636,7 +1636,11 @@ the ping and pong validation context; a pong or peer ping from another
 withdrawal ceremony, setup instance, or earlier sequence MUST NOT advance the
 counter.
 
-If `counter >= mystery`, Boomlet sets `reached_mystery_flag = true`. It MUST never revert that flag during the ceremony.
+If `counter >= mystery`, Boomlet sets `reached_mystery_flag = true`. It
+MUST never revert that flag during the ceremony. A Boomlet that has reached its
+mystery MUST continue the ping/pong loop, including fresh pings and
+duress-placeholder handling, until WT distributes a valid
+`reached_pings_collection`; reaching locally is not a terminal digging state.
 
 Any detected local height decrease, WT height decrease, or material RPC/WT
 disagreement returns `CHAIN_VIEW_UNSAFE` and stalls the active Boomerang
@@ -1648,7 +1652,11 @@ At each round Boomlet draws an unbiased value for the configured interval. When 
 
 ### 15.11 Reached collection
 
-WT terminates digging only after it has one valid current ping with `reached_mystery_flag = true` from every peer. It distributes the signed `reached_pings_collection`.
+WT terminates digging only after it has one valid current ping with
+`reached_mystery_flag = true` from every peer. Until that condition holds, WT
+continues accepting and forwarding valid pings and pongs for peers that have
+already reached, so their true reached flags remain available to peers that
+have not yet reached. It distributes the signed `reached_pings_collection`.
 
 Niso and Boomlet independently verify all five pings, approved withdrawal IDs, signatures, sequences, and reached flags.
 
