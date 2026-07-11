@@ -276,19 +276,9 @@ hnote over Boomlet #Pink:  Assert verify_signature(peer_ids_collection[i].boomle
 hnote over Boomlet #Lavender:  setup_checkpoint := tagged_sha256("Boomerang/setup_phase_checkpoint", canonical_encode(setup_instance_id, "parameters_agreed", zero_bytes_32))
 end group
 
-' Step 46
-Boomlet o-> Niso:  <b>SetupBoomletNisoMessage4 \n magic: "setup_boomerang_params_fixed"
-hnote over Niso #LavenderBlush:  Niso receives {magic: "setup_boomerang_params_fixed"} from Boomlet and informs it to generate the mystery \n value that's used for withdrawal.
-
-' Step 47
-Niso o-> Boomlet:  <b>SetupNisoBoomletMessage5 \n magic: "setup_boomerang_params_fixed_boomlet_can_draw_mystery"
-hnote over Boomlet #LavenderBlush:  Boomlet receives {magic: "setup_boomerang_params_fixed_boomlet_can_draw_mystery"} from Niso and draws mystery uniformly and inclusively between \n MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS and MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS.
-hnote over Boomlet #Lavender:  mystery := random_integer(MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS, MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS)
-end group
 group Watchtower activation
-
 ' Step 48
-Boomlet o-> Niso:  <b>SetupBoomletNisoMessage5 \n magic: "register_with_wt"
+Boomlet o-> Niso:  <b>SetupBoomletNisoMessage4 \n magic: "setup_boomerang_params_fixed_register_with_wt"
 hnote over Niso #LavenderBlush:  Niso receives {magic: "register_with_wt"} from Boomlet and proceeds to WT registration using the setup ID, signed peer setup records, and signed boomerang_params_fingerprint values it already holds.
 
 ' Step 49
@@ -465,11 +455,11 @@ hnote over Iso #Lavender:  master_xpriv_0 := derive_master_xpriv(mnemonic, passp
 
 ' Step 77
 Iso o-> Boomlet:  <b>SetupIsoBoomletMessage5 \n backup_request_signed_by_normal_0
-hnote over Boomlet #LavenderBlush:  Boomlet receives backup_request_signed_by_normal_0 from Iso and verifies normal_pubkey_0's signature under domain "Boomerang/setup/backup_request". It requires \n backup_normal_pubkey equal to normal_pubkey_0 and takes boomletwo_Identity_pubkey from backup_boomlet_pubkey. BoomletBackupState contains setup_instance_id, \n Boomlet identity private and public keys, MuSig2 private and public shares, normal public key, ST identity public key, Tor secret key, selected SarId, doxing_key, duress_consent_set, signed PeerSetupRecord, BoomerangParams, \n setup_checkpoint, signed SarSetupResponse, replay state, and backup_complete. Boomlet copies those fields from memory, excludes mystery, and requires the copied setup_instance_id to equal the active setup ID. \n It encrypts the state with the Boomlet-to-Boomletwo directional channel keys, using canonical context \n {"backup_state"}. It sends the encrypted state, boomlet_0_identity_pubkey, boomerang_params, and the local signed SAR response to Iso. \n No final setup_checkpoint exists yet.
+hnote over Boomlet #LavenderBlush:  Boomlet receives backup_request_signed_by_normal_0 from Iso and verifies normal_pubkey_0's signature under domain "Boomerang/setup/backup_request". It requires \n backup_normal_pubkey equal to normal_pubkey_0 and takes boomletwo_Identity_pubkey from backup_boomlet_pubkey. BoomletBackupState contains setup_instance_id, \n Boomlet identity private and public keys, MuSig2 private and public shares, normal public key, ST identity public key, Tor secret key, selected SarId, doxing_key, duress_consent_set, signed PeerSetupRecord, BoomerangParams, \n setup_checkpoint, signed SarSetupResponse, replay state, and backup_complete. Boomlet copies those fields from memory, and requires the copied setup_instance_id to equal the active setup ID. \n It encrypts the state with the Boomlet-to-Boomletwo directional channel keys, using canonical context \n {"backup_state"}. It sends the encrypted state, boomlet_0_identity_pubkey, boomerang_params, and the local signed SAR response to Iso. \n No final setup_checkpoint exists yet.
 hnote over Boomlet #Pink:  Assert verify_signature(normal_pubkey_0, "Boomerang/setup/backup_request", backup_request_signed_by_normal_0) == True
 hnote over Boomlet #Lavender:  backup_request := backup_request_signed_by_normal_0.content
 hnote over Boomlet #Pink:  Assert backup_request.backup_normal_pubkey == normal_pubkey_0
-hnote over Boomlet #Lavender:  boomletwo_Identity_pubkey := backup_request.backup_boomlet_pubkey \n boomlet_backup_state := boomlet.memory excluding mystery
+hnote over Boomlet #Lavender:  boomletwo_Identity_pubkey := backup_request.backup_boomlet_pubkey \n boomlet_backup_state := boomlet.memory
 hnote over Boomlet #Pink:  Assert boomlet_backup_state.setup_instance_id == setup_instance_id
 hnote over Boomlet #Lavender:  boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo := cbc_cmac_encrypt(\n keys: channel_keys(boomlet_0_identity_privkey, "boomlet", boomletwo_Identity_pubkey, "boomletwo", sender_public_key: boomlet_0_identity_pubkey, receiver_public_key: boomletwo_Identity_pubkey),\n context: canonical_encode("backup_state"),\n content: boomlet_backup_state)
 
@@ -498,9 +488,9 @@ hnote over Iso #LavenderBlush:  Iso receives {magic: "setup_user_is_asked_to_con
 
 ' Step 81
 Iso o-> Boomletwo:  <b>SetupIsoBoomletwo2 \n boomlet_0_identity_pubkey \n boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo
-hnote over Boomletwo #LavenderBlush:  Boomletwo receives {boomlet_0_identity_pubkey, boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo} from Iso and first requires its memory to be empty. It decrypts BoomletBackupState \n with the Boomlet-to-Boomletwo directional channel keys, using canonical context \n {"backup_state"}. It takes setup_instance_id from the authenticated state and imports every state field. It draws its own mystery uniformly and inclusively between \n MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS and MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS. BackupDone contains the imported setup_instance_id, backup_boomlet_pubkey set to boomletwo_Identity_pubkey, \n and boomlet_pubkey set to boomlet_0_identity_pubkey. Boomletwo signs it with boomletwo_Identity_privkey under domain "Boomerang/setup/backup_done".
+hnote over Boomletwo #LavenderBlush:  Boomletwo receives {boomlet_0_identity_pubkey, boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo} from Iso and first requires its memory to be empty. It decrypts BoomletBackupState \n with the Boomlet-to-Boomletwo directional channel keys, using canonical context \n {"backup_state"}. It takes setup_instance_id from the authenticated state and imports every state field. BackupDone contains the imported setup_instance_id, backup_boomlet_pubkey set to boomletwo_Identity_pubkey, \n and boomlet_pubkey set to boomlet_0_identity_pubkey. Boomletwo signs it with boomletwo_Identity_privkey under domain "Boomerang/setup/backup_done". 
 hnote over Boomletwo #Pink:  Assert boomletwo.memory is empty
-hnote over Boomletwo #Lavender:  boomlet_backup_state := cbc_cmac_decrypt(\n keys: channel_keys(boomletwo_Identity_privkey, "boomletwo", boomlet_0_identity_pubkey, "boomlet", sender_public_key: boomlet_0_identity_pubkey, receiver_public_key: boomletwo_Identity_pubkey),\n context: canonical_encode("backup_state"),\n envelope: boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo) \n setup_instance_id := boomlet_backup_state.setup_instance_id \n boomletwo.memory += boomlet_backup_state \n mystery := random_integer(MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS, MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS) \n backup_done := BackupDone{\n setup_instance_id: setup_instance_id, \n backup_boomlet_pubkey: boomletwo_Identity_pubkey, \n boomlet_pubkey: boomlet_0_identity_pubkey \n}\n backup_done_signed_by_boomletwo := sign_message(boomletwo_Identity_privkey, "Boomerang/setup/backup_done", backup_done)
+hnote over Boomletwo #Lavender:  boomlet_backup_state := cbc_cmac_decrypt(\n keys: channel_keys(boomletwo_Identity_privkey, "boomletwo", boomlet_0_identity_pubkey, "boomlet", sender_public_key: boomlet_0_identity_pubkey, receiver_public_key: boomletwo_Identity_pubkey),\n context: canonical_encode("backup_state"),\n envelope: boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo) \n setup_instance_id := boomlet_backup_state.setup_instance_id \n boomletwo.memory += boomlet_backup_state \n backup_done := BackupDone{\n setup_instance_id: setup_instance_id, \n backup_boomlet_pubkey: boomletwo_Identity_pubkey, \n boomlet_pubkey: boomlet_0_identity_pubkey \n}\n backup_done_signed_by_boomletwo := sign_message(boomletwo_Identity_privkey, "Boomerang/setup/backup_done", backup_done)
 
 ' Step 82
 Boomletwo o-> Iso:  <b>SetupBoomletwoIso2 \n backup_done_signed_by_boomletwo

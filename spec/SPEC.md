@@ -193,7 +193,6 @@ Boomlet stores:
 - active `setup_instance_id`;
 - `boomerang_params`;
 - `setup_checkpoint`;
-- current `mystery`;
 - backup-complete flag;
 - replay memory needed to reject completed setup instances and active withdrawal replays.
 
@@ -201,11 +200,8 @@ During an active setup or withdrawal, Boomlet also holds volatile ceremony state
 shown in the diagrams, including outstanding ST challenge nonces, candidate
 `duress_check_space`, transaction review state, `withdrawal_id`,
 `approved_withdrawal_id`, verified approval and commit collections, current
-placeholder plaintext, ping counters, reached-peer state, and signing-session
-state. This volatile state is not exported as long-lived state except through the
-authorized backup envelope fields listed in `BoomletBackupState`; active
-`mystery` is deliberately excluded from backup export.
-
+placeholder plaintext, the active withdrawal `mystery`, ping counters,
+reached-peer state, and signing-session state.
 Identity and MuSig2 private material MUST NOT be exported in plaintext or made
 available to Iso, Niso, or the host. The only permitted export is the
 authenticated, target-bound Boomlet-to-Boomletwo backup envelope during setup,
@@ -835,8 +831,7 @@ to the protocol, but the receiving service MUST verify that it pays the
 expected invoice, amount, service identity, and deadline.
 
 `BoomletBackupState` is never host-readable. Boomlet encrypts it directly for
-the authorized Boomletwo identity. The state excludes the active `mystery`;
-Boomletwo generates an independent mystery after authenticated import.
+the authorized Boomletwo identity.
 
 ## 11. Descriptor
 
@@ -1172,20 +1167,6 @@ content equality.
 Any `PROTOCOL_VERSION` signature/hash context mismatch or fingerprint-content
 mismatch returns `PARAMETER_MISMATCH` and stalls the setup attempt.
 
-After agreement, the active Boomlet generates:
-
-```text
-mystery =
-  random_integer(
-    MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS,
-    MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS
-  )
-```
-
-`mystery` is the secret Boomlet threshold for withdrawal progress. It remains
-private to Boomlet and is excluded from backup export.
-`counter` is not created during Setup; Section 15.6 initializes it only when a
-withdrawal ceremony enters `DIGGING`.
 
 The first checkpoint is:
 
@@ -1278,7 +1259,7 @@ BoomletBackupRequest {
 
 4. The request omits `setup_instance_id` because Iso has not yet received authoritative active setup state.
 5. Boomlet verifies normal-key authorization and target key.
-6. Boomlet exports authenticated state excluding the active `mystery`. The encrypted state includes `setup_instance_id`.
+6. Boomlet exports authenticated state. The encrypted state includes `setup_instance_id`.
 7. Boomlet sends Iso:
    - encrypted backup state;
    - active Boomlet identity public key;
@@ -1295,7 +1276,7 @@ BoomletBackupRequest {
    `doxing_password`. Iso does not need a retained `SarId` for this backup-time
    check; the SAR public key is the signer identity of `signed SAR response`.
 9. Iso transfers the encrypted state and active Boomlet identity to Boomletwo without a separate setup-ID field. The one-time backup bootstrap context is defined in Section 9.6.
-10. Boomletwo decrypts, verifies the embedded setup ID, imports the state, generates its own mystery, and signs `BackupDone`.
+10. Boomletwo decrypts, verifies the embedded setup ID, imports the state, and signs `BackupDone`.
 11. Boomlet verifies `BackupDone`, marks backup complete, and rejects another backup request for the same active state.
 12. Boomlet computes and signs:
 
@@ -1531,6 +1512,11 @@ Every Boomlet verifies all commits and its exact encrypted SAR placeholder ackno
 On entering `DIGGING`, Boomlet sets:
 
 ```text
+mystery =
+  random_integer(
+    MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS,
+    MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS
+  )
 counter = 0
 ping_seq_num = 0
 reached_mystery_flag = false
@@ -1538,12 +1524,13 @@ reached_peers = empty
 last_seen_block = niso_i_event_block_height
 ```
 
+`mystery` is the fresh secret Boomlet threshold for this withdrawal ceremony's
+digging progress. It remains private to Boomlet and MUST be erased with the rest of the active withdrawal state after export,
+abort, or unrecoverable failure.
 `counter` is the successful digging-game progress count.
 `niso_i_event_block_height` is the latest Niso-supplied block height accepted
 at `DIGGING` entry after the surrounding commit/SAR freshness checks. Boomlet
 does not obtain an independent chain height for this initialization.
-
-The current `mystery` was generated uniformly in the agreed range and remains secret.
 
 ### 15.7 Ping
 
@@ -1705,7 +1692,7 @@ Nonce material MUST be unique to the session and erased after use.
 
 1. User returns Boomlet to Niso.
 2. Boomlet exports the signed PSBT fragment.
-3. Boomlet clears active withdrawal state and generates a new mystery.
+3. Boomlet clears active withdrawal state.
 4. Niso sends the fragment to WT.
 5. WT aggregates all peer fragments, verifies the complete transaction, and broadcasts it.
 6. The broadcast transaction MUST have the `tx_id` committed by the reconstructed `withdrawal_id` and the approved withdrawal approval set.
