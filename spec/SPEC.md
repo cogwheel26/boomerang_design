@@ -1408,18 +1408,23 @@ Withdrawal may begin only if:
 - no other withdrawal ceremony is active;
 - fallback-path spending is not being presented as Boomerang spending.
 
+The user authorization model requires the User to know, or have an independent
+tool for deriving, the `tx_id` of the intended transaction contents before
+approving ST's display. ST is a trusted `tx_id` confirmation device, not the
+transaction semantic renderer.
+
 ### 15.2 Initiator review
 
 `tx_id` is the Bitcoin transaction identifier derived from the unsigned
 transaction.
 
 1. User supplies a PSBT to Niso.
-2. Niso validates syntax, inputs, outputs, fees, descriptor membership, and milestone eligibility.
+2. Niso validates syntax, inputs, outputs, fees, descriptor membership, sighash policy, and milestone eligibility.
 3. Niso sends PSBT and local block height to Boomlet.
 4. Boomlet derives `tx_id`, creates fresh `st_preview_nonce`, stores the outstanding `{tx_id, st_preview_nonce}` review state, and uses that nonce for the ST freshness check.
 5. Boomlet encrypts the nonce-bound `{tx_id}` object for ST.
 6. ST displays `tx_id`.
-7. User independently compares it with the intended transaction and approves the `tx_id`.
+7. User independently verifies that the displayed `tx_id` is the `tx_id` of the intended transaction contents and approves the `tx_id`.
 8. ST signs the exact nonce-bound object and encrypts it to Boomlet.
 9. Boomlet verifies signature, tx ID, nonce, and outstanding state.
 
@@ -1704,6 +1709,9 @@ Niso and Boomlet independently verify all five pings, approved withdrawal IDs, s
 ### 15.12 PSBT hydration
 
 Niso may add signing-support metadata to the PSBT, including UTXO data, scripts, derivation paths, Taproot metadata, and non-semantic proprietary fields.
+For Boomerang Taproot key-path inputs, the committed sighash policy is
+`SIGHASH_DEFAULT` for every Boomerang input; PSBTs MUST NOT request
+`ANYONECANPAY`, `NONE`, or `SINGLE` variants.
 
 Hydration MUST NOT change:
 
