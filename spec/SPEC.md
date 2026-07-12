@@ -273,14 +273,17 @@ The protocol data model uses:
 
 - `bool`;
 - `u8`, `u16`, `u32`, and `u64`, encoded unsigned and big-endian;
-- fixed byte strings such as `bytes16`, `bytes32`, and `bytes33`;
+- fixed byte strings such as `bytes16`, `bytes32`, `bytes33`, and `bytes64`;
 - variable `bytes`;
 - UTF-8 `text`;
 - ordered `list<T>`;
 - ordered heterogeneous `tuple<T...>`;
 - versioned `struct` objects.
 
-Text MUST be valid UTF-8 and normalized to Unicode NFC. Protocol labels are ASCII. Maps and floating-point numbers are forbidden.
+Text MUST be valid UTF-8 and normalized to Unicode NFC. Protocol labels and
+Boomlet-parsed text MUST be ASCII. Non-ASCII user text MUST be NFC-normalized
+before encoding and rejected if it is not normalized. Maps and floating-point
+numbers are forbidden.
 
 `uint16_be(value)` and `uint32_be(value)` are fixed-width unsigned big-endian
 encodings. `utf8(text)` returns the NFC-normalized UTF-8 bytes of `text`.
@@ -291,7 +294,7 @@ encodings. `utf8(text)` returns the NFC-normalized UTF-8 bytes of `text`.
 `canonical_encode(value)` is recursive and deterministic:
 
 ```text
-null:    0x00
+reserved-null: 0x00
 false:   0x01
 true:    0x02
 u8:      0x10 || value[1]
@@ -308,13 +311,20 @@ struct:  0x40 || uint16_be(schema_id) || uint16_be(schema_version)
               || ...
 ```
 
-Struct fields MUST appear in ascending field-ID order. Unknown fields MUST be
-rejected unless the schema version explicitly permits extensions. Duplicate
-fields, non-minimal integers, invalid UTF-8, and trailing bytes MUST be
-rejected. Each schema or message type supported by a `PROTOCOL_VERSION` has a
-fixed positive maximum canonical encoded size. Implementations MUST reject
-objects exceeding that schema or message type's limit before allocation or
-decoding.
+The `0x00` null tag is reserved in this protocol version. Optional fields are
+omitted; they MUST NOT be encoded as null.
+
+Struct fields MUST appear in ascending field-ID order. For schema version `1`,
+all listed fields are required and `field_count` MUST exactly match the schema's
+required field count. Unknown, missing, duplicate, out-of-order, wrong-type, or
+trailing fields MUST be rejected unless a later schema version explicitly
+permits extensions. The expected schema type fixes the type tag: for example, a
+`u32` field MUST use the `u32` tag even when the value would fit in `u8` or
+`u16`. Invalid UTF-8, non-normalized non-ASCII text, non-ASCII Boomlet-parsed
+text, and trailing bytes MUST be rejected. Each schema or message type supported
+by a `PROTOCOL_VERSION` has a fixed positive maximum canonical encoded size.
+Implementations MUST reject objects exceeding that schema or message type's
+limit before allocation or decoding.
 
 `canonical_encode(value_0, ..., value_n)` is shorthand for canonical encoding of
 the ordered tuple containing exactly those values. It is not raw
@@ -635,7 +645,10 @@ Payment execution is outside Boomlet and does not alter the cryptographic requir
 
 ## 10. Protocol objects
 
-The following schemas define semantic field order. Implementations MUST assign stable schema and field IDs consistent with this order.
+The following schemas define semantic field order and canonical IDs. Schema IDs
+are assigned by the order in this section, starting at `1`. Field IDs are
+assigned by field order inside each schema, starting at `1`. All listed fields
+are required for schema version `1`.
 
 Schema names use `UpperCamelCase`. Values and fields use `snake_case`. A
 peer-indexed value uses `i` as the index placeholder, so `peer_i_id` denotes
@@ -645,8 +658,44 @@ the `PeerId` value for peer `i`, and `peer_0_id` is the concrete value for peer
 additional schemas.
 
 Type annotations use the primitive types from Section 8.1, schema names,
-`list<T>`, and `value`. `value` denotes any canonical value permitted by
-Section 8.
+`list<T>`, and `value`. Generic `value` is not a free-form extension mechanism:
+the enclosing domain, message type, or protocol context MUST specify the exact
+allowed schema or primitive tuple shape before the value is decoded or verified.
+A wrapper containing a syntactically valid but context-wrong `value` MUST be
+rejected before semantic use.
+
+Schema ID registry:
+
+| ID | Schema |
+| --- | --- |
+| 1 | `CbcCmacEnvelope` |
+| 2 | `SignedMessage` |
+| 3 | `MessageWithNonce` |
+| 4 | `PaddedMessage` |
+| 5 | `SarServiceFeePaymentInfo` |
+| 6 | `WtServiceFeePaymentInfo` |
+| 7 | `DuressCheckSpace` |
+| 8 | `WtId` |
+| 9 | `SarId` |
+| 10 | `StaticDoxingData` |
+| 11 | `DynamicDoxingData` |
+| 12 | `ServicePaymentReceipt` |
+| 13 | `PeerId` |
+| 14 | `PeerSetupRecord` |
+| 15 | `MilestoneBlocks` |
+| 16 | `BoomerangParamsSeed` |
+| 17 | `BoomerangParams` |
+| 18 | `WtSetupReceipt` |
+| 19 | `SarSetupResponse` |
+| 20 | `WtSarSetupResponse` |
+| 21 | `BoomletBackupRequest` |
+| 22 | `BackupDone` |
+| 23 | `BoomletBackupState` |
+| 24 | `TxApproval` |
+| 25 | `WtTxApproval` |
+| 26 | `TxCommit` |
+| 27 | `Ping` |
+| 28 | `Pong` |
 
 ```text
 CbcCmacEnvelope {
@@ -843,6 +892,12 @@ Object type, schema ID, signature domain, and envelope context identify the
 transition. Signed wrappers and encrypted envelopes are not duplicated inside
 the object unless explicitly shown.
 
+`SignedMessage.content` is valid only when the caller and signature domain
+specify the expected content schema or primitive tuple shape.
+`MessageWithNonce.content`, `PaddedMessage.content`, `PaddedMessage.padding`,
+and `BoomletBackupState.replay_state` MUST be validated against the exact
+enclosing protocol context.
+
 `PaddedMessage` is the canonical outer object used when a signed withdrawal
 commit or ping is bound to a `duress_placeholder`. `padding` is opaque to the
 object schema and is included byte-for-byte in the signed canonical encoding.
@@ -856,7 +911,7 @@ defined in Section 16.4.
 `PeerSetupRecord` values sorted by encoded Boomlet identity public-key bytes.
 `BoomerangParams.peer_ids` is the corresponding ordered list of `PeerId`
 values.
-`milestone_blocks` is always a `MilestoneBlocks` struct. .
+`milestone_blocks` is always a `MilestoneBlocks` struct.
 
 `DynamicDoxingData.schema_id` identifies the canonical payload schema and
 `captured_at` records its source timestamp. A service payment proof is opaque
@@ -2067,7 +2122,11 @@ after completion, stall, or abort.
 
 A conforming implementation MUST provide tests for:
 
-- canonical encoding and rejection of alternate encodings;
+- canonical encoding and rejection of alternate encodings, including exact
+  schema IDs and field IDs, missing fields, extra fields, duplicate fields,
+  out-of-order fields, wrong-type fields, wrong integer tags for the expected
+  schema type, reserved-null encodings, context-wrong wrapper `value` payloads,
+  non-ASCII Boomlet-parsed protocol text, and trailing bytes;
 - normal-key derivation, including BIP39 seed derivation, BIP32 path
   `m/52102'/coin_type'/account'/0/key_index`, child private key, and BIP340
   x-only `normal_pubkey` encoding;
@@ -2084,7 +2143,8 @@ A conforming implementation MUST provide tests for:
   sorted input;
 - `MilestoneBlocks` canonical encoding and rejection of missing fields,
   duplicate fields, list-style milestone encodings, non-increasing milestones,
-  and setup-ID changes when any milestone field or order changes;
+  and setup-ID changes when any milestone field or order changes; milestone and
+  setup-ID vectors MUST include exact schema IDs and field IDs;
 - descriptor construction using `milestone_block_0` through
   `milestone_block_5` for the six Taproot branches;
 - `setup_checkpoint` equality despite different peer-local receipts;
@@ -2114,7 +2174,11 @@ A conforming implementation MUST provide tests for:
 
 Protocol vectors MUST include exact canonical bytes, normal-key derivation
 inputs and outputs, keys, IVs, ciphertexts, tags, signatures, identifiers, and
-expected failure classes.
+expected failure classes. The implementation profile MUST define exact
+per-schema maximum encoded sizes and list-length bounds before deployment.
+Full byte-level canonical encoding vectors MUST be produced after those limits
+are fixed. Java Card implementations SHOULD use streaming parsers and MUST
+reject over-limit objects before allocation.
 
 
 ## 22. Open issues
