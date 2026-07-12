@@ -327,7 +327,7 @@ These steps are initiator-only; non-initiators join later.
 
 7. **Niso forwards approval to Boomlet**: Boomlet decrypts/verifies ST signature, nonce freshness.
 
-8. **Boomlet approves and encrypts for WT/peers**: Generates signed `peer_0_tx_approval` ("approved", tx_id, height); encrypts for WT; encrypts PSBT for each non-initiator Boomlet; sends collection to Niso.
+8. **Boomlet approves and encrypts for WT/peers**: Generates the signed initiator approval (`peer_0_tx_approval`); encrypts for WT; encrypts PSBT for each non-initiator Boomlet; sends collection to Niso.
 
 9. **Niso forwards to WT**: Sends approval and encrypted PSBTs.
 
@@ -361,7 +361,7 @@ These steps are initiator-only; non-initiators join later.
 
 34. **Duress signal processing (all peers)**: If consent set matched, `duress_placeholder_plaintext` = padding (no duress); else = `doxing_key` (duress). Encrypts placeholder for SAR.
 
-35-37. **Initiator commits; non-initiators attest readiness**: The initiator Boomlet immediately constructs `peer_0_tx_commit`, pads it with its duress placeholder, re-signs the padded message, and sends it to WT via Niso. Non-initiator Boomlets do not create `peer_i_tx_commit` yet; instead, after their duress check they sign the already-agreed approval set plus `wt_tx_approval` as `approvals_signed_by_boomlet_i` and send that readiness attestation to WT.
+35-37. **Initiator commits; non-initiators attest readiness**: The initiator Boomlet immediately constructs the initiator commit (`peer_0_tx_commit`), pads it with its duress placeholder, re-signs the padded message, and sends it to WT via Niso. Non-initiator Boomlets do not create `peer_i_tx_commit` yet; instead, after their duress check they sign the already-agreed approval set plus `wt_tx_approval` as `approvals_signed_by_boomlet_i` and send that readiness attestation to WT.
 
 38-39. **WT processes the initiator commit and non-initiator readiness attestations**: WT verifies the non-initiators' `approvals_signed_by_boomlet_i`, then processes the initiator's commit by decrypting/verifying the outer signature, separating the duress placeholder, forwarding that placeholder and the initiator pubkey to SAR, and, after SAR replies, signing the initiator commit and relaying it to the non-initiators.
 
