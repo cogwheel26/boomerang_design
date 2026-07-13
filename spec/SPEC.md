@@ -829,7 +829,7 @@ SarSetupResponse {
 
 WtSarSetupResponse {
   setup_instance_id: bytes32,
-  content: SignedMessage,
+  content: CbcCmacEnvelope,
   wt_suffix: text
 }
 

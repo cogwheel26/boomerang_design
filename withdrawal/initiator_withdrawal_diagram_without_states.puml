@@ -433,12 +433,12 @@ hnote over Niso #LavenderBlush: Niso receives {magic: "withdrawal_ready_to_sign"
 
 ' Step 63
 Niso o-> User:  <b>WithdrawalNisoOutput1 \n magic: "withdrawal_ready_to_sign_received_connect_boomlet_to_iso"
-hnote over User #LavenderBlush:  User receives {magic: "withdrawal_ready_to_sign_received_connect_boomlet_to_iso"} from Niso and proceeds to connect Boomlet to Iso and input \n network, mnemonic and passphrase to Iso.
+hnote over User #LavenderBlush:  User receives {magic: "withdrawal_ready_to_sign_received_connect_boomlet_to_iso"} from Niso and proceeds to connect Boomlet to Iso and input \n network, account, key_index, mnemonic, and passphrase to Iso.
 
 ' Step 64
-User o-> Iso:  <b>WithdrawalIsoInput1 \n network \n mnemonic \n passphrase
-hnote over Iso #LavenderBlush:  Iso receives {network, mnemonic, passphrase} from User, reconstructs the normal private key and normal public key, and proceeds to inform Boomlet that they can start the MuSig2 protocol for tx_ins \n contained in the psbt.
-hnote over Iso #Lavender:  master_xpriv_0 := derive_master_xpriv(mnemonic, passphrase) \n purpose_root_xpriv_0 := derive_hardened_child(master_xpriv_0, 52102) \n normal_privkey_0 := purpose_root_xpriv_0 \n normal_pubkey_0 := derive_public_key(normal_privkey_0)
+User o-> Iso:  <b>WithdrawalIsoInput1 \n network \n account \n key_index \n mnemonic \n passphrase
+hnote over Iso #LavenderBlush:  Iso receives {network, account, key_index, mnemonic, passphrase} from User and reconstructs normal_privkey_0 at m/52102'/coin_type'/account'/0/key_index using the same values as setup. \n It derives normal_pubkey_0 and informs Boomlet that MuSig2 signing can start for the PSBT inputs.
+hnote over Iso #Lavender:  coin_type := 0 if network is mainnet else 1 \n master_xpriv_0 := derive_master_xpriv(mnemonic, passphrase) \n purpose_xpriv_0 := derive_child_xpriv(master_xpriv_0, 52102, hardened=true) \n coin_xpriv_0 := derive_child_xpriv(purpose_xpriv_0, coin_type, hardened=true) \n account_xpriv_0 := derive_child_xpriv(coin_xpriv_0, account, hardened=true) \n external_xpriv_0 := derive_child_xpriv(account_xpriv_0, 0, hardened=false) \n normal_privkey_0 := derive_child_xpriv(external_xpriv_0, key_index, hardened=false) \n normal_pubkey_0 := derive_public_key(normal_privkey_0)
 
 ' Step 65
 Iso o-> Boomlet:  <b>WithdrawalIsoBoomletMessage1 \n magic: "withdrawal_initialized_start_signing"
