@@ -1,10 +1,11 @@
 # Boomerang attack trees
 
-> **Last change — 2026-07-13:** Moved the attack trees out of the main threat model without changing their controls, assumptions, or open dependencies.
+> **Last change — 2026-07-13:** Added physical-observation and composite-attack paths and separated protocol rules from external dependencies.
 
 ### Tree 0: Primary attacker campaign: steal funds under coercion or force deterministic fallback
 
-Green nodes are controls; yellow nodes are assumptions or open dependencies.
+Green nodes are rules enforced by the protocol. Yellow nodes are assumptions,
+external dependencies, or unresolved gaps.
 
 ```mermaid
 flowchart TD
@@ -32,9 +33,6 @@ flowchart TD
   AND4 --> B3a["Sustain detention and logistics through bounded but unpredictable delay"]
   AND4 --> B3b["Prevent abort from timeout, ops failure, or peer loss"]
 
-  %% ----------------------------
-  %% Normal-regime coercion path
-  %% ----------------------------
   C --> AND5((AND))
   AND5 --> C1["Control K normal keys at spend time"]
   AND5 --> C2["Reach a milestone where normal-regime threshold ≤ K"]
@@ -58,19 +56,17 @@ flowchart TD
   OR2 --> C3b3b["Induce or exploit peer non-cooperation"]
   OR2 --> C3b3c["Rely on prior operational failure or late withdrawal start"]
 
-  %% ----------------------------
-  %% Controls and open items
-  %% ----------------------------
-  D1["Control: peer anonymity and OPSEC"] -.-> B1a
-  D2["Control: geographic and temporal dispersion"] -.-> B1b
-  D3["Control: N-of-N Boomerang regime"] -.-> B1
-  D4["Control: device separation and ceremony checks"] -.-> B2a
-  D5["Control: strong secrecy and custody of mnemonics and passphrases"] -.-> B2b
-  D6["Control: bounded but unpredictable mystery thresholds"] -.-> B3a
-  D7["Control: recurring duress checks and SAR response"] -.-> B3
-  D8["Control: strong normal-key custody"] -.-> C1
-  D9["Control: rollover before milestones"] -.-> C3b1
+  D1["Dependency: peer anonymity and OPSEC"] -.-> B1a
+  D2["Dependency: geographic and temporal dispersion"] -.-> B1b
+  D3["Protocol rule: N-of-N Boomerang authorization"] -.-> B1
+  D4["Protocol rule: separate device roles and signed ceremony checks"] -.-> B2a
+  D5["Dependency: secrecy and custody of mnemonics and passphrases"] -.-> B2b
+  D6["Protocol rule: fresh per-withdrawal mystery generated once at DIGGING entry"] -.-> B3a
+  D7["Protocol rule: recurring duress checks and exact fixed-deadline SAR acknowledgement"] -.-> B3
+  D8["Dependency: normal-key custody"] -.-> C1
+  D9["Dependency: rollover before milestones"] -.-> C3b1
   D10["Boundary: backup export exists, but activation and recovery remain unresolved"] -.-> C3b3a
+  D11["Dependency: SAR intervention is effective, lawful, correctly directed, and non-escalatory"] -.-> B3
 
   classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
   classDef attack fill:#ffcccc,stroke:#cc0000,color:#000;
@@ -80,8 +76,8 @@ flowchart TD
 
   class A goal;
   class B,C,B0,B1,B2,B3,B1a,B1b,B1c,B2a,B2b,B2c,B3a,B3b,C1,C2,C3,C1a,C1b,C3a,C3b,C3b1,C3b2,C3b3,C3b3a,C3b3b,C3b3c attack;
-  class D1,D2,D3,D4,D5,D6,D7,D8,D9 control;
-  class D10 open;
+  class D3,D4,D6,D7 control;
+  class D1,D2,D5,D8,D9,D10,D11 open;
   class OR0,OR1,OR2,AND1,AND2,AND3,AND4,AND5,AND6,AND7 gate;
 
 ```
@@ -96,9 +92,6 @@ flowchart TD
   OR0 --> C["Cause a different PSBT or transaction to be signed than the one approved"]
   OR0 --> D["Exploit signing, parser, or state-machine implementation bugs"]
 
-  %% ----------------------------
-  %% 1) Malicious PSBT gets approved
-  %% ----------------------------
   B --> AND1((AND))
   AND1 --> B1["Modify or substitute the PSBT before peer approval"]
   AND1 --> B2["Defeat or mislead operator verification at every required peer"]
@@ -113,9 +106,6 @@ flowchart TD
   OR2 --> B2b["Compromise non-initiator Niso verification views so the same malicious PSBT is accepted"]
   OR2 --> B2c["Exploit operator-review weakness so tx_id approval is given for a malicious but consistently presented PSBT"]
 
-  %% ----------------------------
-  %% 2) Intent continuity breaks after approval
-  %% ----------------------------
   C --> AND2((AND))
   AND2 --> C1["Defeat tx_id and continuity protections across the withdrawal state machine"]
   AND2 --> C2["Make the final signed PSBT or transaction differ from the operator-approved one"]
@@ -129,26 +119,19 @@ flowchart TD
   OR4 --> C2a["Exploit PSBT hydration mismatch at finalization"]
   OR4 --> C2b["Exploit message substitution between reached-state verification and Iso/Boomlet signing"]
 
-  %% ----------------------------
-  %% 3) Direct implementation failures
-  %% ----------------------------
   D --> OR5{OR}
   OR5 --> D1["PSBT parser or serializer bug causes signing of a different transaction"]
   OR5 --> D2["MuSig2 implementation bug: nonce, session, or transcript binding failure"]
   OR5 --> D3["State-machine bug skips or misapplies prerequisite approval or reached-state checks"]
 
-  %% ----------------------------
-  %% Controls and open items
-  %% ----------------------------
   F1["Control: independent PSBT verification on operator tooling and ST tx_id approval at each peer"] -.-> B2
-  F2["Control: repeated tx_id and freshness checks across approval, commitment, ping, pong, and reached-state"] -.-> C1
+  F2["Control: tx_id-bound withdrawal_id, unanimous approved_withdrawal_id, and reached-state checks"] -.-> C1
   F3["Control: nonces, recency, and sequence-number checks to block replay and stale-state reuse"] -.-> C1b
-  F4["Control: duplicate validation in Niso and Boomlet, including final re-verification before signing"] -.-> C2
+  F4["Control: hydration allow-list, SIGHASH_DEFAULT, Boomlet revalidation, Iso signing-package checks, and final tx_id equality"] -.-> C2
   F5["Assumption: correct PSBT and MuSig2 implementation on isolated Iso"] -.-> D1
-  F6["Boundary: canonical session and transcript binding across the full ceremony"] -.-> D2
+  F6["Control: BIP327 session binding and fresh MuSig2 nonces"] -.-> D2
   F7["Boundary: complete state-machine hardening and prerequisite enforcement"] -.-> D3
 
-  %% Styles
   classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
   classDef attack fill:#ffcccc,stroke:#cc0000,color:#000;
   classDef control fill:#ccffcc,stroke:#009900,color:#000;
@@ -157,8 +140,8 @@ flowchart TD
 
   class A goal;
   class B,C,D,B1,B2,B3,B1a,B1b,B2a,B2b,B2c,C1,C2,C1a,C1b,C1c,C2a,C2b,D1,D2,D3 attack;
-  class F1,F2,F3,F4 control;
-  class F5,F6,F7 open;
+  class F1,F2,F3,F4,F6 control;
+  class F5,F7 open;
   class OR0,OR1,OR2,OR3,OR4,OR5,AND1,AND2 gate;
 
 ```
@@ -174,17 +157,11 @@ flowchart TD
   AND0 --> C["Reach a milestone where the active normal-regime threshold ≤ K"]
   AND0 --> D["Ensure defenders do not successfully exit earlier while threshold > K"]
 
-  %% ----------------------------
-  %% 1) Obtain enough normal keys
-  %% ----------------------------
   B --> OR1{OR}
   OR1 --> B1["Phish or steal mnemonic and passphrase backups"]
   OR1 --> B2["Compel disclosure under coercion"]
   OR1 --> B3["Insider or compromised peer retains their own normal key and waits"]
 
-  %% ----------------------------
-  %% 2) Prevent earlier defender exit
-  %% ----------------------------
   D --> OR2{OR}
   OR2 --> D1["Begin the attack only after the threshold has already degraded to K"]
   OR2 --> D2["Start earlier and block earlier defender exit until the threshold degrades"]
@@ -201,19 +178,15 @@ flowchart TD
   OR3 --> D2c4["Exploit Boomlet or backup bug to brick or erase required state"]
   OR3 --> D2c5["Exploit prior operational failure or late withdrawal start"]
 
-  %% ----------------------------
-  %% Controls and open items
-  %% ----------------------------
-  E1["Control: strong mnemonic and passphrase custody, including split backups and secure storage"] -.-> B1
-  E2["Control: coercion-resistant operating model, peer anonymity, and dispersion"] -.-> B2
-  E3["Control: insider-risk controls and key-holder governance"] -.-> B3
-  E4["Control: rollover before deterministic milestones"] -.-> D2a
+  E1["Dependency: mnemonic and passphrase custody"] -.-> B1
+  E2["Dependency: peer anonymity and geographic dispersion"] -.-> B2
+  E3["Dependency: insider-risk governance"] -.-> B3
+  E4["Dependency: rollover before deterministic milestones"] -.-> D2a
   E5["Boundary: threshold schedule must keep low-threshold stages remote"] -.-> C
-  E6["Control: secure storage and tamper-evident custody for Boomlet and Boomletwo"] -.-> D2c1
+  E6["Dependency: secure and tamper-evident Boomlet custody"] -.-> D2c1
   E7["Boundary: backup activation and recovery semantics remain unresolved"] -.-> D2c1
   E8["Boundary: WT redundancy and failover remain unresolved"] -.-> D2c3
 
-  %% Styles
   classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
   classDef attack fill:#ffcccc,stroke:#cc0000,color:#000;
   classDef control fill:#ccffcc,stroke:#009900,color:#000;
@@ -222,8 +195,7 @@ flowchart TD
 
   class A goal;
   class B,C,D,B1,B2,B3,D1,D2,D2a,D2b,D2c,D2c1,D2c2,D2c3,D2c4,D2c5 attack;
-  class E1,E2,E3,E4,E6 control;
-  class E5,E7,E8 open;
+  class E1,E2,E3,E4,E5,E6,E7,E8 open;
   class AND0,AND1,OR1,OR2,OR3 gate;
 
 ```
@@ -238,46 +210,38 @@ flowchart TD
   OR0 --> C["Prevent a true duress signal from producing actionable SAR response"]
   OR0 --> D["Infer hidden duress and react before rescue can disrupt the attack"]
 
-  %% ----------------------------
-  %% 1) Make duress appear safe
-  %% ----------------------------
   B --> OR1{OR}
   OR1 --> B1["Observe the consent pattern or duress responses in a non-private environment"]
   OR1 --> B2["Compromise ST or the setup and relay path to learn or alter duress input"]
   OR1 --> B3["Compromise Boomlet so it reveals the consent pattern or mis-evaluates duress"]
 
-  %% ----------------------------
-  %% 2) True duress is generated, but SAR response is neutralized
-  %% ----------------------------
+  B1 --> OR4{OR}
+  OR4 --> B1a["Record the ST display and the user's hand or input device"]
+  OR4 --> B1b["Have an attacker operate the input while compelling the user to identify the safe choices"]
+  OR4 --> B1c["Observe one legitimate safe interaction and reuse the persistent response"]
+
   C --> OR2{OR}
   OR2 --> C1["Compromise SAR infrastructure or operators"]
   OR2 --> C2["Sabotage prior SAR registration so activation is not actionable"]
   OR2 --> C3["Tamper with or stop dynamic doxing data so rescue becomes less reliable"]
 
-  %% ----------------------------
-  %% 3) Duress stays hidden in protocol flow, but attacker infers it anyway
-  %% ----------------------------
   D --> AND1((AND))
   AND1 --> D1["Infer hidden duress from side channels despite intended unchanged protocol flow"]
   AND1 --> D2["React before rescue meaningfully disrupts the withdrawal"]
 
   D2 --> OR3{OR}
   OR3 --> D2a["Escalate coercion or violence to suppress further signaling"]
-  OR3 --> D2b["Accelerate the withdrawal before intervention lands"]
+  OR3 --> D2b["Complete the remaining attacker-controlled steps before intervention lands"]
   OR3 --> D2c["Relocate or isolate the victim before intervention lands"]
 
-  %% ----------------------------
-  %% Controls and open items
-  %% ----------------------------
-  E1["Control: shielding, private environment, and user training"] -.-> B1
-  E2["Control: tamper-evident ST and hardened setup and relay path"] -.-> B2
+  E1["Dependency: the physical interaction is not observed"] -.-> B1
+  E2["Dependency: ST and its setup and relay path remain trustworthy"] -.-> B2
   E3["Assumption: Boomlet resists extraction and duress-state compromise"] -.-> B3
   E4["Boundary: authenticated SAR enrollment and operator accountability"] -.-> C1
   E5["Boundary: reliable SAR registration and coverage confirmation"] -.-> C2
   E6["Boundary: reliable Phone-to-SAR dynamic feed and ancillary recovery procedures"] -.-> C3
-  E7["Boundary: protocol flow must remain observably constant on duress"] -.-> D1
+  E7["Control: fixed SAR release deadline, identical durable write, uniform retries, failures, logs, and metrics"] -.-> D1
 
-  %% Styles
   classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
   classDef attack fill:#ffcccc,stroke:#cc0000,color:#000;
   classDef control fill:#ccffcc,stroke:#009900,color:#000;
@@ -285,10 +249,10 @@ flowchart TD
   classDef gate fill:#ffffff,stroke:#333,stroke-width:2px,color:#000;
 
   class A goal;
-  class B,C,D,B1,B2,B3,C1,C2,C3,D1,D2,D2a,D2b,D2c attack;
-  class E1,E2 control;
-  class E3,E4,E5,E6,E7 open;
-  class OR0,OR1,OR2,OR3,AND1 gate;
+  class B,C,D,B1,B1a,B1b,B1c,B2,B3,C1,C2,C3,D1,D2,D2a,D2b,D2c attack;
+  class E7 control;
+  class E1,E2,E3,E4,E5,E6 open;
+  class OR0,OR1,OR2,OR3,OR4,AND1 gate;
 
 ```
 
@@ -304,56 +268,37 @@ flowchart TD
   OR0 --> E["Exploit out-of-band peer-data exchange or operator OPSEC failure"]
   OR0 --> F["Exploit insider leakage"]
 
-  %% ----------------------------
-  %% Network / communication deanonymization
-  %% ----------------------------
   B --> OR1{OR}
   OR1 --> B1["Tor traffic or endpoint correlation against peer-to-peer or peer-to-WT communications"]
   OR1 --> B2["Compromise Niso, host, or local network environment to reveal peer communication metadata"]
 
-  %% ----------------------------
-  %% WT-side exposure
-  %% ----------------------------
   C --> OR2{OR}
   OR2 --> C1["WT logs or retained metadata leak, subpoena, or compromise"]
   OR2 --> C2["WT registration or coordination records reveal peer IDs, params, or communication relationships"]
 
-  %% ----------------------------
-  %% SAR-side exposure
-  %% ----------------------------
   D --> OR3{OR}
   OR3 --> D1["SAR payment invoice, receipt, or customer records leak, subpoena, or compromise"]
   OR3 --> D2["SAR registration or account metadata leak, subpoena, or compromise"]
   OR3 --> D3["SAR learns identity on duress, then turns rogue or later leaks that knowledge"]
 
-  %% ----------------------------
-  %% Out-of-band exchange / OPSEC failure
-  %% ----------------------------
   E --> OR4{OR}
   OR4 --> E1["Intercept or compromise out-of-band sharing of peer IDs and signed Tor addresses"]
   OR4 --> E2["Operator reuses identifiable channels, accounts, or devices during peer coordination"]
   OR4 --> E3["Compromise a peer device that stores peer address collections or signed peer data"]
 
-  %% ----------------------------
-  %% Insider leakage
-  %% ----------------------------
   F --> OR5{OR}
   OR5 --> F1["Malicious peer reveals peer contacts or identities"]
   OR5 --> F2["WT insider sells or discloses metadata"]
   OR5 --> F3["SAR insider sells or discloses registration or rescue data"]
 
-  %% ----------------------------
-  %% Controls and open items
-  %% ----------------------------
-  G1["Control: Tor hygiene, endpoint hardening, and communication-metadata minimization"] -.-> B
+  G1["Dependency: Tor hygiene, endpoint hardening, and communication-metadata minimization"] -.-> B
   G2["Boundary: WT log minimization, retention limits, and encryption"] -.-> C1
   G3["Boundary: minimize WT-visible metadata and compartmentalize identifiers"] -.-> C2
   G4["Boundary: privacy-preserving SAR payment and record minimization"] -.-> D1
   G5["Boundary: minimize SAR-held account metadata and compartmentalize identifiers"] -.-> D2
-  G6["Control: secure out-of-band exchange discipline and operator OPSEC"] -.-> E
-  G7["Control: compartmentalize peer knowledge and governance"] -.-> F1
+  G6["Dependency: secure out-of-band exchange discipline and operator OPSEC"] -.-> E
+  G7["Dependency: compartmentalized peer knowledge and governance"] -.-> F1
 
-  %% Styles
   classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
   classDef attack fill:#ffcccc,stroke:#cc0000,color:#000;
   classDef control fill:#ccffcc,stroke:#009900,color:#000;
@@ -362,8 +307,7 @@ flowchart TD
 
   class A goal;
   class B,C,D,E,F,B1,B2,C1,C2,D1,D2,D3,E1,E2,E3,F1,F2,F3 attack;
-  class G1,G6,G7 control;
-  class G2,G3,G4,G5 open;
+  class G1,G2,G3,G4,G5,G6,G7 open;
   class OR0,OR1,OR2,OR3,OR4,OR5 gate;
 
 ```
@@ -378,39 +322,28 @@ flowchart TD
   OR0 --> C["Compromise ST supply chain"]
   OR0 --> D["Compromise provisioning artifacts or installation environment"]
 
-  %% ----------------------------
-  %% Boomlet / Boomletwo compromise
-  %% ----------------------------
   B --> OR1{OR}
   OR1 --> B1["Malicious or substituted secure-element or JavaCard platform"]
   OR1 --> B2["Malicious Boomlet applet installed before or during setup"]
   OR1 --> B3["Malicious Boomletwo backup applet installed before or during setup"]
 
-  %% ----------------------------
-  %% ST compromise
-  %% ----------------------------
   C --> OR2{OR}
   OR2 --> C1["Backdoored ST firmware or software"]
   OR2 --> C2["Malicious ST hardware with hidden capture or exfiltration capability"]
 
-  %% ----------------------------
-  %% Provisioning / installation compromise
-  %% ----------------------------
   D --> OR3{OR}
   OR3 --> D1["Compromise build artifacts so Iso installs malicious Boomlet, Boomletwo, or ST code"]
-  OR3 --> D2["Compromise Iso or the provisioning workstation during installation"]
+  OR3 --> D2["Compromise or substitute Iso during installation"]
+  OR3 --> D3["Use compromised Iso to install attacker-chosen normal_pubkey, doxing_key, SAR, or backup target"]
 
-  %% ----------------------------
-  %% Controls and open items
-  %% ----------------------------
   E1["Boundary: vetted sourcing and hardware evaluation for secure elements"] -.-> B1
-  E2["Control: applet verification and controlled provisioning"] -.-> B2
+  E2["Dependency: applet verification and controlled provisioning"] -.-> B2
   E3["Boundary: Boomletwo backup provisioning assurance remains incomplete"] -.-> B3
-  E4["Control: tamper-evident ST design and independent inspection"] -.-> C
+  E4["Dependency: tamper-evident ST design and independent inspection"] -.-> C
   E5["Boundary: reproducible artifacts, review, and provenance checks"] -.-> D1
-  E6["Control: trusted isolated Iso environment"] -.-> D2
+  E6["Assumption: Iso is trusted and isolated throughout setup and backup"] -.-> D2
+  E7["Boundary: independent provisioning review and device identity controls are not specified"] -.-> D3
 
-  %% Styles
   classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
   classDef attack fill:#ffcccc,stroke:#cc0000,color:#000;
   classDef control fill:#ccffcc,stroke:#009900,color:#000;
@@ -418,9 +351,54 @@ flowchart TD
   classDef gate fill:#ffffff,stroke:#333,stroke-width:2px,color:#000;
 
   class A goal;
-  class B,C,D,B1,B2,B3,C1,C2,D1,D2 attack;
-  class E2,E4,E6 control;
-  class E1,E3,E5 open;
+  class B,C,D,B1,B2,B3,C1,C2,D1,D2,D3 attack;
+  class E1,E2,E3,E4,E5,E6,E7 open;
   class OR0,OR1,OR2,OR3 gate;
 
+```
+
+### Tree 6: Defeat separation through a common cause or coalition
+
+```mermaid
+flowchart TD
+  A["Goal: Defeat controls that assume independent peers, devices, or services"] --> OR0{OR}
+
+  OR0 --> B["Compromise a dependency shared by several or all peers"]
+  OR0 --> C["Combine WT control with a compromised RPC or chain source"]
+  OR0 --> D["Combine SAR control with Phone compromise or stale rescue data"]
+  OR0 --> E["Combine captured-peer knowledge with WT metadata"]
+  OR0 --> F["Correlate or compel WT, SAR, and payment records through shared legal authority"]
+
+  B --> OR1{OR}
+  OR1 --> B1["Shared Boomlet applet or secure-element flaw"]
+  OR1 --> B2["Shared ST firmware or provisioning compromise"]
+  OR1 --> B3["Shared Iso image or setup substitution"]
+
+  C --> AND1((AND))
+  AND1 --> C1["WT censors, delays, or selects protocol traffic"]
+  AND1 --> C2["RPC source supplies a matching false or stale chain view"]
+
+  D --> OR2{OR}
+  OR2 --> D1["Phone supplies attacker-selected rescue data that SAR accepts"]
+  OR2 --> D2["SAR and Phone suppress coverage while preserving valid-looking setup state"]
+
+  P1["Protocol rule: signed objects and scope IDs bind content and ceremony"] -.-> C1
+  P2["Protocol rule: chain-view disagreement stalls with CHAIN_VIEW_UNSAFE"] -.-> C
+  P3["Open gap: principal count does not establish independent failure domains"] -.-> B
+  P4["Open gap: WT and RPC coalition policy is undefined"] -.-> C
+  P5["Open gap: dynamic rescue-data ordering and rollback policy are undefined"] -.-> D
+  P6["Dependency: service, payment, metadata, and legal compartmentalization are external"] -.-> E
+  P6 -.-> F
+
+  classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
+  classDef attack fill:#ffcccc,stroke:#cc0000,color:#000;
+  classDef control fill:#ccffcc,stroke:#009900,color:#000;
+  classDef open fill:#fff2cc,stroke:#b38f00,color:#000;
+  classDef gate fill:#ffffff,stroke:#333,stroke-width:2px,color:#000;
+
+  class A goal;
+  class B,C,D,E,F,B1,B2,B3,C1,C2,D1,D2 attack;
+  class P1,P2 control;
+  class P3,P4,P5,P6 open;
+  class OR0,OR1,OR2,AND1 gate;
 ```

@@ -1,6 +1,6 @@
 # Forced-determinism design discussion
 
-> **Last change — 2026-07-13:** Moved the historical discussion out of `forced_determinism.md`; no argument, question, or conclusion was removed.
+> **Last change — 2026-07-14:** ADR 0006 places `mystery` generation at `DIGGING` entry rather than setup.
 
 ## Discussion
 

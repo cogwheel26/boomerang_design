@@ -1,6 +1,6 @@
 # Coercion Economics
 
-> **Last change — 2026-07-13:** Tightened the rationale; the model, estimates, and conclusions are unchanged.
+> **Last change — 2026-07-14:** Deterrence applies to rational, cost-sensitive attackers and depends on credible disruption outside the protocol.
 
 Boomerang's coercion claim is economic rather than absolute. A long,
 unpredictable withdrawal raises the cost of an attack, and the victim cannot
@@ -20,8 +20,9 @@ Model a coercion attempt as a sequential decision problem:
 - `V`: value attacker can steal
 - `T`: time attacker must maintain control until funds are safely exfiltrated
 - `c`: attacker's per-unit-time operational cost
-- `q(T)`: probability attacker is disrupted before completion, increasing with
-  time
+- `q(T)`: assumed probability that an external actor disrupts the attacker
+  before completion; it increases with time only when detection and response
+  make that assumption credible
 - `L`: attacker loss if disrupted
 
 The attacker's expected utility is:
@@ -32,15 +33,28 @@ U_A = (1 - q(T)) * V - c * T - q(T) * L
 
 The attacker proceeds when `U_A > 0`.
 
+The equation covers a rational, cost-sensitive attacker seeking financial gain.
+It does not cover retaliatory, ideological, state, or self-destructive actors,
+or an attacker who assigns positive utility to harming the victim. The `c * T`
+term charges cost through completion. If disruption ends the attack at an
+earlier time `D`, incurred cost is closer to `c * min(T, D)`; that stopping-time
+behavior is outside this simplified equation.
+
 ### How Boomerang changes the incentives
 
-Boomerang changes the distribution of `T` and raises `q(T)`:
+Boomerang changes the distribution of `T`. It raises `q(T)` only if signaling,
+investigation, or intervention outside the protocol becomes more likely over
+time:
 
-- Boomlet will not sign before its secret mystery threshold, which lengthens the
+- Each Boomlet samples a fresh secret threshold when the approved withdrawal
+  enters `DIGGING` and will not sign before reaching it, which lengthens the
   expected attack.
 - The attacker has to plan for the upper end of the range, not just its mean.
 - The victim cannot force an early signature.
-- Duress checks at commitment and during the digging game give SAR time to act.
+- Duress checks at commitment and during the digging game create repeated
+  opportunities to signal. Fixed-deadline acknowledgements confirm protocol
+  delivery without proving that the external response is timely, effective,
+  lawful, correctly directed, or safe.
 
 Boomerang does not make custody coercion-proof. It aims to make expected utility
 negative for a meaningful range of attackers by increasing the required time,
@@ -48,7 +62,7 @@ uncertainty, and probability of disruption.
 
 ### Protocol parameters as economic levers
 
-Several design parameters are deterrence levers:
+Deterrence depends on:
 
 - Mystery min/max range affects expected duration and variance.
 - Duress check interval affects duress opportunities and ceremony burden.
@@ -91,6 +105,9 @@ Illustrative estimates:
 
 - Low-end aggressive underestimation: about USD 5,000 per day
 - Professional sustained operation: about USD 20,000-30,000 per day
+
+These figures have no cited jurisdiction, date, source distribution, or
+sensitivity range. They are examples, not evidence for a security claim.
 
 Over a 6-9 month window, even the low estimate implies about USD 900,000 to
 USD 1,350,000 in coercion cost before escalation risk. Professional costs can

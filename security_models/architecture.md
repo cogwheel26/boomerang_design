@@ -1,6 +1,6 @@
 # Boomerang architecture and trust boundaries
 
-> **Last change — 2026-07-13:** Moved architecture, trust boundaries, and protocol-binding detail out of the main threat model without changing their content.
+> **Last change — 2026-07-14:** synced with the latest SPEC.md .
 
 <a id="trust-boundaries"></a>
 ## Trust boundaries and diagram
@@ -14,29 +14,34 @@ The DFD, threat catalog, and risk register use the same boundaries.
 | Boundary ID  | Boundary type  | Name                        | What it separates                                         | Why it exists / security meaning                                 |
 | ------------ | -------------- | --------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
 | TB-PHYS-PEER | Environment    | Peer physical environment   | Peer operators and devices vs. the surrounding world      | Theft, coercion, observation, device swap, and unsafe travel     |
-| TB-ISO       | Device/Host    | Iso offline host            | Iso execution environment vs. networked or untrusted host contexts | Protect normal keys; reduce signing-time malware risk            |
-| TB-BOOMLET   | Device/Host    | Boomlet secure-element devices | Boomlet and Boomletwo internal state vs. attached hosts | Protect non-exportable key share and backup state; enforce non-determinism and duress logic |
+| TB-ISO       | Device/Host    | Iso offline host            | Trusted setup, backup, and signing environment vs. networked or untrusted hosts | Protect normal keys and installation authority; setup-time compromise is outside the SPEC threat boundary |
+| TB-BOOMLET   | Device/Host    | Boomlet secure-element devices | Boomlet and Boomletwo internal state vs. attached hosts | Protect non-exportable key shares and setup state; enforce per-withdrawal non-determinism and duress logic |
 | TB-ST        | Device/Host    | ST trusted UI device        | ST UI and key store vs. attached hosts and observers      | Prevent duress-input and verification manipulation               |
 | TB-NISO      | Device/Host    | Niso online host            | Niso OS and applications vs. external networks and services | High malware exposure; untrusted for duress integrity            |
+| TB-PHONE     | Device/Host    | Phone rescue-data client    | Phone-held passwords, sensor data, and SAR state vs. the peer environment and network | Compromise can leak, forge, suppress, or roll back rescue data |
 | TB-QR        | Channel/Service | QR transfer channel            | Air-gapped devices vs. optical mediators                       | Prevent direct electronic exfiltration; add parsing and swapping risk |
 | TB-OOB       | Channel/Service | Out-of-band coordination channel | Peer identity verification vs. attacker-controlled communications | Peer identity and parameters must be verified                    |
 | TB-TOR       | Channel/Service | Tor communication path         | Peer onion services vs. the public Internet                    | Provide anonymity with correlation and DoS exposure              |
 | TB-RPC       | Channel/Service | Per-peer Bitcoin node RPC path | Niso vs. the peer's chosen Bitcoin node endpoint(s)            | Block height and chain state are security-critical               |
 | TB-WT        | Channel/Service | Watchtower service             | Peer systems vs. WT infrastructure, keys, and logs             | Central for liveness, metadata, and transcript routing           |
 | TB-SAR       | Channel/Service | SAR service                    | Peer systems vs. SAR infrastructure, keys, operators, and data stores | Holds PII and handles physical response                          |
+| TB-PAYMENT   | Channel/Service | External payment rail          | User, Phone, WT, and SAR payment identities and receipts | Payment proof gates service while payment metadata can link participants |
+| TB-OBSERVABILITY | Channel/Service | WT/SAR observable service surfaces | Protocol state vs. logs, metrics, queues, status APIs, and operator views | Classification-dependent telemetry can reveal duress |
 | TB-JURIS     | Environment    | Cross-jurisdiction environment | Operators, WT, and SAR across legal regimes               | Compelled disclosure or forced inaction can occur                |
 
 ### Cross-boundary flows
 
 - **F-QR-1:** Iso ↔ ST over QR during setup key exchange and duress-set confirmation
 - **F-QR-2:** Niso ↔ ST over QR during withdrawal `tx_id` verification and duress checks
-- **F-USB-1:** Boomlet ↔ Iso during setup and final signing
+- **F-USB-1:** Boomlet ↔ Iso during installation, setup authorization, backup verification, and final signing
 - **F-USB-2:** Boomlet ↔ Niso during online setup and withdrawal
 - **F-USB-3:** Boomletwo ↔ Iso during backup installation and backup import
 - **F-NET-1:** Niso ↔ peer Nisos via Tor during setup coordination and signed `PeerSetupRecord` exchange
 - **F-NET-2:** Niso ↔ WT via Tor during setup registration, approval collection, approval-set attestation, commit, ping/pong, reached-ping, signing-fragment relay, and broadcast coordination
-- **F-NET-3:** WT ↔ SAR during setup-bound SAR finalization and exact encrypted duress-placeholder acknowledgement
+- **F-NET-3:** WT ↔ SAR during setup-bound SAR finalization and fixed-deadline acknowledgement of exact encrypted duress placeholders
 - **F-NET-4:** Phone ↔ SAR during registration and dynamic doxing updates
+- **F-PAY-1:** User / Phone ↔ payment rail for external payment and receipts; Niso / Phone → WT / SAR with the resulting payment proof
+- **F-OBS-1:** WT / SAR ↔ logs, metrics, queues, status APIs, and operator-visible service state
 - **F-RPC-1:** Niso ↔ per-peer Bitcoin node RPC
 - **F-OOB-1:** User ↔ other peers through secure out-of-band channels
 
@@ -44,7 +49,6 @@ The DFD, threat catalog, and risk register use the same boundaries.
 
 ```mermaid
 flowchart LR
-  %% External actors / networks (not a single trust boundary)
   BTC["Bitcoin network / miners"]
   PEERS["Other peers"]
 
@@ -93,13 +97,23 @@ flowchart LR
       NODE["Bitcoin node RPC"]
     end
 
-    PHONE["Phone (dynamic doxing)"]
+    subgraph PHONEB["TB-PHONE: Phone rescue-data boundary"]
+      PHONE["Phone (dynamic doxing)"]
+    end
+  end
+
+  subgraph PAYB["TB-PAYMENT: External payment rail"]
+    PAY["Payment service"]
+  end
+
+  subgraph OBSB["TB-OBSERVABILITY: Service-visible state"]
+    OBS["Logs / metrics / queues / status"]
   end
 
   USER -- "setup inputs" --> ISO
   USER -- "connect Boomlet to Niso or Iso" --> BOOM
 
-  ISO -- "install, local signing, and backup verification" --> BOOM
+  ISO -- "trusted installation, backup authorization and verification, local signing" --> BOOM
   NISO -- "online setup and withdrawal coordination" --> BOOM
 
   USER -- "peer identity exchange" --> OOB
@@ -111,8 +125,10 @@ flowchart LR
 
   NISO -- "peer setup coordination" --> TOR
   TOR --> PEERS
-  NISO -- "WT registration and withdrawal coordination" --> TOR
+  NISO -- "WT registration, payment receipt, and withdrawal coordination" --> TOR
   TOR --> WT
+  WT -- "WT payment info and setup receipt" --> TOR
+  TOR --> NISO
   NISO -- "RPC: height, UTXO, mempool" --> NODE
   NODE -- "chain sync" --> BTC
 
@@ -120,9 +136,18 @@ flowchart LR
   WT -- "relay to peers" --> TOR
   WT -- "SAR finalization and duress relay" --> SAR
   SAR -- "signed responses" --> WT
-  PHONE -- "registration and encrypted doxing data" --> SAR
+  PHONE -- "identifier registration" --> SAR
+  SAR -- "SAR payment info" --> PHONE
+  PHONE -- "SAR payment" --> PAY
+  PAY -- "payment receipt" --> PHONE
+  PHONE -- "payment receipt and encrypted doxing data" --> SAR
+  SAR -- "sync receipt" --> PHONE
+  USER -- "WT payment" --> PAY
+  PAY -- "payment receipt" --> USER
+  USER -- "WT payment receipt" --> NISO
+  WT --> OBS
+  SAR --> OBS
 
-  %% Styling for boundary boxes
   style OOBB fill:#f8f8f8,stroke:#333,stroke-width:1px
   style QRB fill:#f8f8f8,stroke:#333,stroke-width:1px
   style TORB fill:#f8f8f8,stroke:#333,stroke-width:1px
@@ -135,14 +160,15 @@ flowchart LR
   style BOOMB fill:#ffffff,stroke:#333,stroke-width:1px
   style STB fill:#ffffff,stroke:#333,stroke-width:1px
   style ON fill:#ffffff,stroke:#333,stroke-width:1px
+  style PHONEB fill:#ffffff,stroke:#333,stroke-width:1px
+  style PAYB fill:#f8f8f8,stroke:#333,stroke-width:1px
+  style OBSB fill:#f8f8f8,stroke:#333,stroke-width:1px
 ```
 
-Security depends most heavily on TB-BOOMLET and TB-ST. Availability depends on
-TB-WT and TB-RPC, or on working failover for them. The protocol can change the
-time and incentives around coercion, but it cannot remove the human and
-physical threat.
+TB-ISO is the main setup and backup trust boundary. TB-BOOMLET and TB-ST carry
+the authorization and duress guarantees. TB-WT and TB-RPC are availability
+dependencies. The protocol defines no WT failover.
 
----
 
 <a id="architecture-data-flows"></a>
 ## Architecture & data flows
@@ -160,7 +186,6 @@ physical threat.
 flowchart TB
   PEERS[Other peers]
 
-  %% Peer boundary
   subgraph TBPHYS["TB-PHYS-PEER: Peer physical environment"]
     USER([User/Operator])
 
@@ -172,8 +197,9 @@ flowchart TB
     subgraph TBBOOM["TB-BOOMLET: Secure element boundary"]
       BOOM([Boomlet applet])
       D_BOOM[(Boomlet secure state:
-key shares, mystery, counters,
-duress consent set, identity keys)]
+long-lived keys and setup state;
+active-withdrawal mystery, counters,
+reach state and replay memory)]
       BOOM --> D_BOOM
     end
 
@@ -197,10 +223,16 @@ PSBTs, notifications)]
       RPC[[Bitcoin node RPC]]
     end
 
-    PHONE([Phone app])
+    subgraph TBPHONE["TB-PHONE: Phone rescue-data boundary"]
+      PHONE([Phone app])
+      D_PHONE[(Phone state:
+doxing password material,
+dynamic rescue data,
+SAR and payment state)]
+      PHONE --> D_PHONE
+    end
   end
 
-  %% External boundaries
   subgraph TBQR["TB-QR: QR transfer channel"]
     QR[[QR transport]]
   end
@@ -222,21 +254,27 @@ timestamps)]
 static+dynamic encrypted data,
 identifiers, audit logs)]
   end
+  subgraph TBPAY["TB-PAYMENT: External payment rail"]
+    PAY([Payment service])
+  end
+  subgraph TOBS["TB-OBSERVABILITY: Service-visible state"]
+    OBS[(Logs, metrics, queues,
+status APIs, operator views)]
+  end
   BTC[[Bitcoin network]]
 
-  %% Flows (setup)
   USER -- "setup inputs:
 network, entropy,
-passphrase, SAR IDs,
+mnemonic/passphrase,
+selected SAR,
 milestones" --> ISO
-  ISO -- "derive normal_pubkey
-(m/cb86')
-create mnemonic" --> D_MN
-  ISO -- "install params:
+  ISO -- "derive normal_pubkey at
+m/52102'/coin_type'/account'/0/key_index;
+create or restore mnemonic" --> D_MN
+  ISO -- "trusted install:
 normal_pubkey, doxing_key,
-SAR IDs, network" --> BOOM
+selected SAR" --> BOOM
 
-  %% ST key exchange and duress setup
   BOOM -- "boomlet_identity_pubkey" --> ISO
   ISO -- "boomlet_identity_pubkey by QR" --> QR
   QR --> ST
@@ -253,11 +291,11 @@ SAR IDs, network" --> BOOM
   ISO -- "duress consent indices" --> BOOM
   BOOM -- "store duress_consent_set" --> D_BOOM
 
-  %% Setup: ST-assisted parameter verification and OOB exchange
-  BOOM -- "boomerang params seed encrypted" --> NISO
-  NISO -- "peer IDs, Tor addresses, WT IDs,\nmilestones, boomerang params seed by QR" --> QR
+  NISO -- "ordered peer records, WT order, milestones" --> BOOM
+  BOOM -- "outer setup_instance_id +\nnonce-bound encrypted setup ID" --> NISO
+  NISO -- "setup ID commitment + ordered seed fields by QR" --> QR
   QR --> ST
-  ST -- "display peer IDs and params" --> USER
+  ST -- "recompute setup_instance_id;\ndisplay records, WT order, milestones, version" --> USER
   USER -- "peer and params acknowledgement" --> ST
   ST -- "signed params confirmation by QR" --> QR
   QR --> NISO
@@ -267,27 +305,34 @@ SAR IDs, network" --> BOOM
   PEERS --> OOB
   OOB --> USER
 
-  %% Setup: online peer coordination
   NISO -- "peer_ids, tor addresses,
 WT IDs, milestones" --> BOOM
   NISO -- "peer setup coordination over Tor" --> TOR
   TOR --> PEERS
-  NISO -- "WT registration over Tor" --> TOR
+  NISO -- "WT registration and payment receipt over Tor" --> TOR
   TOR --> WT
   WT --> D_WT
   WT -- "forward SAR finalization" --> SAR --> D_SAR
   SAR -- "setup response" --> WT
-  WT -- "registration and setup receipts over Tor" --> TOR
+  WT -- "payment info, registration, and setup receipts over Tor" --> TOR
   TOR --> NISO
 
-  %% Phone to SAR during setup and ongoing use
   USER -- "doxing_password,
 static doxing data,
 SAR IDs" --> PHONE
+  PHONE -- "doxing_data_identifier registration" --> SAR
+  SAR -- "SAR payment info" --> PHONE
+  PHONE -- "SAR payment" --> PAY
+  PAY -- "payment receipt" --> PHONE
   PHONE -- "doxing_data_identifier,
-encrypted doxing data" --> SAR
+encrypted doxing data,
+payment receipt" --> SAR
+  USER -- "WT payment" --> PAY
+  PAY -- "payment receipt" --> USER
+  USER -- "WT payment receipt" --> NISO
+  WT --> OBS
+  SAR --> OBS
 
-  %% Withdrawal flow at a high level
   USER -- "unsigned PSBT" --> NISO
   NISO -- "psbt + height checks" --> RPC
   RPC -- "chain data" --> NISO
@@ -301,19 +346,16 @@ encrypted doxing data" --> SAR
   QR --> NISO
   NISO -- "approval to Boomlet" --> BOOM
 
-  %% WT-mediated approvals, commits, and pings
   NISO -- "approvals, commits, and pings over Tor" --> TOR --> WT
   WT -- "relay to peers over Tor" --> TOR --> PEERS
   WT -- "approvals, pongs, and reached_pings over Tor" --> TOR --> NISO
-  WT -- "duress placeholder" --> SAR
-  SAR -- "signed ack" --> WT
+  WT -- "exact duress placeholder" --> SAR
+  SAR -- "fixed-deadline signed ack\nafter identical durable write" --> WT
 
-  %% Final signing
 
   USER -- "network, mnemonic, passphrase" --> ISO
   ISO <--> BOOM
-  ISO -- "local MuSig2
-partialsig exchange" --> BOOM
+  ISO -- "verify local signing package;\nMuSig2 partial-signature exchange\nunder SIGHASH_DEFAULT" --> BOOM
 
   BOOM -- "signed PSBT" --> NISO --> WT
   WT -- "aggregate PSBTs
@@ -322,25 +364,29 @@ broadcast tx" --> BTC
 
 ### Data classification
 
-The classification combines custody impact, safety impact, and privacy
-sensitivity rather than using confidentiality alone.
+Classification accounts for custody impact, safety impact, and privacy.
 
 | Data                                           | Classification                    | Notes                                                                     |
 | ---------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------- |
 | Mnemonic, passphrase, normal private keys      | **Critical secret**               | Compromise enables deterministic theft later                              |
-| Boomlet key shares + identity private key      | **Critical secret**               | Compromise breaks Boomerang regime, privacy, and duress                   |
+| Boomlet key shares + identity private key      | **Critical secret**               | Compromise breaks Boomerang authorization, privacy, and duress            |
+| Iso setup authority and `normal_privkey`       | **Critical secret / trust root**  | Setup-time substitution can install attacker-chosen normal or rescue authority |
 | Duress consent set                             | **Critical secret**               | If learned, a coercer can bypass the duress mechanism                     |
 | Doxing data (static + dynamic)                 | **Critical safety-sensitive PII** | Compromise enables targeting and harm                                     |
 | Doxing password / key / identifier             | **Critical secret / metadata**    | User-chosen password bounds offline cracking resistance; compromise weakens rescue privacy and duress safety |
+| Dynamic rescue-data timestamp and update order | **Critical safety state**         | Authentication does not determine which valid update is newest or safe to use |
+| Service payment proofs and payment metadata    | **Sensitive metadata**            | Payment can link a person or peer to WT/SAR participation and service timing |
 | Boomerang descriptor, peer IDs                 | **Sensitive configuration**       | Key substitution is catastrophic                                          |
-| Protocol transcripts                           | **Sensitive metadata**            | Linkability and timing can enable targeting                               |
+| Active per-withdrawal `mystery` and reach state | **Critical secret / timing state** | Threshold disclosure predicts the current ceremony; reuse would expose later timing |
+| Protocol transcripts                           | **Sensitive metadata**            | Linkability, reached flags, and timing can enable targeting               |
 | Setup and withdrawal IDs/checkpoints           | **Sensitive integrity state**     | `setup_instance_id`, `setup_checkpoint`, `withdrawal_id`, and `approved_withdrawal_id` bind replay scope and ceremony identity |
 | SAR placeholder acknowledgements and replay tuples | **Sensitive safety metadata** | Must not reveal safe vs duress classification; replay tuples bind exact placeholder instances |
+| WT/SAR logs, metrics, queues, and status state | **Sensitive safety metadata**     | Observable differences can disclose duress even when wire messages match |
 | Signed PSBTs / transaction                     | **Public after broadcast**        | Sensitive before broadcast                                                |
 
 ### Protocol parameter surface
 
-The following parameters control the timing and uncertainty of a withdrawal:
+These parameters control withdrawal timing and uncertainty:
 
 - Milestone and fallback schedule:
   - `milestone_block_0`
@@ -365,9 +411,14 @@ The following parameters control the timing and uncertainty of a withdrawal:
   - `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG`
   - any implementation-profile constants that instantiate the complete message-specific tolerance map
 
-Together, these values determine the attacker's delay and replay windows. They
-also affect coercion cost, false positives, and liveness, so they need explicit
-selection criteria, tests, and operational monitoring.
+- SAR acknowledgement release:
+  - deployment `sar_placeholder_ack_delay`
+  - bounded worst-case pre-acknowledgement processing time
+  - WT timeout schedule that accommodates the fixed delay
+
+These values set the attacker's delay and replay windows. They also affect
+coercion cost, false positives, and liveness. A production profile needs
+selection criteria, tests, and operational monitoring for each value.
 
 ### Protocol-binding boundaries
 
@@ -375,6 +426,11 @@ selection criteria, tests, and operational monitoring.
 - Withdrawal uses two ceremony identifiers: `withdrawal_id` binds setup, transaction, initiator identity, and approval nonce during approval fan-out; `approved_withdrawal_id` binds the unanimous approval set and scopes commitments, SAR placeholders, pings, pongs, reached pings, signing, export, and replay memory.
 - WT cannot advance from approval collection to commit/SAR processing until it verifies one non-initiator approval-set attestation per non-initiator Boomlet over the WT-accepted approval-set fingerprint.
 - PSBT hydration and final signing are constrained by `tx_id` continuity, descriptor membership, transaction semantic checks, reached-ping verification, signing-package verification, and final broadcast `tx_id` equality.
-- Duress safety depends on fresh SAR-encrypted placeholder envelopes, `approved_withdrawal_id` context binding, SAR replay tuples keyed by `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}`, and SAR signatures over the exact encrypted placeholder envelope.
-These are the protocol-level bindings. Implementation evidence and checks on
-the service operating model remain outside that boundary.
+- Every Boomerang input uses `SIGHASH_DEFAULT`; hydration may add signing support data but may not change the transaction, ordering, sequences, or committed sighash policy.
+- `mystery` is created only on entry to `DIGGING`, remains fixed across retries in that ceremony, and is erased after export, explicit abort, or unrecoverable active-withdrawal failure.
+- Duress safety depends on fresh SAR-encrypted placeholder envelopes, `approved_withdrawal_id` context binding, SAR replay tuples keyed by `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}`, SAR signatures over the exact encrypted placeholder, and fixed-deadline acknowledgement release after the same safe/duress durable-write path.
+- SAR acknowledgement proves receipt and durable activation of the exact placeholder. Physical response, correct location, lawful authority, effectiveness, and de-escalation are outside the protocol guarantee.
+- `DynamicDoxingData.captured_at` records a source time but does not define canonical ordering, expiry, clock-skew handling, rollback rejection, or conflict resolution.
+- Exporting a signed fragment, importing one-time backup state, and releasing a fixed-deadline SAR acknowledgement cross crash-sensitive state boundaries without a complete recovery contract.
+- N-of-N identity separation does not establish independent firmware, provisioning, RPC, WT, SAR, payment, or legal failure domains.
+- A consent response learned through physical observation remains valid because no consent-set rotation or replacement procedure is defined.
