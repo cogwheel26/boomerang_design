@@ -1881,10 +1881,28 @@ SAR authenticates and decrypts the placeholder:
 - a 32-byte value whose derived identifier exists means duress;
 - any other value is malformed.
 
-For duress, if `(approved_withdrawal_id, boomlet_identity_pubkey,
-duress_placeholder.iv)` has not been saved, SAR derives the identifier,
-retrieves rescue-data envelopes, decrypts them, saves that tuple, and begins
-its external response procedure.
+Upon receipt of the complete placeholder request, before parsing or
+authentication, SAR records `placeholder_received_at` from a monotonic clock
+and sets:
+
+```text
+placeholder_ack_release_at =
+  placeholder_received_at + sar_placeholder_ack_delay
+```
+
+`sar_placeholder_ack_delay` is a fixed positive SAR deployment setting. It MUST exceed the deployment's bounded
+worst-case pre-acknowledgment processing time, and WT timeouts MUST accommodate
+it.
+
+For every valid safe or duress placeholder, SAR performs the same bounded
+pre-acknowledgment sequence: authenticate and decrypt, classify the plaintext,
+construct the acknowledgment, and durably write a fixed-shape processing record
+using the replay tuple
+`(approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv)`.
+The durable-write path, record size class, queue, and commit policy MUST be
+identical for both classifications. For a new duress tuple, this write MUST
+commit rescue activation. Repeated tuples are handled as defined in Section
+16.6.
 
 For every valid safe or duress placeholder, SAR signs the exact encrypted
 placeholder envelope it received and encrypts that signed message for the
@@ -1916,12 +1934,18 @@ duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_i =
   )
 ```
 
+SAR MUST hold the constructed acknowledgment until
+`placeholder_ack_release_at` and release it exactly then for both
+classifications. Rescue-data retrieval and external response MUST begin
+asynchronously after release. If pre-acknowledgment processing misses the
+deadline, SAR MUST release no late acknowledgment and expose the same failure
+at that deadline for safe and duress cases. Each retry gets a new deadline.
+
 The acknowledgment MUST NOT contain a status, duress flag, placeholder
 plaintext, or plaintext hash in any WT-visible field. Valid safe and duress
 cases MUST produce the same response type, size class, routing, retry behavior,
-acknowledgment timing class, failure behavior, and externally observable
-acknowledgment behavior. Boomlet decrypts its
-acknowledgment, verifies the SAR signature with domain
+failure behavior, and externally observable acknowledgment behavior. Boomlet
+decrypts its acknowledgment, verifies the SAR signature with domain
 `"Boomerang/withdrawal/sar_placeholder_response"`, and requires the signed
 content to equal byte-for-byte the `duress_placeholder` envelope it sent.
 
@@ -1939,15 +1963,8 @@ For valid safe and duress placeholders:
   final externally visible failure behavior MUST be driven only by the
   authenticated placeholder instance and MUST NOT depend on whether SAR
   classified the valid placeholder as safe or duress;
-- SAR MUST produce the protocol acknowledgment within the same externally
-  observable timing class for safe and duress placeholders;
-- SAR MUST NOT delay the protocol acknowledgment until rescue-data retrieval,
-  external response, operator review, law-enforcement contact, or any other
-  duress-specific operational work has completed;
-- SAR MUST durably record or queue duress activation before acknowledging a
-  duress placeholder, but the subsequent rescue work MUST be asynchronous or
-  otherwise timing-equalized so that it does not alter WT-visible protocol
-  behavior;
+- the fixed deadline and identical durable-write path in Section 16.4 are
+  mandatory; a variable delay or timing class is insufficient;
 - WT-visible and attacker-observable logs, metrics, status APIs, error pages,
   queue names, retry counters, and operator-visible protocol status MUST NOT
   reveal whether the valid placeholder was safe or duress.
@@ -2157,17 +2174,16 @@ A conforming implementation MUST provide tests for:
   stale, misordered, or wrong-signer peer pings;
 - PSBT hydration constraints;
 - MuSig2 nonce non-reuse;
-- safe and duress placeholder flow equivalence, including identical
-  WT-visible SAR acknowledgment shape, size class, timing class, retry
-  schedule, and externally observable failure class;
+- safe and duress placeholder flow equivalence, including the Section 16.4
+  fixed deadline, durable-write path, response shape, retry schedule, and
+  failure behavior, including deadline overruns;
 - safe and duress replay equivalence, including identical externally
   indistinguishable acknowledgment behavior for repeated valid placeholders;
 - malformed placeholder, missing identifier, context mismatch, authentication
   failure, SAR unavailability, and acknowledgment delivery failure mapping to
   the permitted externally observable failure behavior;
 - slow or failed SAR rescue-data lookup and external response workflow not
-  changing WT-visible acknowledgment timing, shape, routing, retry, or failure
-  behavior for a valid duress placeholder;
+  changing WT-visible acknowledgment behavior;
 - duress placeholder context binding, including rejection across a different
   `approved_withdrawal_id` or setup session and acceptance of the canonical
   context without ping sequence or commitment phase fields.
