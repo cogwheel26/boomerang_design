@@ -144,10 +144,16 @@ The current security argument assumes:
 - at least one peer remains honest and follows the Boomerang path in setup;
 - Boomlet prevents extraction or unauthorized use of its private material;
 - ST preserves display and input integrity;
-- Iso is isolated during key derivation and final signing;
+- Iso is trusted and isolated throughout setup, including Boomlet installation
+  and Boomletwo backup, and during final signing;
+- after installation, Boomlet authenticates Iso setup authorizations by proof
+  of possession of the normal private key corresponding to its stored
+  `normal_pubkey`;
 - cryptographic primitives are correctly implemented;
 - WT and SAR remain available during ceremonies;
 - users start rollover or recovery before fallback timelocks make coercion predictably useful.
+
+Compromise or substitution of Iso during setup is outside the threat model.
 
 WT and SAR are not custody signers, but they are security-critical. WT can delay or censor progress. SAR can stop the ceremony by failing to respond, mishandle rescue data, or reveal metadata.
 
@@ -1059,6 +1065,8 @@ The identifier is a lookup value, not a secret. Rescue data confidentiality depe
    - selected SAR identity.
    Protocol version and implementation-profile constants are loaded locally by
    Iso and Boomlet.
+   This trusted installation establishes `normal_pubkey` as the authentication
+   key for subsequent Iso-authorized setup operations.
 3. Boomlet generates:
    - identity keypair;
    - MuSig2 private and public share;
@@ -1343,7 +1351,8 @@ Peer-specific SAR responses are not `setup_checkpoint` inputs.
 
 1. Iso installs Boomletwo, which generates an identity keypair.
 2. User gives Iso `milestone_block_collection`, `network`, `mnemonic`, `passphrase`, `static_doxing_data`, and `doxing_password` for backup authorization and sar_setup_response verification.
-3. Iso reconstructs the normal key and signs:
+3. Iso reconstructs the normal key and signs the backup request with
+   `normal_privkey`:
 
 ```text
 BoomletBackupRequest {
@@ -1353,7 +1362,8 @@ BoomletBackupRequest {
 ```
 
 4. The request omits `setup_instance_id` because Iso has not yet received authoritative active setup state.
-5. Boomlet verifies normal-key authorization and target key.
+5. Boomlet verifies the request signature against its stored `normal_pubkey`
+   and verifies the target key.
 6. Boomlet exports authenticated state. The encrypted state includes `setup_instance_id`.
 7. Boomlet sends Iso:
    - encrypted backup state;
@@ -1629,7 +1639,7 @@ last_seen_block = niso_i_event_block_height
 ```
 
 `mystery` is the fresh secret Boomlet threshold for this withdrawal ceremony's
-digging progress. It remains private to Boomlet and MUST be erased with the rest of the active withdrawal state after export,
+digging progress. It remains private to Boomlet until it is reached in the digging-game and MUST be erased with the rest of the active withdrawal state after export,
 abort, or unrecoverable failure.
 `counter` is the successful digging-game progress count.
 `niso_i_event_block_height` is the latest Niso-supplied block height accepted
