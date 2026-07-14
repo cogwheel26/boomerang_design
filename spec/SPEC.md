@@ -167,7 +167,7 @@ The following symbolic parameters are part of the implementation profile:
 | `MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` | Minimum mystery value | Positive integer |
 | `MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` | Maximum mystery value | At least the minimum |
 | `DURESS_CHECK_INTERVAL_IN_BLOCKS` | Mean duress-check interval parameter | Positive integer |
-| `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG` | Minimum effective progress spacing | At least 1 |
+| `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG` | Minimum block spacing between successive Pong rounds; the first Pong is exempt | At least 1 |
 | `FRESHNESS_TOLERANCES` | Complete mapping of per-message block-height tolerances | Every value is non-negative and fixed by the implementation profile |
 | `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum age of a peer ping used by Boomlet for local counter advancement | Non-negative integer |
 | `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` advance per successful round | Positive integer |
@@ -1572,7 +1572,10 @@ approved_withdrawal_id =
   )
 ```
 
-Before WT treats the non-initiator approval phase as complete, each non-initiator Boomlet MUST attest to the approval set it accepted. The Boomlet computes the fingerprint itself from the verified canonical approval set and WT approval; it MUST NOT sign a fingerprint supplied by Niso or any other host:
+Each non-initiator Boomlet MUST attest that it received and verified the complete
+approval set. The Boomlet computes the fingerprint itself from the verified
+canonical approval set and WT approval; it MUST NOT sign a fingerprint supplied
+by Niso or any other host:
 
 ```text
 approval_set_attestation_fingerprint :=
@@ -1593,13 +1596,30 @@ approval_set_attestation_fingerprint_signed_by_boomlet_i :=
   [1 <= i <= 4]
 ```
 
-WT MUST recompute `approval_set_attestation_fingerprint` from its accepted `ordered_peer_tx_approvals` and `wt_tx_approval_signed_by_wt`, then verify exactly one valid `approval_set_attestation_fingerprint_signed_by_boomlet_i` from each non-initiator Boomlet before advancing the withdrawal beyond approval collection. Each signed content value MUST equal the recomputed fingerprint. The attestation proves to WT that the non-initiator Boomlet verified the WT-supplied ordered approval set, WT approval, signer identities, freshness checks, and locally computed `approved_withdrawal_id`. This attestation is a synchronization and accountability barrier before commit/SAR processing; it is separate from the later commit signature, which binds a peer's funds-movement commitment to `approved_withdrawal_id` after this barrier.
+WT MUST recompute `approval_set_attestation_fingerprint` from its accepted
+`ordered_peer_tx_approvals` and `wt_tx_approval_signed_by_wt`, then verify
+exactly one valid `approval_set_attestation_fingerprint_signed_by_boomlet_i`
+from each non-initiator Boomlet. Each signed content value MUST equal the
+recomputed fingerprint. Its sole meaning is that the signer received and
+verified the complete WT-supplied approval set and WT approval and computed the
+same `approved_withdrawal_id`; it is not an authorization, commitment, or
+attestation of duress state.
+
+Together with the matching `approved_withdrawal_id` in the staged initiator
+commit, the four attestations confirm to WT that all five Boomlets received the
+complete approval set.
+
+The initiator MAY perform its duress check and send its commit before WT has
+collected all four attestations. WT MAY authenticate, decrypt, verify, and stage
+that initiator commit while attestations remain outstanding. WT MUST verify all
+four attestations before forwarding the staged initiator placeholder to SAR,
+acknowledging the initiator commit to non-initiators, or accepting a
+non-initiator commit.
 
 ### 15.5 Initial duress check and commitment
 
-Each peer performs the duress challenge defined in Section 16.
-
-Each Boomlet constructs a fresh `duress_placeholder`, then signs:
+The initiator performs the Section 16 duress challenge, constructs a fresh
+`duress_placeholder`, then signs:
 
 ```text
 TxCommit {
@@ -1608,16 +1628,28 @@ TxCommit {
 }
 ```
 
-The signed commit and placeholder are wrapped as
+The initiator's signed commit and placeholder are wrapped as
 `PaddedMessage{content = signed TxCommit, padding = duress_placeholder}`,
-signed as one outer object, and encrypted for WT. WT:
+signed as one outer object, and encrypted for WT. Subject to the four-attestation
+gate above, WT:
 
 1. authenticates and decrypts the outer object;
-2. verifies the inner commit;
-3. forwards the placeholder to the peer's setup-bound SAR;
+2. verifies the inner initiator commit;
+3. forwards the placeholder to the initiator's setup-bound SAR;
 4. waits for a valid encrypted SAR placeholder acknowledgment;
-5. signs the peer commit;
-6. distributes the complete commit collection and each peer's own encrypted SAR placeholder acknowledgment.
+5. signs the initiator commit under
+   `"Boomerang/withdrawal/wt_tx_commit_ack"`;
+6. sends the WT-signed initiator commit to every non-initiator.
+
+A non-initiator MUST NOT construct, sign, or send its `TxCommit` until it has
+received and verified the WT-signed initiator commit, including the WT and
+initiator signatures, `approved_withdrawal_id`, and freshness. It MAY prepare
+its duress challenge and placeholder earlier. After verification, each
+non-initiator constructs its own fresh `TxCommit` and sends the same signed,
+padded, outer-signed, WT-encrypted structure. WT processes each non-initiator
+commit through the corresponding setup-bound SAR, signs each verified commit,
+then distributes the complete commit collection and each peer's own encrypted
+SAR placeholder acknowledgment.
 
 Every Boomlet verifies all commits and its exact encrypted SAR placeholder acknowledgment before entering `DIGGING`.
 
@@ -1676,7 +1708,16 @@ WT forwards every placeholder to SAR and obtains an encrypted SAR placeholder ac
 
 ### 15.8 Pong
 
-After receiving valid current pings, WT waits until the minimum block distance is satisfied and signs:
+After receiving valid current pings and their SAR acknowledgments, WT handles
+Pong spacing as follows:
+
+- for the first Pong round, WT does not impose a minimum-distance wait;
+- for every later round, WT waits until the current block height is at least the
+  previous Pong round's `event_block_height` plus
+  `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG`.
+
+WT then uses one `event_block_height` for all recipient-specific Pongs in that
+round and signs:
 
 ```text
 Pong {
@@ -1740,6 +1781,12 @@ last_seen_block =
       JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET
   )
 ```
+
+For every otherwise valid Pong, Boomlet MUST create and send the next Ping even
+when the counter-advancement predicate is false. In that case `counter` and
+`last_seen_block` remain unchanged, but `ping_seq_num` advances and the Ping uses
+a freshly encrypted `duress_placeholder`. An invalid Pong or an active
+`CHAIN_VIEW_UNSAFE` condition stalls instead.
 
 `last_seen_block` MUST be monotonic within the ceremony. `ping_seq_num`,
 `approved_withdrawal_id`, and the active setup/session binding remain part of
