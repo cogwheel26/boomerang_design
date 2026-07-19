@@ -169,8 +169,8 @@ The following symbolic parameters are part of the implementation profile:
 | `DURESS_CHECK_INTERVAL_IN_BLOCKS` | Mean duress-check interval parameter | Positive integer |
 | `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG` | Minimum block spacing between successive Pong rounds; the first Pong is exempt | At least 1 |
 | `FRESHNESS_TOLERANCES` | Complete mapping of per-message block-height tolerances | Every value is non-negative and fixed by the implementation profile |
-| `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum age of a peer ping used by Boomlet for local counter advancement | Non-negative integer |
-| `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` advance per successful round | Positive integer |
+| `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum permitted lag of an included peer Ping relative to the current local Niso height for counter advancement | Non-negative integer |
+| `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` catch-up per valid Pong round | Positive integer |
 
 Each participant MUST run a binary or implementation profile whose behavior is
 identified by `PROTOCOL_VERSION`. Every signature digest, envelope context,
@@ -1704,6 +1704,11 @@ WT verifies:
 - allowed height range;
 - monotonic reached flag.
 
+A correctly authenticated, sequence-current Ping MUST NOT be rejected solely
+because its `last_seen_block` is old. Lagging Pings remain protocol-valid so a
+Pong can drive bounded `last_seen_block` catch-up, even though they may be
+ineligible for counter advancement at a recipient Boomlet.
+
 WT forwards every placeholder to SAR and obtains an encrypted SAR placeholder acknowledgment before using the ping in a pong.
 
 ### 15.8 Pong
@@ -1742,15 +1747,16 @@ Each Boomlet verifies:
 - included peer ping reached-flag monotonicity;
 - its own encrypted SAR placeholder acknowledgment.
 
-### 15.9 Counter advancement
+### 15.9 Counter advancement and height catch-up
 
-Boomlet increments `counter` only when:
+For each otherwise valid Pong, Boomlet evaluates counter advancement before
+updating `last_seen_block`. It increments `counter` only when:
 
 - the pong is valid for the active ceremony;
-- `niso_i_event_block_height` is strictly greater than the Boomlet's current
-  `last_seen_block`, so the local chain view has advanced since the previous
-  accepted ping;
-- each included previous peer ping from every active peer `j != i` satisfies:
+- `niso_i_event_block_height` is strictly greater than `last_seen_block`, so
+  the local chain view has advanced since the
+  previous Ping;
+- each included previous peer Ping from every active peer `j != i` satisfies:
 
 ```text
 prev_ping_j.last_seen_block >=
@@ -1768,25 +1774,31 @@ ineligible for another Boomlet's counter advancement.
 - no local height decrease, WT height decrease, sequence regression, or
   material RPC/WT chain-view disagreement is active.
 
-After successful advancement:
+If these conditions hold:
 
 ```text
-previous_last_seen_block = last_seen_block
 counter = counter + 1
+```
 
-last_seen_block =
-  min(
-    niso_i_event_block_height,
-    previous_last_seen_block +
-      JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET
-  )
+Independently of whether the counter advanced, every otherwise valid Pong
+performs bounded height catch-up:
+
+```text
+if last_seen_block < niso_i_event_block_height:
+  last_seen_block =
+    min(
+      niso_i_event_block_height,
+      last_seen_block +
+        JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET
+    )
 ```
 
 For every otherwise valid Pong, Boomlet MUST create and send the next Ping even
-when the counter-advancement predicate is false. In that case `counter` and
-`last_seen_block` remain unchanged, but `ping_seq_num` advances and the Ping uses
-a freshly encrypted `duress_placeholder`. An invalid Pong or an active
-`CHAIN_VIEW_UNSAFE` condition stalls instead.
+when the counter-advancement predicate is false. In that case `counter` remains
+unchanged, `last_seen_block` still performs the bounded catch-up above,
+`ping_seq_num` advances, and the Ping uses a freshly encrypted
+`duress_placeholder`. An invalid Pong or an active `CHAIN_VIEW_UNSAFE`
+condition stalls without updating `last_seen_block`.
 
 `last_seen_block` MUST be monotonic within the ceremony. `ping_seq_num`,
 `approved_withdrawal_id`, and the active setup/session binding remain part of
@@ -2226,9 +2238,13 @@ A conforming implementation MUST provide tests for:
 - setup replay rejection;
 - tx ID and setup ID mismatch rejection;
 - ping sequence and reached-flag monotonicity;
-- counter advancement requiring one fresh signed ping from every other active
-  peer, including already reached peers, and rejecting missing, duplicate,
-  stale, misordered, or wrong-signer peer pings;
+- counter advancement requiring one signed Ping from every other active peer,
+  including
+  already reached peers, to fall within the accepted boundary, while a valid
+  no-advance Pong still performs bounded `last_seen_block` catch-up and emits a
+  fresh next Ping; tests MUST reject missing, duplicate, misordered,
+  wrong-signer or counter-ineligible peer Pings without turning
+  an authenticated lagging Ping into a terminal protocol state;
 - PSBT hydration constraints;
 - MuSig2 nonce non-reuse;
 - safe and duress placeholder flow equivalence, including the Section 16.4
