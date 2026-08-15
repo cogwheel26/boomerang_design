@@ -1,35 +1,31 @@
 # Coercion Economics
 
-**Document status:** Non-normative rationale.
+> **Last change — 2026-07-14:** Deterrence applies to rational, cost-sensitive attackers and depends on credible disruption outside the protocol.
 
-`spec/SPEC.md` defines protocol behavior. `security_models/README.md` contains
-the active threat model and risk register. This note preserves the economic
-deterrence argument that motivated Boomerang's timing and duress design.
+Boomerang's coercion claim is economic rather than absolute. A long,
+unpredictable withdrawal raises the cost of an attack, and the victim cannot
+shorten the wait on the attacker's behalf.
 
-## Economics Of Coercion
-
-Boomerang is designed not only to function under coercion, but also to be a
-deterrent by increasing attacker uncertainty and cost.
-
-### A Simple Game-Theoretic Model
+### Attacker utility model
 
 Model a coercion attempt as a sequential decision problem:
 
-**Players**
+**Players:**
 
 - Defender: Boomerang user or users
 - Attacker: coercive adversary
 
-**Parameters**
+**Parameters:**
 
 - `V`: value attacker can steal
 - `T`: time attacker must maintain control until funds are safely exfiltrated
 - `c`: attacker's per-unit-time operational cost
-- `q(T)`: probability attacker is disrupted before completion, increasing with
-  time
+- `q(T)`: assumed probability that an external actor disrupts the attacker
+  before completion; it increases with time only when detection and response
+  make that assumption credible
 - `L`: attacker loss if disrupted
 
-A simple attacker expected utility:
+The attacker's expected utility is:
 
 ```text
 U_A = (1 - q(T)) * V - c * T - q(T) * L
@@ -37,26 +33,36 @@ U_A = (1 - q(T)) * V - c * T - q(T) * L
 
 The attacker proceeds when `U_A > 0`.
 
-### How Boomerang Shifts Incentives
+The equation covers a rational, cost-sensitive attacker seeking financial gain.
+It does not cover retaliatory, ideological, state, or self-destructive actors,
+or an attacker who assigns positive utility to harming the victim. The `c * T`
+term charges cost through completion. If disruption ends the attack at an
+earlier time `D`, incurred cost is closer to `c * min(T, D)`; that stopping-time
+behavior is outside this simplified equation.
 
-Boomerang changes the attacker's payoff by changing the distribution of `T`
-and increasing `q(T)`:
+### How Boomerang changes the incentives
 
-- It increases expected completion time because Boomlet will not sign until its
-  secret mystery threshold is reached.
-- It increases variance because the attacker must plan for worst-case duration.
-- It reduces time compressibility because the victim cannot force Boomlet to
-  sign early.
-- It creates a reaction window because duress checks happen at commitment and
-  recur during the digging game.
+Boomerang changes the distribution of `T`. It raises `q(T)` only if signaling,
+investigation, or intervention outside the protocol becomes more likely over
+time:
 
-The objective is not coercion-proof custody. The objective is to push attacker
-expected utility negative for a meaningful range of attackers by raising time,
-uncertainty, and disruption probability.
+- Each Boomlet samples a fresh secret threshold when the approved withdrawal
+  enters `DIGGING` and will not sign before reaching it, which lengthens the
+  expected attack.
+- The attacker has to plan for the upper end of the range, not just its mean.
+- The victim cannot force an early signature.
+- Duress checks at commitment and during the digging game create repeated
+  opportunities to signal. Fixed-deadline acknowledgements confirm protocol
+  delivery without proving that the external response is timely, effective,
+  lawful, correctly directed, or safe.
 
-### Parameter Knobs As Economic Levers
+Boomerang does not make custody coercion-proof. It aims to make expected utility
+negative for a meaningful range of attackers by increasing the required time,
+uncertainty, and probability of disruption.
 
-Several design parameters are deterrence levers:
+### Protocol parameters as economic levers
+
+Deterrence depends on:
 
 - Mystery min/max range affects expected duration and variance.
 - Duress check interval affects duress opportunities and ceremony burden.
@@ -65,21 +71,21 @@ Several design parameters are deterrence levers:
   fallback behavior.
 - SAR selection and jurisdiction affect the real-world meaning of `q(T)`.
 
-## Realistic Cost Assumptions
+## Cost assumptions
 
 Boomerang's coercion-resistance argument is based on altering the economics of
 coercion, not on making coercion impossible.
 
-To evaluate deterrence, examine:
+The argument depends on four estimates:
 
 1. The realistic cost of sustaining coercion.
 2. The statistical duration of withdrawal under Boomerang.
 3. The probability and consequence of SAR escalation.
 4. The rational behavior of an attacker facing uncertainty.
 
-### Expected Withdrawal Duration
+### Expected withdrawal duration
 
-In a typical high-security configuration:
+Example high-security configuration:
 
 - 5 peers
 - Withdrawal window: 6-9 months
@@ -89,31 +95,34 @@ Because completion depends on the maximum of all peers' hidden values, the
 effective withdrawal duration clusters near the upper bound. For an attacker,
 coercion must likely be sustained for close to the full configured window.
 
-### Sustained Coercion Cost
+### Cost of sustained coercion
 
 A coercive detention lasting months requires continuous staffing, secure
 holding locations, logistics, surveillance countermeasures, and operational risk
 management.
 
-Conservative estimates:
+Illustrative estimates:
 
 - Low-end aggressive underestimation: about USD 5,000 per day
 - Professional sustained operation: about USD 20,000-30,000 per day
+
+These figures have no cited jurisdiction, date, source distribution, or
+sensitivity range. They are examples, not evidence for a security claim.
 
 Over a 6-9 month window, even the low estimate implies about USD 900,000 to
 USD 1,350,000 in coercion cost before escalation risk. Professional costs can
 reach several million dollars.
 
-### Escalation Probability
+### Escalation probability
 
 If duress checks occur weekly, the victim successfully signals with probability
 `pi` per check, and SAR responds with probability `rho` after a signal, then
 over a 6-9 month period the probability of at least one escalation can become
 very high unless `pi` or `rho` is near zero.
 
-The relevant question is then what escalation means for the attacker.
+The effect depends on what escalation means for the attacker.
 
-### Two Escalation Regimes
+### Two escalation regimes
 
 If SAR activation plausibly leads to detention, prosecution, asset seizure, or
 severe criminal penalties, escalation represents catastrophic loss. Under those
@@ -125,7 +134,7 @@ prosecution risk, or impose material cost, escalation is only a nuisance. In
 that regime, Boomerang provides delay and detection, but deterrence is weaker
 for very large target values.
 
-### Attacker Decision Dynamics
+### Attacker decisions over time
 
 Boomerang turns coercion into a sequential decision problem. Each passing week
 without completion suggests a high hidden threshold, leaves substantial
@@ -136,20 +145,10 @@ Under strong escalation consequences, the attacker's expected payoff declines
 toward early abandonment. Under weak escalation consequences, the attacker may
 rationally continue.
 
-### Practical Implication
+### Practical implication
 
-Boomerang is strongest when:
-
-- legal enforcement is credible;
-- SAR capability is real;
-- duress signaling reliability is high;
-- the withdrawal window is long relative to target value.
-
-Boomerang is weaker when:
-
-- escalation has no real consequence;
-- jurisdictional enforcement is absent;
-- duress signaling is unreliable.
-
-The core point is economic: delay alone does not deter coercion. Delay combined
-with credible escalation can.
+The deterrent depends on credible enforcement, a SAR that can actually respond,
+reliable duress signaling, and a withdrawal window long enough for the value at
+stake. If escalation has no real consequence, jurisdictional enforcement is
+absent, or duress delivery is unreliable, Boomerang mainly buys time. Delay by
+itself does not deter coercion; delay backed by credible escalation can.

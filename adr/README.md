@@ -15,6 +15,8 @@ not override the specification.
 | [0002](0002-java-card-cryptographic-profile.md) | Use AES-256-CBC/PKCS#7 with AES-CMAC and an AES-CMAC KDF. |
 | [0003](0003-single-sar-per-peer.md) | Use exactly one setup-bound SAR per peer. |
 | [0004](0004-per-channel-directional-keys.md) | Use one four-key directional schedule per endpoint pair. |
+| [0005](0005-user-chosen-doxing-password.md) | Use a user-chosen doxing password. |
+| [0006](0006-per-withdrawal-mystery-generation.md) | Generate mystery per withdrawal at digging entry. |
 
 ## Status Values
 

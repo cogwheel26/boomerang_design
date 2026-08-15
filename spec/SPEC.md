@@ -144,10 +144,16 @@ The current security argument assumes:
 - at least one peer remains honest and follows the Boomerang path in setup;
 - Boomlet prevents extraction or unauthorized use of its private material;
 - ST preserves display and input integrity;
-- Iso is isolated during key derivation and final signing;
+- Iso is trusted and isolated throughout setup, including Boomlet installation
+  and Boomletwo backup, and during final signing;
+- after installation, Boomlet authenticates Iso setup authorizations by proof
+  of possession of the normal private key corresponding to its stored
+  `normal_pubkey`;
 - cryptographic primitives are correctly implemented;
 - WT and SAR remain available during ceremonies;
 - users start rollover or recovery before fallback timelocks make coercion predictably useful.
+
+Compromise or substitution of Iso during setup is outside the threat model.
 
 WT and SAR are not custody signers, but they are security-critical. WT can delay or censor progress. SAR can stop the ceremony by failing to respond, mishandle rescue data, or reveal metadata.
 
@@ -161,10 +167,10 @@ The following symbolic parameters are part of the implementation profile:
 | `MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` | Minimum mystery value | Positive integer |
 | `MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` | Maximum mystery value | At least the minimum |
 | `DURESS_CHECK_INTERVAL_IN_BLOCKS` | Mean duress-check interval parameter | Positive integer |
-| `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG` | Minimum effective progress spacing | At least 1 |
+| `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG` | Minimum block spacing between successive Pong rounds; the first Pong is exempt | At least 1 |
 | `FRESHNESS_TOLERANCES` | Complete mapping of per-message block-height tolerances | Every value is non-negative and fixed by the implementation profile |
-| `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum age of a peer ping used by Boomlet for local counter advancement | Non-negative integer |
-| `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` advance per successful round | Positive integer |
+| `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum permitted lag of an included peer Ping relative to the current local Niso height for counter advancement | Non-negative integer |
+| `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` catch-up per valid Pong round | Positive integer |
 
 Each participant MUST run a binary or implementation profile whose behavior is
 identified by `PROTOCOL_VERSION`. Every signature digest, envelope context,
@@ -193,7 +199,6 @@ Boomlet stores:
 - active `setup_instance_id`;
 - `boomerang_params`;
 - `setup_checkpoint`;
-- current `mystery`;
 - backup-complete flag;
 - replay memory needed to reject completed setup instances and active withdrawal replays.
 
@@ -201,11 +206,8 @@ During an active setup or withdrawal, Boomlet also holds volatile ceremony state
 shown in the diagrams, including outstanding ST challenge nonces, candidate
 `duress_check_space`, transaction review state, `withdrawal_id`,
 `approved_withdrawal_id`, verified approval and commit collections, current
-placeholder plaintext, ping counters, reached-peer state, and signing-session
-state. This volatile state is not exported as long-lived state except through the
-authorized backup envelope fields listed in `BoomletBackupState`; active
-`mystery` is deliberately excluded from backup export.
-
+placeholder plaintext, the active withdrawal `mystery`, ping counters,
+reached-peer state, and signing-session state.
 Identity and MuSig2 private material MUST NOT be exported in plaintext or made
 available to Iso, Niso, or the host. The only permitted export is the
 authenticated, target-bound Boomlet-to-Boomletwo backup envelope during setup,
@@ -277,14 +279,17 @@ The protocol data model uses:
 
 - `bool`;
 - `u8`, `u16`, `u32`, and `u64`, encoded unsigned and big-endian;
-- fixed byte strings such as `bytes16`, `bytes32`, and `bytes33`;
+- fixed byte strings such as `bytes16`, `bytes32`, `bytes33`, and `bytes64`;
 - variable `bytes`;
 - UTF-8 `text`;
 - ordered `list<T>`;
 - ordered heterogeneous `tuple<T...>`;
 - versioned `struct` objects.
 
-Text MUST be valid UTF-8 and normalized to Unicode NFC. Protocol labels are ASCII. Maps and floating-point numbers are forbidden.
+Text MUST be valid UTF-8 and normalized to Unicode NFC. Protocol labels and
+Boomlet-parsed text MUST be ASCII. Non-ASCII user text MUST be NFC-normalized
+before encoding and rejected if it is not normalized. Maps and floating-point
+numbers are forbidden.
 
 `uint16_be(value)` and `uint32_be(value)` are fixed-width unsigned big-endian
 encodings. `utf8(text)` returns the NFC-normalized UTF-8 bytes of `text`.
@@ -295,7 +300,7 @@ encodings. `utf8(text)` returns the NFC-normalized UTF-8 bytes of `text`.
 `canonical_encode(value)` is recursive and deterministic:
 
 ```text
-null:    0x00
+reserved-null: 0x00
 false:   0x01
 true:    0x02
 u8:      0x10 || value[1]
@@ -312,13 +317,20 @@ struct:  0x40 || uint16_be(schema_id) || uint16_be(schema_version)
               || ...
 ```
 
-Struct fields MUST appear in ascending field-ID order. Unknown fields MUST be
-rejected unless the schema version explicitly permits extensions. Duplicate
-fields, non-minimal integers, invalid UTF-8, and trailing bytes MUST be
-rejected. Each schema or message type supported by a `PROTOCOL_VERSION` has a
-fixed positive maximum canonical encoded size. Implementations MUST reject
-objects exceeding that schema or message type's limit before allocation or
-decoding.
+The `0x00` null tag is reserved in this protocol version. Optional fields are
+omitted; they MUST NOT be encoded as null.
+
+Struct fields MUST appear in ascending field-ID order. For schema version `1`,
+all listed fields are required and `field_count` MUST exactly match the schema's
+required field count. Unknown, missing, duplicate, out-of-order, wrong-type, or
+trailing fields MUST be rejected unless a later schema version explicitly
+permits extensions. The expected schema type fixes the type tag: for example, a
+`u32` field MUST use the `u32` tag even when the value would fit in `u8` or
+`u16`. Invalid UTF-8, non-normalized non-ASCII text, non-ASCII Boomlet-parsed
+text, and trailing bytes MUST be rejected. Each schema or message type supported
+by a `PROTOCOL_VERSION` has a fixed positive maximum canonical encoded size.
+Implementations MUST reject objects exceeding that schema or message type's
+limit before allocation or decoding.
 
 `canonical_encode(value_0, ..., value_n)` is shorthand for canonical encoding of
 the ordered tuple containing exactly those values. It is not raw
@@ -588,6 +600,29 @@ SAR stored-data context, which exists before setup agreement, is:
 
 Normal and Boomlet signing keys use secp256k1. `derive_public_key` performs standard scalar-to-public-key derivation. `derive_musig2_public_key` and interactive signing follow BIP327. Implementations MUST bind the aggregate key, participant list, transaction sighash, public nonces, and session state exactly as required by BIP327 and MUST prevent nonce reuse.
 
+#### 9.7.1 Normal-key derivation
+
+The normal key uses BIP39 mnemonic encoding and seed derivation, then BIP32
+private-key derivation on secp256k1. The path is:
+
+```text
+m / 52102' / coin_type' / account' / 0 / key_index
+```
+
+`52102` is `0xcb86`, the first two bytes of `sha256("boomerang")`
+interpreted as a big-endian integer. This purpose value is
+Boomerang-profile-specific and does not claim BIP registration.
+
+`coin_type` is `0` for Bitcoin mainnet and `1` for testnet, signet, and
+regtest unless a later profile assigns separate test-network coin types.
+`account` is a user- or implementation-profile-selected account number and
+defaults to `0`. `key_index` is the non-hardened Boomerang setup key index
+under external chain `0` and defaults to `0`.
+
+`normal_pubkey` is the 32-byte BIP340 x-only public key derived from the child
+private scalar. A BIP86 Taproot output-key tweak MUST NOT be applied to
+`normal_pubkey`.
+
 ### 9.8 Protocol operation names
 
 The sequence notation uses these exact operation names:
@@ -596,9 +631,9 @@ The sequence notation uses these exact operation names:
 - `generate_private_key()` creates a valid private scalar or service key using the approved device RNG and the key type required by its assignment.
 - `derive_public_key(private_key)` returns the canonical public-key encoding for that key type.
 - `canonical_public_key_bytes(public_key)` validates the public key and returns its exact canonical encoded bytes.
-- `mnemonic_from_entropy(entropy_bytes)` encodes the supplied entropy as the recoverable mnemonic.
-- `derive_master_xpriv(mnemonic, passphrase)` derives the BIP32 master private key.
-- `derive_hardened_child(parent_xpriv, index)` derives the indicated hardened BIP32 child private key.
+- `mnemonic_from_entropy(entropy_bytes)` encodes the supplied entropy as a BIP39 mnemonic.
+- `derive_master_xpriv(mnemonic, passphrase)` derives the BIP32 master private key from the BIP39 seed.
+- `derive_child_xpriv(parent_xpriv, index, hardened)` derives the indicated BIP32 child private key.
 - `derive_musig2_public_key(boomlet_share_pubkey, normal_pubkey)` returns the BIP327 aggregate key for the ordered two-key participant list.
 - `derive_tor_address(tor_secret_key)` returns the Tor v3 onion-service address corresponding to the service identity key.
 - `construct_boomerang_descriptor(peer_ids, milestone_blocks)` performs the deterministic construction in Section 11.
@@ -616,7 +651,10 @@ Payment execution is outside Boomlet and does not alter the cryptographic requir
 
 ## 10. Protocol objects
 
-The following schemas define semantic field order. Implementations MUST assign stable schema and field IDs consistent with this order.
+The following schemas define semantic field order and canonical IDs. Schema IDs
+are assigned by the order in this section, starting at `1`. Field IDs are
+assigned by field order inside each schema, starting at `1`. All listed fields
+are required for schema version `1`.
 
 Schema names use `UpperCamelCase`. Values and fields use `snake_case`. A
 peer-indexed value uses `i` as the index placeholder, so `peer_i_id` denotes
@@ -626,8 +664,44 @@ the `PeerId` value for peer `i`, and `peer_0_id` is the concrete value for peer
 additional schemas.
 
 Type annotations use the primitive types from Section 8.1, schema names,
-`list<T>`, and `value`. `value` denotes any canonical value permitted by
-Section 8.
+`list<T>`, and `value`. Generic `value` is not a free-form extension mechanism:
+the enclosing domain, message type, or protocol context MUST specify the exact
+allowed schema or primitive tuple shape before the value is decoded or verified.
+A wrapper containing a syntactically valid but context-wrong `value` MUST be
+rejected before semantic use.
+
+Schema ID registry:
+
+| ID | Schema |
+| --- | --- |
+| 1 | `CbcCmacEnvelope` |
+| 2 | `SignedMessage` |
+| 3 | `MessageWithNonce` |
+| 4 | `PaddedMessage` |
+| 5 | `SarServiceFeePaymentInfo` |
+| 6 | `WtServiceFeePaymentInfo` |
+| 7 | `DuressCheckSpace` |
+| 8 | `WtId` |
+| 9 | `SarId` |
+| 10 | `StaticDoxingData` |
+| 11 | `DynamicDoxingData` |
+| 12 | `ServicePaymentReceipt` |
+| 13 | `PeerId` |
+| 14 | `PeerSetupRecord` |
+| 15 | `MilestoneBlocks` |
+| 16 | `BoomerangParamsSeed` |
+| 17 | `BoomerangParams` |
+| 18 | `WtSetupReceipt` |
+| 19 | `SarSetupResponse` |
+| 20 | `WtSarSetupResponse` |
+| 21 | `BoomletBackupRequest` |
+| 22 | `BackupDone` |
+| 23 | `BoomletBackupState` |
+| 24 | `TxApproval` |
+| 25 | `WtTxApproval` |
+| 26 | `TxCommit` |
+| 27 | `Ping` |
+| 28 | `Pong` |
 
 ```text
 CbcCmacEnvelope {
@@ -718,17 +792,26 @@ PeerSetupRecord {
   tor_address: text
 }
 
+MilestoneBlocks {
+  milestone_block_0: u32,
+  milestone_block_1: u32,
+  milestone_block_2: u32,
+  milestone_block_3: u32,
+  milestone_block_4: u32,
+  milestone_block_5: u32
+}
+
 BoomerangParamsSeed {
   ordered_peer_setup_records: list<SignedMessage>,
   wt_ids: list<WtId>,
-  milestone_blocks: list<u32>
+  milestone_blocks: MilestoneBlocks
 }
 
 BoomerangParams {
   setup_instance_id: bytes32,
   peer_ids: list<PeerId>,
   wt_ids: list<WtId>,
-  milestone_blocks: list<u32>,
+  milestone_blocks: MilestoneBlocks,
   boomerang_descriptor: text
 }
 
@@ -746,7 +829,7 @@ SarSetupResponse {
 
 WtSarSetupResponse {
   setup_instance_id: bytes32,
-  content: SignedMessage,
+  content: CbcCmacEnvelope,
   wt_suffix: text
 }
 
@@ -815,6 +898,12 @@ Object type, schema ID, signature domain, and envelope context identify the
 transition. Signed wrappers and encrypted envelopes are not duplicated inside
 the object unless explicitly shown.
 
+`SignedMessage.content` is valid only when the caller and signature domain
+specify the expected content schema or primitive tuple shape.
+`MessageWithNonce.content`, `PaddedMessage.content`, `PaddedMessage.padding`,
+and `BoomletBackupState.replay_state` MUST be validated against the exact
+enclosing protocol context.
+
 `PaddedMessage` is the canonical outer object used when a signed withdrawal
 commit or ping is bound to a `duress_placeholder`. `padding` is opaque to the
 object schema and is included byte-for-byte in the signed canonical encoding.
@@ -828,6 +917,7 @@ defined in Section 16.4.
 `PeerSetupRecord` values sorted by encoded Boomlet identity public-key bytes.
 `BoomerangParams.peer_ids` is the corresponding ordered list of `PeerId`
 values.
+`milestone_blocks` is always a `MilestoneBlocks` struct.
 
 `DynamicDoxingData.schema_id` identifies the canonical payload schema and
 `captured_at` records its source timestamp. A service payment proof is opaque
@@ -835,8 +925,7 @@ to the protocol, but the receiving service MUST verify that it pays the
 expected invoice, amount, service identity, and deadline.
 
 `BoomletBackupState` is never host-readable. Boomlet encrypts it directly for
-the authorized Boomletwo identity. The state excludes the active `mystery`;
-Boomletwo generates an independent mystery after authenticated import.
+the authorized Boomletwo identity.
 
 ## 11. Descriptor
 
@@ -884,9 +973,16 @@ and(thresh(1, pk(normal_pubkey_0)..pk(normal_pubkey_4)),
     after(milestone_block_5))
 ```
 
-Milestones MUST be strictly increasing. The Boomerang branch MUST be the earliest spendable branch. Fallback branches use only normal keys and monotonically reduce the threshold.
+Milestones MUST be strictly increasing in `milestone_block_0` through
+`milestone_block_5` order. The Boomerang branch MUST be the earliest spendable
+branch. Fallback branches use only normal keys and monotonically reduce the
+threshold.
 
-`construct_boomerang_descriptor(peer_ids, milestone_blocks)` deterministically constructs and checksum-encodes this descriptor. Peers MUST compare the exact descriptor string and the underlying Taproot output key. Iso and Niso use local `network` configuration when deriving, displaying, checking block height, or relaying network-specific Bitcoin data.
+`construct_boomerang_descriptor(peer_ids, milestone_blocks)` accepts the `MilestoneBlocks` struct, maps its six fields to the six branches above,
+and deterministically constructs and checksum-encodes this descriptor. Peers
+MUST compare the exact descriptor string and the underlying Taproot output key.
+Iso and Niso use local `network` configuration when deriving, displaying,
+checking block height, or relaying network-specific Bitcoin data.
 
 ## 12. Setup state machine
 
@@ -969,6 +1065,8 @@ The identifier is a lookup value, not a secret. Rescue data confidentiality depe
    - selected SAR identity.
    Protocol version and implementation-profile constants are loaded locally by
    Iso and Boomlet.
+   This trusted installation establishes `normal_pubkey` as the authentication
+   key for subsequent Iso-authorized setup operations.
 3. Boomlet generates:
    - identity keypair;
    - MuSig2 private and public share;
@@ -1172,20 +1270,6 @@ content equality.
 Any `PROTOCOL_VERSION` signature/hash context mismatch or fingerprint-content
 mismatch returns `PARAMETER_MISMATCH` and stalls the setup attempt.
 
-After agreement, the active Boomlet generates:
-
-```text
-mystery =
-  random_integer(
-    MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS,
-    MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS
-  )
-```
-
-`mystery` is the secret Boomlet threshold for withdrawal progress. It remains
-private to Boomlet and is excluded from backup export.
-`counter` is not created during Setup; Section 15.6 initializes it only when a
-withdrawal ceremony enters `DIGGING`.
 
 The first checkpoint is:
 
@@ -1267,7 +1351,8 @@ Peer-specific SAR responses are not `setup_checkpoint` inputs.
 
 1. Iso installs Boomletwo, which generates an identity keypair.
 2. User gives Iso `milestone_block_collection`, `network`, `mnemonic`, `passphrase`, `static_doxing_data`, and `doxing_password` for backup authorization and sar_setup_response verification.
-3. Iso reconstructs the normal key and signs:
+3. Iso reconstructs the normal key and signs the backup request with
+   `normal_privkey`:
 
 ```text
 BoomletBackupRequest {
@@ -1277,15 +1362,16 @@ BoomletBackupRequest {
 ```
 
 4. The request omits `setup_instance_id` because Iso has not yet received authoritative active setup state.
-5. Boomlet verifies normal-key authorization and target key.
-6. Boomlet exports authenticated state excluding the active `mystery`. The encrypted state includes `setup_instance_id`.
+5. Boomlet verifies the request signature against its stored `normal_pubkey`
+   and verifies the target key.
+6. Boomlet exports authenticated state. The encrypted state includes `setup_instance_id`.
 7. Boomlet sends Iso:
    - encrypted backup state;
    - active Boomlet identity public key;
    - `boomerang_params`;
    - signed SAR response.
-8. Iso requires `boomerang_params.milestone_blocks` to equal
-   `milestone_block_collection`, reconstructs and verifies the descriptor from
+8. Iso requires `boomerang_params.milestone_blocks` to equal the supplied
+   `MilestoneBlocks` value, reconstructs and verifies the descriptor from
    `boomerang_params.peer_ids` and those milestones, requires the active
    Boomlet identity public key to appear exactly once in
    `boomerang_params.peer_ids`,
@@ -1295,7 +1381,7 @@ BoomletBackupRequest {
    `doxing_password`. Iso does not need a retained `SarId` for this backup-time
    check; the SAR public key is the signer identity of `signed SAR response`.
 9. Iso transfers the encrypted state and active Boomlet identity to Boomletwo without a separate setup-ID field. The one-time backup bootstrap context is defined in Section 9.6.
-10. Boomletwo decrypts, verifies the embedded setup ID, imports the state, generates its own mystery, and signs `BackupDone`.
+10. Boomletwo decrypts, verifies the embedded setup ID, imports the state, and signs `BackupDone`.
 11. Boomlet verifies `BackupDone`, marks backup complete, and rejects another backup request for the same active state.
 12. Boomlet computes and signs:
 
@@ -1351,6 +1437,9 @@ replay state until a valid retry or recovery input is accepted, or until the
 user or operator explicitly abandons it.
 
 Withdrawal uses two IDs. The initiator-created `withdrawal_id` binds the setup, transaction, initiator identity, and initiator approval nonce after initiator review and during approval fan-out. After all peer approvals are verified, `approved_withdrawal_id` binds the exact unanimous approval set and identifies every following commitment, duress, ping, pong, reached-ping, signing, export, and replay scope.
+`initiator` and `non-initiator` are withdrawal roles. Any active setup peer may
+be the initiator; active setup peer order remains the order of
+`peer_ids_collection`.
 
 ## 15. Withdrawal protocol
 
@@ -1384,18 +1473,23 @@ Withdrawal may begin only if:
 - no other withdrawal ceremony is active;
 - fallback-path spending is not being presented as Boomerang spending.
 
+The user authorization model requires the User to know, or have an independent
+tool for deriving, the `tx_id` of the intended transaction contents before
+approving ST's display. ST is a trusted `tx_id` confirmation device, not the
+transaction semantic renderer.
+
 ### 15.2 Initiator review
 
 `tx_id` is the Bitcoin transaction identifier derived from the unsigned
 transaction.
 
 1. User supplies a PSBT to Niso.
-2. Niso validates syntax, inputs, outputs, fees, descriptor membership, and milestone eligibility.
+2. Niso validates syntax, inputs, outputs, fees, descriptor membership, sighash policy, and milestone eligibility.
 3. Niso sends PSBT and local block height to Boomlet.
 4. Boomlet derives `tx_id`, creates fresh `st_preview_nonce`, stores the outstanding `{tx_id, st_preview_nonce}` review state, and uses that nonce for the ST freshness check.
 5. Boomlet encrypts the nonce-bound `{tx_id}` object for ST.
 6. ST displays `tx_id`.
-7. User independently compares it with the intended transaction and approves the `tx_id`.
+7. User independently verifies that the displayed `tx_id` is the `tx_id` of the intended transaction contents and approves the `tx_id`.
 8. ST signs the exact nonce-bound object and encrypts it to Boomlet.
 9. Boomlet verifies signature, tx ID, nonce, and outstanding state.
 
@@ -1461,10 +1555,11 @@ ordered_peer_tx_approvals :=
   in active setup peer order, where ordered_peer_tx_approvals[i]
   is signed by peer_ids_collection[i].boomlet_identity_pubkey
 
-ordered_non_initiator_peer_tx_approvals := ordered_peer_tx_approvals[1..4]
+ordered_non_initiator_peer_tx_approvals :=
+  ordered_peer_tx_approvals with the initiator's approval omitted
 ```
 
-Receivers verify the WT-supplied ordering before hashing: the collection MUST contain exactly one approval per expected active setup peer, no missing approvals, no duplicates, no wrong signer, no wrong `withdrawal_id`, and no ordering mismatch. Non-initiator receivers that receive `ordered_non_initiator_peer_tx_approvals` reconstruct the complete set as `[stored peer_0_tx_approval_signed_by_boomlet_0] || ordered_non_initiator_peer_tx_approvals` before computing the approved ID. No peer may commit before it has verified unanimous approval for one reconstructed `withdrawal_id` in the active setup. Approval-collection messages carry the signed approvals; every receiver computes the ID locally after verification. After verification, every participant computes:
+Receivers verify the WT-supplied ordering before hashing: the collection MUST contain exactly one approval per expected active setup peer, no missing approvals, no duplicates, no wrong signer, no wrong `withdrawal_id`, and no ordering mismatch. Non-initiator receivers that receive `ordered_non_initiator_peer_tx_approvals` reconstruct `ordered_peer_tx_approvals` by inserting the stored initiator approval at the initiator's active setup peer position before computing the approved ID. No peer may commit before it has verified unanimous approval for one reconstructed `withdrawal_id` in the active setup. Approval-collection messages carry the signed approvals; every receiver computes the ID locally after verification. After verification, every participant computes:
 
 ```text
 approved_withdrawal_id =
@@ -1477,7 +1572,10 @@ approved_withdrawal_id =
   )
 ```
 
-Before WT treats the non-initiator approval phase as complete, each non-initiator Boomlet MUST attest to the approval set it accepted. The Boomlet computes the fingerprint itself from the verified canonical approval set and WT approval; it MUST NOT sign a fingerprint supplied by Niso or any other host:
+Each non-initiator Boomlet MUST attest that it received and verified the complete
+approval set. The Boomlet computes the fingerprint itself from the verified
+canonical approval set and WT approval; it MUST NOT sign a fingerprint supplied
+by Niso or any other host:
 
 ```text
 approval_set_attestation_fingerprint :=
@@ -1498,13 +1596,30 @@ approval_set_attestation_fingerprint_signed_by_boomlet_i :=
   [1 <= i <= 4]
 ```
 
-WT MUST recompute `approval_set_attestation_fingerprint` from its accepted `ordered_peer_tx_approvals` and `wt_tx_approval_signed_by_wt`, then verify exactly one valid `approval_set_attestation_fingerprint_signed_by_boomlet_i` from each non-initiator Boomlet before advancing the withdrawal beyond approval collection. Each signed content value MUST equal the recomputed fingerprint. The attestation proves to WT that the non-initiator Boomlet verified the WT-supplied ordered approval set, WT approval, signer identities, freshness checks, and locally computed `approved_withdrawal_id`. This attestation is a synchronization and accountability barrier before commit/SAR processing; it is separate from the later commit signature, which binds a peer's funds-movement commitment to `approved_withdrawal_id` after this barrier.
+WT MUST recompute `approval_set_attestation_fingerprint` from its accepted
+`ordered_peer_tx_approvals` and `wt_tx_approval_signed_by_wt`, then verify
+exactly one valid `approval_set_attestation_fingerprint_signed_by_boomlet_i`
+from each non-initiator Boomlet. Each signed content value MUST equal the
+recomputed fingerprint. Its sole meaning is that the signer received and
+verified the complete WT-supplied approval set and WT approval and computed the
+same `approved_withdrawal_id`; it is not an authorization, commitment, or
+attestation of duress state.
+
+Together with the matching `approved_withdrawal_id` in the staged initiator
+commit, the four attestations confirm to WT that all five Boomlets received the
+complete approval set.
+
+The initiator MAY perform its duress check and send its commit before WT has
+collected all four attestations. WT MAY authenticate, decrypt, verify, and stage
+that initiator commit while attestations remain outstanding. WT MUST verify all
+four attestations before forwarding the staged initiator placeholder to SAR,
+acknowledging the initiator commit to non-initiators, or accepting a
+non-initiator commit.
 
 ### 15.5 Initial duress check and commitment
 
-Each peer performs the duress challenge defined in Section 16.
-
-Each Boomlet constructs a fresh `duress_placeholder`, then signs:
+The initiator performs the Section 16 duress challenge, constructs a fresh
+`duress_placeholder`, then signs:
 
 ```text
 TxCommit {
@@ -1513,16 +1628,28 @@ TxCommit {
 }
 ```
 
-The signed commit and placeholder are wrapped as
+The initiator's signed commit and placeholder are wrapped as
 `PaddedMessage{content = signed TxCommit, padding = duress_placeholder}`,
-signed as one outer object, and encrypted for WT. WT:
+signed as one outer object, and encrypted for WT. Subject to the four-attestation
+gate above, WT:
 
 1. authenticates and decrypts the outer object;
-2. verifies the inner commit;
-3. forwards the placeholder to the peer's setup-bound SAR;
+2. verifies the inner initiator commit;
+3. forwards the placeholder to the initiator's setup-bound SAR;
 4. waits for a valid encrypted SAR placeholder acknowledgment;
-5. signs the peer commit;
-6. distributes the complete commit collection and each peer's own encrypted SAR placeholder acknowledgment.
+5. signs the initiator commit under
+   `"Boomerang/withdrawal/wt_tx_commit_ack"`;
+6. sends the WT-signed initiator commit to every non-initiator.
+
+A non-initiator MUST NOT construct, sign, or send its `TxCommit` until it has
+received and verified the WT-signed initiator commit, including the WT and
+initiator signatures, `approved_withdrawal_id`, and freshness. It MAY prepare
+its duress challenge and placeholder earlier. After verification, each
+non-initiator constructs its own fresh `TxCommit` and sends the same signed,
+padded, outer-signed, WT-encrypted structure. WT processes each non-initiator
+commit through the corresponding setup-bound SAR, signs each verified commit,
+then distributes the complete commit collection and each peer's own encrypted
+SAR placeholder acknowledgment.
 
 Every Boomlet verifies all commits and its exact encrypted SAR placeholder acknowledgment before entering `DIGGING`.
 
@@ -1531,6 +1658,11 @@ Every Boomlet verifies all commits and its exact encrypted SAR placeholder ackno
 On entering `DIGGING`, Boomlet sets:
 
 ```text
+mystery =
+  random_integer(
+    MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS,
+    MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS
+  )
 counter = 0
 ping_seq_num = 0
 reached_mystery_flag = false
@@ -1538,12 +1670,13 @@ reached_peers = empty
 last_seen_block = niso_i_event_block_height
 ```
 
+`mystery` is the fresh secret Boomlet threshold for this withdrawal ceremony's
+digging progress. It remains private to Boomlet until it is reached in the digging-game and MUST be erased with the rest of the active withdrawal state after export,
+abort, or unrecoverable failure.
 `counter` is the successful digging-game progress count.
 `niso_i_event_block_height` is the latest Niso-supplied block height accepted
 at `DIGGING` entry after the surrounding commit/SAR freshness checks. Boomlet
 does not obtain an independent chain height for this initialization.
-
-The current `mystery` was generated uniformly in the agreed range and remains secret.
 
 ### 15.7 Ping
 
@@ -1571,11 +1704,25 @@ WT verifies:
 - allowed height range;
 - monotonic reached flag.
 
+A correctly authenticated, sequence-current Ping MUST NOT be rejected solely
+because its `last_seen_block` is old. Lagging Pings remain protocol-valid so a
+Pong can drive bounded `last_seen_block` catch-up, even though they may be
+ineligible for counter advancement at a recipient Boomlet.
+
 WT forwards every placeholder to SAR and obtains an encrypted SAR placeholder acknowledgment before using the ping in a pong.
 
 ### 15.8 Pong
 
-After receiving valid current pings, WT waits until the minimum block distance is satisfied and signs:
+After receiving valid current pings and their SAR acknowledgments, WT handles
+Pong spacing as follows:
+
+- for the first Pong round, WT does not impose a minimum-distance wait;
+- for every later round, WT waits until the current block height is at least the
+  previous Pong round's `event_block_height` plus
+  `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG`.
+
+WT then uses one `event_block_height` for all recipient-specific Pongs in that
+round and signs:
 
 ```text
 Pong {
@@ -1585,42 +1732,58 @@ Pong {
 }
 ```
 
-`prev_pings` is recipient-specific: for peer `i`, WT includes the signed pings from active peers `j != i`, ordered by `peer_ids_collection` with peer `i` omitted. WT encrypts a recipient-specific pong for each Boomlet and includes that peer's encrypted SAR placeholder acknowledgment.
+`prev_pings` is recipient-specific and complete: for peer `i`, WT includes the
+signed pings from every active peer `j != i`, ordered by `peer_ids_collection`
+with peer `i` omitted. WT encrypts a recipient-specific pong for each Boomlet
+and includes that peer's encrypted SAR placeholder acknowledgment.
 
 Each Boomlet verifies:
 
 - WT signature and envelope;
 - approved withdrawal ID;
 - `event_block_height` freshness;
-- every included previous peer ping signature;
+- `prev_pings` contains exactly one signed ping from every active peer `j != i`;
 - included peer ping sequence monotonicity;
 - included peer ping reached-flag monotonicity;
 - its own encrypted SAR placeholder acknowledgment.
 
-### 15.9 Counter advancement
+### 15.9 Counter advancement and height catch-up
 
-Boomlet increments `counter` only when:
+For each otherwise valid Pong, Boomlet evaluates counter advancement before
+updating `last_seen_block`. It increments `counter` only when:
 
 - the pong is valid for the active ceremony;
-- `niso_i_event_block_height` is greater than or equal to `last_seen_block`;
-- at least one included previous peer ping for an unreached peer satisfies:
+- `niso_i_event_block_height` is strictly greater than `last_seen_block`, so
+  the local chain view has advanced since the
+  previous Ping;
+- each included previous peer Ping from every active peer `j != i` satisfies:
 
 ```text
-prev_ping_i.last_seen_block >=
+prev_ping_j.last_seen_block >=
   niso_i_event_block_height -
   TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET
 
-prev_ping_i.last_seen_block <= niso_i_event_block_height
+prev_ping_j.last_seen_block <= niso_i_event_block_height
 ```
+
+Reached peers' pings remain eligible for this freshness predicate. The reached
+flag is used only for monotonicity checks and for WT's final all-peers-reached
+termination condition; it MUST NOT make an otherwise valid current peer ping
+ineligible for another Boomlet's counter advancement.
 
 - no local height decrease, WT height decrease, sequence regression, or
   material RPC/WT chain-view disagreement is active.
 
-After successful advancement:
+If these conditions hold:
 
 ```text
 counter = counter + 1
+```
 
+Independently of whether the counter advanced, every otherwise valid Pong
+performs bounded height catch-up:
+
+```text
 if last_seen_block < niso_i_event_block_height:
   last_seen_block =
     min(
@@ -1630,13 +1793,24 @@ if last_seen_block < niso_i_event_block_height:
     )
 ```
 
+For every otherwise valid Pong, Boomlet MUST create and send the next Ping even
+when the counter-advancement predicate is false. In that case `counter` remains
+unchanged, `last_seen_block` still performs the bounded catch-up above,
+`ping_seq_num` advances, and the Ping uses a freshly encrypted
+`duress_placeholder`. An invalid Pong or an active `CHAIN_VIEW_UNSAFE`
+condition stalls without updating `last_seen_block`.
+
 `last_seen_block` MUST be monotonic within the ceremony. `ping_seq_num`,
 `approved_withdrawal_id`, and the active setup/session binding remain part of
 the ping and pong validation context; a pong or peer ping from another
 withdrawal ceremony, setup instance, or earlier sequence MUST NOT advance the
 counter.
 
-If `counter >= mystery`, Boomlet sets `reached_mystery_flag = true`. It MUST never revert that flag during the ceremony.
+If `counter >= mystery`, Boomlet sets `reached_mystery_flag = true`. It
+MUST never revert that flag during the ceremony. A Boomlet that has reached its
+mystery MUST continue the ping/pong loop, including fresh pings and
+duress-placeholder handling, until WT distributes a valid
+`reached_pings_collection`; reaching locally is not a terminal digging state.
 
 Any detected local height decrease, WT height decrease, or material RPC/WT
 disagreement returns `CHAIN_VIEW_UNSAFE` and stalls the active Boomerang
@@ -1648,13 +1822,20 @@ At each round Boomlet draws an unbiased value for the configured interval. When 
 
 ### 15.11 Reached collection
 
-WT terminates digging only after it has one valid current ping with `reached_mystery_flag = true` from every peer. It distributes the signed `reached_pings_collection`.
+WT terminates digging only after it has one valid current ping with
+`reached_mystery_flag = true` from every peer. Until that condition holds, WT
+continues accepting and forwarding valid pings and pongs for peers that have
+already reached, so their true reached flags remain available to peers that
+have not yet reached. It distributes the signed `reached_pings_collection`.
 
 Niso and Boomlet independently verify all five pings, approved withdrawal IDs, signatures, sequences, and reached flags.
 
 ### 15.12 PSBT hydration
 
 Niso may add signing-support metadata to the PSBT, including UTXO data, scripts, derivation paths, Taproot metadata, and non-semantic proprietary fields.
+For Boomerang Taproot key-path inputs, the committed sighash policy is
+`SIGHASH_DEFAULT` for every Boomerang input; PSBTs MUST NOT request
+`ANYONECANPAY`, `NONE`, or `SINGLE` variants.
 
 Hydration MUST NOT change:
 
@@ -1695,7 +1876,7 @@ Nonce material MUST be unique to the session and erased after use.
 
 1. User returns Boomlet to Niso.
 2. Boomlet exports the signed PSBT fragment.
-3. Boomlet clears active withdrawal state and generates a new mystery.
+3. Boomlet clears active withdrawal state.
 4. Niso sends the fragment to WT.
 5. WT aggregates all peer fragments, verifies the complete transaction, and broadcasts it.
 6. The broadcast transaction MUST have the `tx_id` committed by the reconstructed `withdrawal_id` and the approved withdrawal approval set.
@@ -1769,10 +1950,28 @@ SAR authenticates and decrypts the placeholder:
 - a 32-byte value whose derived identifier exists means duress;
 - any other value is malformed.
 
-For duress, if `(approved_withdrawal_id, boomlet_identity_pubkey,
-duress_placeholder.iv)` has not been saved, SAR derives the identifier,
-retrieves rescue-data envelopes, decrypts them, saves that tuple, and begins
-its external response procedure.
+Upon receipt of the complete placeholder request, before parsing or
+authentication, SAR records `placeholder_received_at` from a monotonic clock
+and sets:
+
+```text
+placeholder_ack_release_at =
+  placeholder_received_at + sar_placeholder_ack_delay
+```
+
+`sar_placeholder_ack_delay` is a fixed positive SAR deployment setting. It MUST exceed the deployment's bounded
+worst-case pre-acknowledgment processing time, and WT timeouts MUST accommodate
+it.
+
+For every valid safe or duress placeholder, SAR performs the same bounded
+pre-acknowledgment sequence: authenticate and decrypt, classify the plaintext,
+construct the acknowledgment, and durably write a fixed-shape processing record
+using the replay tuple
+`(approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv)`.
+The durable-write path, record size class, queue, and commit policy MUST be
+identical for both classifications. For a new duress tuple, this write MUST
+commit rescue activation. Repeated tuples are handled as defined in Section
+16.6.
 
 For every valid safe or duress placeholder, SAR signs the exact encrypted
 placeholder envelope it received and encrypts that signed message for the
@@ -1804,12 +2003,18 @@ duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_i =
   )
 ```
 
+SAR MUST hold the constructed acknowledgment until
+`placeholder_ack_release_at` and release it exactly then for both
+classifications. Rescue-data retrieval and external response MUST begin
+asynchronously after release. If pre-acknowledgment processing misses the
+deadline, SAR MUST release no late acknowledgment and expose the same failure
+at that deadline for safe and duress cases. Each retry gets a new deadline.
+
 The acknowledgment MUST NOT contain a status, duress flag, placeholder
 plaintext, or plaintext hash in any WT-visible field. Valid safe and duress
 cases MUST produce the same response type, size class, routing, retry behavior,
-acknowledgment timing class, failure behavior, and externally observable
-acknowledgment behavior. Boomlet decrypts its
-acknowledgment, verifies the SAR signature with domain
+failure behavior, and externally observable acknowledgment behavior. Boomlet
+decrypts its acknowledgment, verifies the SAR signature with domain
 `"Boomerang/withdrawal/sar_placeholder_response"`, and requires the signed
 content to equal byte-for-byte the `duress_placeholder` envelope it sent.
 
@@ -1827,15 +2032,8 @@ For valid safe and duress placeholders:
   final externally visible failure behavior MUST be driven only by the
   authenticated placeholder instance and MUST NOT depend on whether SAR
   classified the valid placeholder as safe or duress;
-- SAR MUST produce the protocol acknowledgment within the same externally
-  observable timing class for safe and duress placeholders;
-- SAR MUST NOT delay the protocol acknowledgment until rescue-data retrieval,
-  external response, operator review, law-enforcement contact, or any other
-  duress-specific operational work has completed;
-- SAR MUST durably record or queue duress activation before acknowledging a
-  duress placeholder, but the subsequent rescue work MUST be asynchronous or
-  otherwise timing-equalized so that it does not alter WT-visible protocol
-  behavior;
+- the fixed deadline and identical durable-write path in Section 16.4 are
+  mandatory; a variable delay or timing class is insufficient;
 - WT-visible and attacker-observable logs, metrics, status APIs, error pages,
   queue names, retry counters, and operator-visible protocol status MUST NOT
   reveal whether the valid placeholder was safe or duress.
@@ -1962,7 +2160,7 @@ Unauthenticated CBC is forbidden. CMAC verification precedes decryption and padd
 
 ### 19.4 Password entropy
 
-`doxing_key` is a tagged SHA-256 derivation, not a memory-hard password KDF. Low-entropy passwords permit offline guessing if rescue ciphertext leaks. Users require high-entropy values. SAR should minimize retained ciphertext and metadata.
+`doxing_key` is a tagged SHA-256 derivation from a user-chosen `doxing_password`, not a memory-hard password KDF. Low-entropy or reused passwords permit offline guessing if rescue ciphertext leaks. The protocol does not require a fixed entropy threshold or another 12-word secret.
 
 ### 19.5 Hardware
 
@@ -2010,7 +2208,14 @@ after completion, stall, or abort.
 
 A conforming implementation MUST provide tests for:
 
-- canonical encoding and rejection of alternate encodings;
+- canonical encoding and rejection of alternate encodings, including exact
+  schema IDs and field IDs, missing fields, extra fields, duplicate fields,
+  out-of-order fields, wrong-type fields, wrong integer tags for the expected
+  schema type, reserved-null encodings, context-wrong wrapper `value` payloads,
+  non-ASCII Boomlet-parsed protocol text, and trailing bytes;
+- normal-key derivation, including BIP39 seed derivation, BIP32 path
+  `m/52102'/coin_type'/account'/0/key_index`, child private key, and BIP340
+  x-only `normal_pubkey` encoding;
 - BIP340 domain-separated signatures;
 - ECDH normalization;
 - NIST AES-256-CMAC examples;
@@ -2022,29 +2227,47 @@ A conforming implementation MUST provide tests for:
   Niso-to-Boomlet records, duplicate Boomlet identity keys, missing or stale
   local signed records, and byte-for-byte unchanged setup IDs for correctly
   sorted input;
+- `MilestoneBlocks` canonical encoding and rejection of missing fields,
+  duplicate fields, list-style milestone encodings, non-increasing milestones,
+  and setup-ID changes when any milestone field or order changes; milestone and
+  setup-ID vectors MUST include exact schema IDs and field IDs;
+- descriptor construction using `milestone_block_0` through
+  `milestone_block_5` for the six Taproot branches;
 - `setup_checkpoint` equality despite different peer-local receipts;
 - stale challenge nonce rejection;
 - setup replay rejection;
 - tx ID and setup ID mismatch rejection;
 - ping sequence and reached-flag monotonicity;
+- counter advancement requiring one signed Ping from every other active peer,
+  including
+  already reached peers, to fall within the accepted boundary, while a valid
+  no-advance Pong still performs bounded `last_seen_block` catch-up and emits a
+  fresh next Ping; tests MUST reject missing, duplicate, misordered,
+  wrong-signer or counter-ineligible peer Pings without turning
+  an authenticated lagging Ping into a terminal protocol state;
 - PSBT hydration constraints;
 - MuSig2 nonce non-reuse;
-- safe and duress placeholder flow equivalence, including identical
-  WT-visible SAR acknowledgment shape, size class, timing class, retry
-  schedule, and externally observable failure class;
+- safe and duress placeholder flow equivalence, including the Section 16.4
+  fixed deadline, durable-write path, response shape, retry schedule, and
+  failure behavior, including deadline overruns;
 - safe and duress replay equivalence, including identical externally
   indistinguishable acknowledgment behavior for repeated valid placeholders;
 - malformed placeholder, missing identifier, context mismatch, authentication
   failure, SAR unavailability, and acknowledgment delivery failure mapping to
   the permitted externally observable failure behavior;
 - slow or failed SAR rescue-data lookup and external response workflow not
-  changing WT-visible acknowledgment timing, shape, routing, retry, or failure
-  behavior for a valid duress placeholder;
+  changing WT-visible acknowledgment behavior;
 - duress placeholder context binding, including rejection across a different
   `approved_withdrawal_id` or setup session and acceptance of the canonical
   context without ping sequence or commitment phase fields.
 
-Protocol vectors MUST include exact canonical bytes, keys, IVs, ciphertexts, tags, signatures, identifiers, and expected failure classes.
+Protocol vectors MUST include exact canonical bytes, normal-key derivation
+inputs and outputs, keys, IVs, ciphertexts, tags, signatures, identifiers, and
+expected failure classes. The implementation profile MUST define exact
+per-schema maximum encoded sizes and list-length bounds before deployment.
+Full byte-level canonical encoding vectors MUST be produced after those limits
+are fixed. Java Card implementations SHOULD use streaming parsers and MUST
+reject over-limit objects before allocation.
 
 
 ## 22. Open issues
@@ -2072,6 +2295,8 @@ These issues limit production deployment and must be resolved before a productio
 - [SP800-38B] NIST SP 800-38B, "Recommendation for Block Cipher Modes of Operation: The CMAC Mode for Authentication".
 - [SP800-108] NIST SP 800-108 Revision 1, "Recommendation for Key Derivation Using Pseudorandom Functions".
 - [SEC1] "Elliptic Curve Cryptography".
+- [BIP32] "Hierarchical Deterministic Wallets".
+- [BIP39] "Mnemonic code for generating deterministic keys".
 - [BIP340] "Schnorr Signatures for secp256k1".
 - [BIP341] "Taproot: SegWit version 1 spending rules".
 - [BIP371] "Taproot Fields for PSBT".
