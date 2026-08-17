@@ -12,10 +12,7 @@
 The canonical annotated source is
 [setup_diagram_without_states.puml](setup_diagram_without_states.puml), with
 [setup_diagram_without_states.svg](setup_diagram_without_states.svg) as its
-generated graphical rendering. The generated
-[message-only PlantUML](setup_message_sequence.puml) retains the same actors,
-messages, ordering, and control flow without descriptive notes or pseudocode.
-Its ASCII rendering is embedded in [SPEC.md](../spec/SPEC.md).
+generated graphical rendering.
 
 The annotated diagram and this README are explanatory implementation aids.
 Normative protocol requirements are defined only by

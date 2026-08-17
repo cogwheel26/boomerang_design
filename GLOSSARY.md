@@ -1,125 +1,101 @@
-# Boomerang Glossary
+# Boomerang glossary
 
-This glossary translates Boomerang’s internal names into plain language. It is intentionally short. The protocol specification remains the authority for exact behavior.
+A lookup index for Boomerang terminology. [`spec/SPEC.md`](spec/SPEC.md) is
+normative for exact protocol behavior.
 
----
+## Contents
 
-## Table of contents
-
-- [Big-picture terms](#big-picture-terms)
+- [Scope and status](#scope-and-status)
 - [Actors and components](#actors-and-components)
-- [Keys and on-chain structure](#keys-and-on-chain-structure)
-- [Withdrawal terms](#withdrawal-terms)
-- [Emergency-signal terms](#emergency-signal-terms)
-- [Risk terms](#risk-terms)
-- [Acronym quick list](#acronym-quick-list)
-- [One-sentence summary](#one-sentence-summary)
+- [Keys and on-chain policy](#keys-and-on-chain-policy)
+- [Withdrawal](#withdrawal)
+- [Duress and response](#duress-and-response)
+- [Security and failure](#security-and-failure)
 
-## Big-picture terms
+## Scope and status
 
-| Term | Plain meaning |
+| Term | Meaning |
 | --- | --- |
-| **Boomerang** | A research-stage Bitcoin custody protocol that makes the primary withdrawal path bounded but unpredictable in time and includes hidden emergency signaling. |
-| **Coercion-aware custody** | Custody design that considers a person being pressured, threatened, or forced to participate, not only remote key theft. |
-| **Bounded unpredictability** | The withdrawal cannot take forever, but nobody knows the exact moment when it will become signable. |
-| **Time determinism** | The property that a withdrawal has a known or easy-to-estimate completion time. Boomerang treats this as an attack surface. |
-| **Ceremony** | A multi-step operational process involving humans, devices, and services. Setup and withdrawal are both ceremonies. |
-| **Primary path** | The Boomerang withdrawal path: stricter, slower, less predictable, and dependent on Boomlets. |
-| **Fallback path** | Later timelocked normal-key spending paths that preserve recoverability if the primary path cannot complete. |
-| **Research-stage** | The design is being explored and reviewed. It is not ready for production funds. |
-
----
+| **Boomerang** | A Bitcoin cold-storage protocol design that makes a coerced withdrawal an uncertain operation the coerced participants cannot accelerate. The same required progress repeatedly carries covert duress checks to a prearranged responder, increasing a payout-seeking attacker's burden while creating a response interval. |
+| **Design status** | Boomerang is a draft and is not production-ready. Hardware validation, parameters, operating procedures, interoperability evidence, and response arrangements remain incomplete. |
+| **Coercion-aware custody** | Custody that treats physical threats and compelled participation as part of the threat model, rather than considering only key theft or remote compromise. |
+| **Attacker objective** | A valid, verifiable transfer, exfiltration of the bitcoin, and escape—not merely learning credentials. |
+| **Ceremony** | A stateful process involving people, devices, and services. Boomerang has setup and withdrawal ceremonies. |
+| **Primary Boomerang branch** | The earliest Taproot script branch: it requires a signature under each of the five peers' Boomerang public keys and cannot satisfy Bitcoin consensus before `milestone_block_0`. Separately, each Boomlet is specified to withhold its part of a signature until the off-chain withdrawal state machine permits signing. “Primary” identifies this first branch; it does not express an operator preference. |
+| **Deterministic fallback** | Later normal-key branches beginning at `milestone_block_1`, then reducing from five required normal keys to one over subsequent milestones. They preserve recoverability but restore known on-chain availability. |
 
 ## Actors and components
 
-| Term | Plain meaning |
+| Term | Meaning |
 | --- | --- |
-| **Peer** | One member of the custody group. In the current design profile, Boomerang assumes five peers. |
-| **User** | The human operating one peer’s devices. |
-| **Boomlet** | The active secure element or smartcard-like device. Its key share is unavailable to the host and may be exported only inside the authenticated backup envelope for an authorized Boomletwo. It also tracks withdrawal progress, enforces the mystery threshold, and evaluates emergency-signal challenges. |
-| **Boomletwo** | A backup secure element. Its activation and lifecycle details are still design work. |
-| **Iso** | The isolated/offline environment used for sensitive operations such as normal-key derivation and final signing. |
-| **Niso** | The networked environment used for coordination, peer communication, Bitcoin node access, and Watchtower interaction. |
-| **ST / Secure Terminal** | An air-gapped human interface for checking transaction details and answering emergency-signal challenges. Its job is to reduce trust in networked computers. |
-| **WT / Watchtower** | A coordination service. It relays messages, helps track liveness and block height, and aggregates final signed fragments. It is not supposed to custody funds. |
-| **SAR / Search and Rescue** | A real-world response service. It receives encrypted placeholders and interprets them only if they contain a valid duress signal. Its legal and operational model is jurisdiction-dependent. |
-| **Phone** | The user device used to register encrypted rescue information with SAR and update dynamic rescue information. |
+| **Peer** | One joint custodian. The specified profile has exactly five peers. |
+| **User** | The human operating one peer's components. |
+| **Iso** | The isolated environment that derives or reconstructs the normal key and participates in setup and final signing. |
+| **Niso** | The online environment used for peer and WT coordination, Tor communication, and Bitcoin RPC access. It is not trusted to authorize a spend. |
+| **Boomlet** | The active trusted device. It holds host-inaccessible private material and protocol state, evaluates ST input, generates the fresh withdrawal mystery, enforces progress, and participates in signing. |
+| **Boomletwo** | The designated inactive backup device. It may receive setup state only through the authorized, authenticated, target-bound backup envelope. Activation, revocation, and anti-clone procedures remain open. |
+| **ST / Secure Terminal** | The air-gapped trusted display and input device for transaction-identifier confirmation, consent enrollment, and duress challenges. |
+| **WT / Watchtower** | The active coordination service for a ceremony. It verifies and relays protocol objects, obtains SAR acknowledgments, supplies a block-height view, collects progress, aggregates final fragments, and broadcasts. It does not hold a custody key. |
+| **SAR / Search and Rescue** | The setup-bound responder that processes encrypted placeholders and may initiate an external response. Its legal authority and real-world effectiveness are outside the cryptographic guarantee. |
+| **Phone** | The user device that registers and updates encrypted rescue information with SAR. |
 
----
+## Keys and on-chain policy
 
-## Keys and on-chain structure
-
-| Term | Plain meaning |
+| Term | Meaning |
 | --- | --- |
-| **Taproot output** | The Bitcoin output that holds the funds and contains the Boomerang and fallback spending branches. |
-| **Descriptor** | A precise description of the spending policy for the Bitcoin output. |
-| **Normal key** | A recoverable key backed by mnemonic/passphrase material. It is used in fallback paths and as one part of a Boomerang key. |
-| **Boom key share** | A key share generated and held inside Boomlet. It is never exposed in plaintext or to the host; the only permitted export is the encrypted, target-bound Boomletwo backup. |
-| **Boom pubkey** | The combined public key for a peer’s Boomerang signing role, produced from the normal key and Boomlet-held share. |
-| **MuSig2** | A multisignature-style signing method used to aggregate signing keys. The exact implementation profile belongs in the spec and implementation docs. |
-| **Timelock** | A Bitcoin rule that prevents a branch from being spendable until a specified block height or time condition. |
-| **Milestone block** | A block height at which a new spending branch becomes available or a protocol stage becomes valid. |
-| **Waterfall fallback** | A sequence of later fallback branches whose required signer threshold gradually decreases over time. |
+| **Normal key** | The mnemonic-backed recoverable key held or reconstructed by Iso. It is one part of a peer's Boomerang key and is used directly by fallback branches. |
+| **Boom key share** | Boomlet-held MuSig2 private material. It is unavailable to the host and never exported in plaintext; its only permitted export is inside the authenticated envelope bound to the authorized Boomletwo. |
+| **Boomerang public key / `boom_pubkey`** | The aggregate of one peer's normal public key and Boomlet public share. |
+| **Taproot output** | The Bitcoin output whose script tree contains the primary Boomerang branch and later normal-key fallback branches. Its internal key is unspendable. |
+| **Milestone block** | An agreed absolute block height. `milestone_block_0` gates the primary branch; `milestone_block_1` through `milestone_block_5` gate fallback branches. |
+| **Timelock** | A Bitcoin consensus condition that prevents a branch from being used before its milestone. Consensus enforces these timelocks and the spending policy, not Boomlet mysteries or off-chain progress. |
+| **MuSig2** | The signing protocol used to combine the normal and Boomlet parts of a peer key and to produce the required signatures under the specified profile. |
+| **Descriptor** | The exact, checksummed description of the Taproot spending policy agreed during setup. |
 
----
+## Withdrawal
 
-## Withdrawal terms
-
-| Term | Plain meaning |
+| Term | Meaning |
 | --- | --- |
-| **Withdrawal** | The process of moving funds out of the Boomerang output. |
-| **PSBT** | Partially Signed Bitcoin Transaction. A standard way to coordinate transaction review and signing before final broadcast. |
-| **Commitment** | The point where peers bind themselves to a specific transaction identity so later steps cannot silently become a different withdrawal. |
-| **Hydration** | Filling in the final transaction/signing details after the waiting process is complete. Boomlet must verify continuity with the committed transaction. |
-| **Ping / pong** | Repeated progress messages between Boomlets, peers, and Watchtower during the waiting loop. |
-| **Freshness** | Evidence that a message belongs to the current withdrawal and is not a stale replay from an earlier state. |
-| **Counter** | A Boomlet’s internal progress value during withdrawal. |
-| **Mystery** | The Boomlet’s secret threshold. When the internal counter reaches this value, the Boomlet becomes ready to sign. |
-| **Reached mystery flag** | The device state saying its mystery threshold has been reached. Once true, it should not revert to false for that ceremony. |
-| **Fail closed** | Refuse to advance the current Boomerang ceremony when checks fail. This prevents unsafe progress but may require recovery or fallback planning. |
+| **PSBT** | Partially Signed Bitcoin Transaction, used to coordinate review and signing. |
+| **`tx_id`** | The identifier derived from the unsigned transaction that users independently verify on ST. |
+| **Transaction review / tx-ID confirmation** | A withdrawal step in which a user independently checks that ST displays the `tx_id` of the intended unsigned transaction. ST signs the exact nonce-bound confirmation to Boomlet. This is not a Bitcoin transaction signature. |
+| **Initiator / non-initiator** | Per-withdrawal roles. The peer that starts a withdrawal and supplies its transaction is the initiator; the other four peers are that ceremony's non-initiators. All five must review, approve, and commit. |
+| **`TxApproval`** | A Boomlet-signed, pre-signing protocol authorization created after that peer's successful transaction review. It is bound to `withdrawal_id`; it is not a Bitcoin transaction signature and cannot spend funds. |
+| **Approval set** | The ordered collection containing exactly one valid `TxApproval` from each of the five active peers. Every participant verifies the set before computing `approved_withdrawal_id`. |
+| **Approval-set attestation** | A non-initiator Boomlet's signed evidence that it received and verified the complete approval set and WT approval and computed the same `approved_withdrawal_id`. The four attestations are not authorization, commitments, or duress evidence. |
+| **`withdrawal_id`** | The binding among the active setup, unsigned transaction `tx_id`, initiator identity, and initiator approval nonce. |
+| **`approved_withdrawal_id`** | The binding over `withdrawal_id` and the exact ordered five-`TxApproval` set. It scopes every later commitment, placeholder, ping, pong, reached report, signing step, and replay check. |
+| **`TxCommit` / commitment** | A Boomlet-signed binding to `approved_withdrawal_id`. Its authenticated encrypted wrapper also carries the initial duress placeholder. It is not a Bitcoin transaction signature. |
+| **`DIGGING`** | The withdrawal state, also called the digging game, entered only after the complete signed `TxCommit` collection and that Boomlet's exact initial SAR acknowledgment have been verified. Entry generates the withdrawal's fresh mystery; no mystery exists during setup or `TxApproval` collection. |
+| **Mystery** | A fresh secret threshold generated by each Boomlet only when the active withdrawal enters `DIGGING`, after the required `TxCommit` collection and SAR acknowledgment verification. Its bounds are protocol-profile constants, not setup choices. It is erased with the active withdrawal state after export, abort, or unrecoverable failure. |
+| **Counter** | A Boomlet's successful progress-round count for the active withdrawal. It advances only when the pong, chain view, and every other peer's included ping satisfy the specified checks. |
+| **Readiness share (`x`)** | An analysis quantity: the share of the allowed mystery values `{m, ..., M}` at or below a common counter value `k`. One Boomlet is ready with probability `x`; all five with `x^5`. It is neither elapsed time nor percent-complete. Defined in [DESIGN §12](DESIGN.md#12-attack-economics-and-security-argument) and [coercion economics §4](security_models/coercion_economics.md#4-protocol-derived-completion-distribution). |
+| **Ping / pong** | The repeated progress exchange among Boomlets and WT. Every ping carries a freshly encrypted placeholder; WT must obtain its exact SAR acknowledgment before using that ping in a pong. |
+| **Reached mystery** | The one-way active-withdrawal state set when `counter >= mystery`. A reached Boomlet continues the loop until all five have current reached pings. |
+| **Reached collection** | WT's collection proving that every peer's current ping reports its threshold reached. Signing is not permitted before it verifies. |
+| **Hydration** | Adding allowed signing-support metadata to the PSBT bound by the verified `TxApproval` set without changing its transaction semantics, ordering, sighash policy, or `tx_id`. |
+| **Rollover** | Moving funds into a fresh setup before deterministic fallback becomes an attractive predictable target. Complete operational procedures remain to be defined. |
 
----
+## Duress and response
 
-## Emergency-signal terms
-
-| Term | Plain meaning |
+| Term | Meaning |
 | --- | --- |
-| **Duress** | A situation where a user is not acting freely. The design tries to let the user signal this without making the signal visible to the attacker or other protocol observers. |
-| **Consent pattern** | The memorized answer pattern that means “I am safe; continue.” In the current design, this is represented with a set of countries. |
-| **Challenge** | A prompt shown by the Secure Terminal during withdrawal. The user’s answer is evaluated by the Boomlet. |
-| **Duress placeholder** | An encrypted payload included in ordinary protocol messages. It should look structurally normal whether the user is safe or signaling duress. |
-| **Safe placeholder** | A placeholder that decrypts to inert material, such as zeros or padding. |
-| **Duress placeholder with unlock material** | A placeholder that gives SAR enough information to identify and decrypt the user’s encrypted rescue information. |
-| **Rescue information** | The information SAR would need to identify and help the user in an emergency. |
-| **Plausible deniability** | The property that the visible protocol flow does not obviously reveal whether the user signaled safe or duress. |
+| **Consent set** | The unordered five-country set memorized by a user during two-round enrollment and stored by Boomlet. The versioned display vocabulary contains exactly 193 entries. |
+| **Duress challenge** | A fresh nonce-bound prompt through ST that presents the 193-entry vocabulary in five independently shuffled columns; the user selects one entry per column. Selecting the enrolled set means safe; any other structurally valid five-element set means duress. |
+| **Placeholder** | A SAR-encrypted payload carrying either inert zeros or the setup-bound rescue-data unlock value. It is present on every duress-bearing commitment and ping path. |
+| **Freshly encrypted placeholder** | A new authenticated encryption envelope with a fresh IV. Every ping requires one even when no new challenge ran and its underlying plaintext is unchanged. |
+| **SAR acknowledgment** | SAR's encrypted signature over the exact placeholder envelope it received. Before release at the fixed deadline, SAR durably records processing and, for new valid duress, durably activates response state. It proves exact delivery and activation—not timely, lawful, effective, correctly directed, or safe intervention. |
+| **Plausible deniability** | Indistinguishability only on the specified protocol-observability surface: valid safe and duress handling share response shape, routing, fixed release deadline, durable-write path, retry behavior, and externally visible failure behavior. It does not cover physical observation, compromised devices, learned consent responses, private SAR diagnostics, metadata outside that surface, or a responder revealing the signal. |
+| **Rescue information** | Setup-bound static and Phone-updated dynamic information encrypted for later SAR retrieval. Its accuracy and operational use are assumptions. |
 
----
+## Security and failure
 
-## Risk terms
-
-| Term | Plain meaning |
+| Term | Meaning |
 | --- | --- |
-| **Forced determinism** | A failure mode where the system is pushed out of the unpredictable Boomerang path and into the predictable fallback path. This can happen through lost hardware, non-cooperation, or starting too late. |
-| **Liveness** | The ability of the system to eventually complete a valid withdrawal or recovery. |
-| **Recoverability** | The ability to regain access to funds after loss, failure, or non-cooperation. |
-| **Metadata exposure** | Information leaked by timing, communication patterns, service usage, peer identities, or operational behavior, even when keys remain safe. |
-| **Trust boundary** | A place where the system relies on a component or actor to behave correctly. Boomlet, Secure Terminal, Watchtower, SAR, Iso, Niso, and Phone each create different boundaries. |
-| **Assumption register** | The project document that lists important assumptions and design gaps. It is useful for reviewers who want to separate claims from dependencies. |
-
----
-
-## Acronym quick list
-
-| Acronym | Expands to | Role |
-| --- | --- | --- |
-| **ST** | Secure Terminal | Air-gapped user interface |
-| **WT** | Watchtower | Coordination and liveness service |
-| **SAR** | Search and Rescue | Emergency-response service |
-| **PSBT** | Partially Signed Bitcoin Transaction | Transaction coordination format |
-| **PoC** | Proof of Concept | Experimental implementation, not production code |
-
----
-
-## One-sentence summary
-
-Boomerang is a research design where Bitcoin funds are recoverable, but the preferred withdrawal path cannot be made predictably fast merely because a human is pressured.
+| **Forced determinism** | Movement of the practical withdrawal path from Boomlet-enforced uncertainty to a known fallback schedule, for example through late start, stalling, device loss, or peer non-cooperation. |
+| **N-of-N / five-of-five** | All five peers are required for the primary branch. This blocks a bypassing subset but lets any peer or required dependency stall progress. |
+| **Fail closed** | Stop advancing an invalid or unsafe active ceremony while retaining its bindings until a valid retry, recovery input, or explicit abandonment. Failure does not authorize fallback early. |
+| **Ancillary procedure** | A required operational procedure—WT switching, Boomletwo activation, Phone/Niso/ST replacement, SAR replacement, freshness-timeout handling, blame—identified but not yet specified. Their absence is an open assumption; see [DESIGN §15](DESIGN.md#15-ancillary-procedures-and-open-protocol-work). |
+| **Liveness** | The ability to complete a valid withdrawal. It depends on every peer, Boomlet, WT, SAR, chain view, and other required dependency during the primary ceremony. |
+| **Trust boundary** | A point where the argument depends on correct behavior or protected state, including Boomlet, ST, Iso, Niso, Phone, WT, SAR, and Bitcoin RPC. |
+| **Response interval** | Time created between a durable duress activation and possible signing. It is useful only with a credible, prepared response; prolonging coercion can instead increase human harm. |

@@ -25,33 +25,33 @@ jurisdiction-dependent rescue, and parameter selection remain open.
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-03 | Security claims apply to the exactly five-peer, 5-of-5 Boomerang profile. | `SPEC`, `R`, `DD`, `SM` | Claims about one honest peer preserving Boomerang guarantees would not generalize. | Explicit |
-| AR-04 | Implementations preserve the protocol's trust boundaries and message semantics. | `R`, `DD` | An implementation may satisfy a different security model while claiming protocol conformance. | Implicit |
-| AR-05 | Ancillary procedures, implementation choices, and operator discipline are sufficient for properties that the protocol does not enforce. | `DD`, `SM` | Real-world safety and integrity may depend on controls that are absent or ineffective. | Open |
+| AR-03 | Security claims apply to the exactly five-peer, 5-of-5 Boomerang profile. | `SPEC`, `R`, `D`, `SM` | Claims about one honest peer preserving Boomerang guarantees would not generalize. | Explicit |
+| AR-04 | Implementations preserve the protocol's trust boundaries and message semantics. | `R`, `D` | An implementation may satisfy a different security model while claiming protocol conformance. | Implicit |
+| AR-05 | Ancillary procedures, implementation choices, and operator discipline are sufficient for properties that the protocol does not enforce. | `D`, `SM` | Real-world safety and integrity may depend on controls that are absent or ineffective. | Open |
 
 ### B. Bitcoin, descriptor, and timing model
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-06 | Bitcoin consensus, timelocks, and Taproot spending conditions behave as modeled by the descriptor design. | `R`, `DD`, `SM` | Both non-deterministic and fallback security claims may be wrong. | Explicit |
+| AR-06 | Bitcoin consensus, timelocks, and Taproot spending conditions behave as modeled by the descriptor design. | `R`, `D`, `SM` | Both non-deterministic and fallback security claims may be wrong. | Explicit |
 | AR-07 | `MilestoneBlocks` is strictly increasing and operationally sensible, not merely well-formed. | `SPEC`, `SM` | Users can enter fallback too early, or funds can become awkwardly or prematurely spendable. | Explicit structure; open policy |
 | AR-08 | Withdrawal starts only after `milestone_block_0`, and every component evaluates that gate against an acceptable chain view. | `SPEC` | Protocol state can diverge or enter unintended pre-milestone behavior. | Explicit |
-| AR-09 | Users will roll funds into a new Boomerang setup before deterministic fallback makes coercion timing predictable. | `FD`, `R`, `DD` | Boomerang degrades into a known-timeline withdrawal system. | Explicit |
+| AR-09 | Users will roll funds into a new Boomerang setup before deterministic fallback makes coercion timing predictable. | `FD`, `R`, `D` | Boomerang degrades into a known-timeline withdrawal system. | Explicit |
 | AR-10 | Stalling on local or WT height decrease and material RPC/WT disagreement is sufficient until a reorg-recovery policy exists. | `SPEC`, `SM` | Freshness checks, milestone gating, and counter progression can be evaluated on stale or reversible chain state, or remain stalled indefinitely. | Open |
 | AR-11 | Niso and WT obtain accurate enough block height and chain context from their configured Bitcoin node(s). | `R`, `SU`, `WD`, `SM` | A bad node can skew timing, approvals, and liveness decisions. | Implicit |
-| AR-12 | Fee estimation and PSBT hydration remain viable even after a possibly long withdrawal ceremony. | `WD`, `DD` | A valid intent may become economically or practically unsignable by the time signing starts. | Implicit |
-| AR-13 | The ping-pong "digging game" usually terminates before deterministic fallback if users start in time. | `R`, `DD`, `FD`, `BD` | The main coercion-resistance promise collapses into forced determinism. | Open |
+| AR-12 | Fee estimation and PSBT hydration remain viable even after a possibly long withdrawal ceremony. | `WD`, `D` | A valid intent may become economically or practically unsignable by the time signing starts. | Implicit |
+| AR-13 | The ping-pong "digging game" usually terminates before deterministic fallback if users start in time. | `R`, `D`, `FD`, `BD` | The main coercion-resistance promise collapses into forced determinism. | Open |
 | AR-14 | `FRESHNESS_TOLERANCES`, ping/pong spacing, height-jump limits, and service timeouts can cover ordinary delay without admitting unsafe stale progress. | `SPEC`, `SM` | Honest executions fail freshness checks, or malicious delay becomes too easy. | Open |
 
 ### C. Cryptography, serialization, and binding
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-15 | Schnorr, MuSig2, ECDH, tagged hashing, SP 800-108 CMAC KDF, AES-256-CBC/PKCS#7, and AES-CMAC encrypt-then-MAC are secure as specified and implemented. | `SPEC`, `R`, `DD`, `SU`, `WD`, `DP`, `ADR` | Core funds, identity, and duress guarantees fail. | Explicit |
+| AR-15 | Schnorr, MuSig2, ECDH, tagged hashing, SP 800-108 CMAC KDF, AES-256-CBC/PKCS#7, and AES-CMAC encrypt-then-MAC are secure as specified and implemented. | `SPEC`, `R`, `D`, `SU`, `WD`, `DP`, `ADR` | Core funds, identity, and duress guarantees fail. | Explicit |
 | AR-16 | Every component serializes and interprets the same canonical message content identically. | `SPEC`, `SU`, `WD`, `SP`, `WI`, `WN` | Signatures, CMACs, and identifiers can validate over mismatched semantics, or peers can disagree about what was approved. | Implicit |
-| AR-17 | RNG quality is sufficient across Boomlet, ST, WT, SAR, and supporting hardware. | `R`, `DD`, `DP`, `ST`, `HW-H7` | Mystery, nonces, keys, and duress spaces can be biased or predictable. | Explicit |
+| AR-17 | RNG quality is sufficient across Boomlet, ST, WT, SAR, and supporting hardware. | `R`, `D`, `DP`, `ST`, `HW-H7` | Mystery, nonces, keys, and duress spaces can be biased or predictable. | Explicit |
 | AR-18 | Nonces, setup and withdrawal scope IDs, chained setup checkpoints, sequence numbers, strict state transitions, freshness checks, and SAR replay tuples are sufficient replay protection for the message set. | `SPEC`, `ADR` | Old approvals, checks, placeholders, or commitments may be replayed into new contexts. | Explicit |
-| AR-19 | `tx_id`, `withdrawal_id`, `approved_withdrawal_id`, approval-set attestations, signing-package verification, and final transaction revalidation are strong enough to anchor transaction-authorization correctness throughout the ceremony. | `SPEC`, `WD`, `WI`, `WN`, `DD` | A participant may believe they are approving one spend while another spend is actually signed. | Explicit |
+| AR-19 | `tx_id`, `withdrawal_id`, `approved_withdrawal_id`, approval-set attestations, signing-package verification, and final transaction revalidation are strong enough to anchor transaction-authorization correctness throughout the ceremony. | `SPEC`, `WD`, `WI`, `WN`, `D` | A participant may believe they are approving one spend while another spend is actually signed. | Explicit |
 | AR-20 | Fresh CBC IVs, context-bound placeholders, status-free acknowledgements, a fixed release deadline, the same bounded durable-write path, and uniform retry/failure behavior make valid safe and duress traffic indistinguishable within the specified protocol surface. | `SPEC` | WT or an observer can infer duress from ciphertext, timing, storage, queue, log, metric, or failure behavior. | Explicit |
 | AR-21 | `doxing_key_for_sar -> doxing_data_identifier` is unique enough operationally to locate the right setup-bound SAR record without ambiguity. | `SPEC`, `SU`, `DP`, `SM` | SAR may fail to rescue the right user or may treat malformed inputs incorrectly. | Implicit |
 
@@ -59,15 +59,15 @@ jurisdiction-dependent rescue, and parameter selection remain open.
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-22 | Boomlet private key shares and identity keys are truly non-exportable. | `R`, `SM`, `DD` | The Boomerang regime can be bypassed or cloned. | Explicit |
+| AR-22 | Boomlet private key shares and identity keys remain host-inaccessible and are never exportable in plaintext; the only permitted export is an authenticated envelope bound to the authorized Boomletwo target. | `R`, `SM`, `D` | The Boomerang regime can be bypassed or cloned. | Explicit |
 | AR-23 | Boomlet's active-withdrawal `counter`, `mystery`, reach state, and sequence state cannot be read, rolled back, cloned, or externally accelerated. | `SPEC`, `SM`, `FD` | Current-ceremony timing becomes knowable or controllable by an attacker. | Explicit boundary |
 | AR-24 | Boomlet faithfully enforces one-way state such as "reached mystery" and does not regress after a flag is set. | `WD`, `WI`, `WN` | Peers can be desynchronized or coerced into incorrect liveness behavior. | Implicit |
 | AR-25 | Boomlet preserves one active withdrawal's state through stalls and retries, never regenerates its threshold inside that ceremony, and clears volatile state on export, explicit abort, or unrecoverable failure. | `SPEC`, `ADR` | The ceremony can fail midstream, reuse a disclosed threshold, or leak state into a later withdrawal. | Explicit |
-| AR-26 | Java Card-class hardware can perform the required cryptography and state updates within practical time and endurance limits. | `DD`, `FD` | The protocol becomes too slow, too fragile, or impossible to execute as designed. | Open |
+| AR-26 | Java Card-class hardware can perform the required cryptography and state updates within practical time and endurance limits. | `D`, `FD` | The protocol becomes too slow, too fragile, or impossible to execute as designed. | Open |
 | AR-27 | Setup backup contains only long-lived setup authority and replay state; neither Boomlet nor Boomletwo creates or imports a `mystery` during setup. | `SPEC`, `ADR` | Backup can clone or disclose a future timing threshold. | Resolved |
-| AR-28 | Only one of Boomlet and Boomletwo will ever be active, although activation/deactivation is unspecified. | `R`, `SM`, `DD` | Duplicate active devices or confused ownership can undermine both safety and liveness. | Open |
-| AR-29 | Losing both Boomlet and Boomletwo is rare enough that fallback-only recovery remains acceptable. | `FD`, `DD` | Funds protection depends too heavily on rare but catastrophic device loss patterns. | Implicit |
-| AR-30 | Secure-element supply chain, lifecycle, and side-channel properties are acceptable for a Bitcoin custody system. | `R`, `DD`, `SM` | A hidden hardware weakness can destroy the central Boomerang guarantee. | Explicit |
+| AR-28 | Only one of Boomlet and Boomletwo will ever be active, although activation/deactivation is unspecified. | `R`, `SM`, `D` | Duplicate active devices or confused ownership can undermine both safety and liveness. | Open |
+| AR-29 | Losing both Boomlet and Boomletwo is rare enough that fallback-only recovery remains acceptable. | `FD`, `D` | Funds protection depends too heavily on rare but catastrophic device loss patterns. | Implicit |
+| AR-30 | Secure-element supply chain, lifecycle, and side-channel properties are acceptable for a Bitcoin custody system. | `R`, `D`, `SM` | A hidden hardware weakness can destroy the central Boomerang guarantee. | Explicit |
 
 ### E. Secure Terminal and human interface
 
@@ -79,7 +79,7 @@ jurisdiction-dependent rescue, and parameter selection remain open.
 | AR-34 | ST remains air-gapped except for the intended QR exchange path. | `R`, `ST`, `DP` | Malware-capable connectivity can directly exfiltrate consent-set or duress data. | Explicit |
 | AR-35 | An attacker cannot practically observe both the ST display and the user's selection behavior well enough to learn the consent set under coercion. | `DP`, `ST` | Plausible deniability degrades, and attackers can demand the true safe response. | Explicit |
 | AR-36 | Users can memorize the consent set and reliably reproduce it during legitimate safe use, including under stress and fatigue. | `SPEC`, `DP` | Valid but mistaken selections trigger false duress and unnecessary rescue escalation. | Implicit |
-| AR-37 | One ST per peer is enough for ongoing operation, although ST replacement remains ancillary. | `DP`, `DD` | ST loss or compromise becomes an operational dead end. | Open |
+| AR-37 | One ST per peer is enough for ongoing operation, although ST replacement remains ancillary. | `DP`, `D` | ST loss or compromise becomes an operational dead end. | Open |
 | AR-38 | A DIY Portenta-based ST can be made tamper-evident and tamper-resistant enough to satisfy the ST trust boundary. | `ST`, `HW-BB`, `HW-H7` | The assumed trusted UI is only a prototype dev kit with insufficient hardening. | Prototype tension |
 | AR-39 | Prototype attack surface exposed by bootloader, USB, JTAG, Ethernet, SD, camera, and other breakout/debug features can be controlled by build and ops choices. | `HW-BB`, `HW-H7`, `ST` | The proposed ST platform may remain much easier to tamper with than the security model assumes. | Prototype tension |
 
@@ -91,23 +91,23 @@ jurisdiction-dependent rescue, and parameter selection remain open.
 | AR-41 | User entropy, BIP39/BIP32 derivation, mnemonic handling, and passphrase handling on Iso are correct and secret. | `SPEC` | Normal-key security collapses independently of Boomlet. | Implicit |
 | AR-42 | Niso may be malicious without authorizing a spend because Boomlet and ST verify critical state; Niso can still censor, misroute, corrupt presentation, or supply unsafe chain data. | `SPEC`, `SM` | The online host can gain more authorization power than the protocol assigns it. | Explicit boundary |
 | AR-43 | Niso's RPC endpoint is honest, reachable, and configured correctly. | `R`, `SU`, `WD`, `SM` | Block height, satisfiability, and freshness decisions can be manipulated. | Implicit |
-| AR-44 | Phone OS/app security is good enough for dynamic doxing collection and SAR registration. | `R`, `DD`, `SU`, `DP` | Rescue data can be stale, forged, leaked, or suppressed. | Explicit |
+| AR-44 | Phone OS/app security is good enough for dynamic doxing collection and SAR registration. | `R`, `D`, `SU`, `DP` | Rescue data can be stale, forged, leaked, or suppressed. | Explicit |
 | AR-45 | Phone-to-SAR registration, payment, and synchronization cannot be silently redirected or spoofed in a way the user will miss. | `SPEC` | The user can think they are covered while SAR never received valid rescue data. | Implicit |
 | AR-45A | `doxing_password` is user-chosen; Boomlet receives `doxing_key` and does not enforce password policy. | `SPEC`, `ADR`, `SM` | Setup or backup may depend on a second mnemonic-length secret, or components may diverge on password-policy enforcement. | Explicit |
-| AR-46 | Users can safely shuttle Boomlet between Iso and Niso without plugging the wrong device into the wrong host or mixing peer hardware. | `SU`, `WD`, `DD` | Cross-device confusion can undermine both safety and liveness. | Implicit |
-| AR-47 | Ancillary procedures can replace a Phone, Niso, or ST without breaking protocol state or security. | `DD` | Device loss or replacement can make the system unsafe or unusable. | Open |
+| AR-46 | Users can safely shuttle Boomlet between Iso and Niso without plugging the wrong device into the wrong host or mixing peer hardware. | `SU`, `WD`, `D` | Cross-device confusion can undermine both safety and liveness. | Implicit |
+| AR-47 | Ancillary procedures can replace a Phone, Niso, or ST without breaking protocol state or security. | `D` | Device loss or replacement can make the system unsafe or unusable. | Open |
 
 ### G. Peers, users, and human operations
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-48 | At least one honest peer exists in the N-of-N Boomerang regime. | `R`, `SM`, `DD` | The "one honest peer preserves the promise" argument disappears. | Explicit |
+| AR-48 | At least one honest peer exists in the N-of-N Boomerang regime. | `R`, `SM`, `D` | The "one honest peer preserves the promise" argument disappears. | Explicit |
 | AR-49 | Peers honestly exchange and verify peer IDs and Tor addresses out of band. | `R`, `SU`, `SP`, `SM` | Impersonation or routing attacks can be injected before Tor is even used. | Explicit |
 | AR-50 | Users and peers meaningfully verify ordered peer setup records, WT order, milestone blocks, `setup_instance_id`, transaction identifiers, and peer data when prompted. | `SPEC`, `SU`, `WD`, `SP`, `WI`, `WN` | Human checks become ceremonial only, leaving host-mediated substitution attacks alive. | Implicit |
-| AR-51 | Peers remain available across randomized delays, recurring duress checks, and long withdrawal timelines. | `DD`, `FD`, `BD` | Honest liveness fails under normal operational conditions. | Implicit |
-| AR-52 | Non-cooperation is rare enough that N-of-N remains acceptable despite known liveness cost. | `R`, `FD`, `DD` | The system regularly falls back to deterministic recovery or deadlock. | Explicit |
-| AR-53 | Peers will not exploit deterministic fallback once they can predict or wait out Boomerang timing. | `FD`, `DD` | The normal regime becomes an insider bypass path rather than only a liveness valve. | Implicit |
-| AR-54 | Users will maintain safe backups, heed rollover timing, and follow operational guidance consistently. | `R`, `FD`, `DD` | Security rests on a discipline level that the design itself does not enforce. | Explicit |
+| AR-51 | Peers remain available across randomized delays, recurring duress checks, and long withdrawal timelines. | `D`, `FD`, `BD` | Honest liveness fails under normal operational conditions. | Implicit |
+| AR-52 | Non-cooperation is rare enough that N-of-N remains acceptable despite known liveness cost. | `R`, `FD`, `D` | The system regularly falls back to deterministic recovery or deadlock. | Explicit |
+| AR-53 | Peers will not exploit deterministic fallback once they can predict or wait out Boomerang timing. | `FD`, `D` | The normal regime becomes an insider bypass path rather than only a liveness valve. | Implicit |
+| AR-54 | Users will maintain safe backups, heed rollover timing, and follow operational guidance consistently. | `R`, `FD`, `D` | Security rests on a discipline level that the design itself does not enforce. | Explicit |
 
 ### H. WT and SAR service assumptions
 
@@ -115,13 +115,13 @@ jurisdiction-dependent rescue, and parameter selection remain open.
 | --- | --- | --- | --- | --- |
 | AR-55 | The one active WT stays available and responsive for the entire setup or withdrawal ceremony. | `SPEC`, `SM` | Coordination and counter progression stop even when peers are honest. | Explicit |
 | AR-56 | WT signs only correct protocol statements and forwards messages without selective censorship or bias. | `WD`, `WI`, `WN`, `SM` | A non-custodial service can force desynchronization or liveness failure. | Implicit |
-| AR-57 | WT's block-height view is trustworthy enough to act as the protocol heartbeat. | `R`, `DD`, `SM`, `WD` | Freshness windows and progress rules rest on an attacker-controlled clock. | Explicit |
-| AR-58 | Ancillary procedures can provide WT redundancy, switching, and recovery without changing protocol state or trust assumptions. | `SM`, `DD` | A single WT remains a critical service dependency. | Open |
+| AR-57 | WT's block-height view is trustworthy enough to act as the protocol heartbeat. | `R`, `D`, `SM`, `WD` | Freshness windows and progress rules rest on an attacker-controlled clock. | Explicit |
+| AR-58 | Ancillary procedures can provide WT redundancy, switching, and recovery without changing protocol state or trust assumptions. | `SM`, `D` | A single WT remains a critical service dependency. | Open |
 | AR-59 | SAR securely stores encrypted doxing data, identifiers, and related metadata over long periods, assuming offline cracking resistance is bounded by the user-chosen `doxing_password`. | `R`, `SM`, `SU`, `DP`, `ADR` | Off-chain safety data become a privacy or rescue failure point; weak passwords make leaked ciphertext more exposed to offline guessing. | Implicit |
 | AR-60 | Each setup-bound SAR classifies valid placeholders, commits the same-shaped durable record by the fixed deadline, handles repeats idempotently, and signs the exact encrypted placeholder. | `SPEC`, `SM` | Positive duress may be missed, observable processing may reveal it, or Boomlet may continue under false delivery assumptions. | Explicit |
-| AR-61 | Effective, lawful, correctly directed, and non-escalatory SAR action is required for physical intervention but is not guaranteed by protocol acknowledgement. | `R`, `DD`, `SM` | Authenticated signaling can succeed while rescue fails, harms the wrong person, or escalates violence. | Explicit |
-| AR-62 | Reputation and SAR operator selection are an acceptable control for WT and SAR social trust. | `DD`, `SM` | Operational trust remains an assumption rather than a designed control. | Explicit |
-| AR-63 | SAR will not become a later attacker after identity is revealed during a rescue event. | `DD`, `SM` | Duress rescue itself may create a future targeting or coercion channel. | Implicit |
+| AR-61 | Effective, lawful, correctly directed, and non-escalatory SAR action is required for physical intervention but is not guaranteed by protocol acknowledgement. | `R`, `D`, `SM` | Authenticated signaling can succeed while rescue fails, harms the wrong person, or escalates violence. | Explicit |
+| AR-62 | Reputation and SAR operator selection are an acceptable control for WT and SAR social trust. | `D`, `SM` | Operational trust remains an assumption rather than a designed control. | Explicit |
+| AR-63 | SAR will not become a later attacker after identity is revealed during a rescue event. | `D`, `SM` | Duress rescue itself may create a future targeting or coercion channel. | Implicit |
 | AR-77 | SAR has a reliable monotonic clock, a fixed positive `sar_placeholder_ack_delay` longer than bounded worst-case pre-acknowledgement work, and a matching WT timeout. | `SPEC` | Deadline misses stall the ceremony, while a conditional or variable release path can reveal duress. | Open deployment assumption |
 
 ### I. Network, metadata, and privacy
@@ -140,12 +140,12 @@ jurisdiction-dependent rescue, and parameter selection remain open.
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
 | AR-70 | Setup-instance uniqueness is provided by `peer_setup_nonce`, canonical `setup_instance_id`, ST recomputation and review, strict record ordering, and chained setup checkpoints. | `SPEC`, `ADR` | No setup-identity protocol gap remains. | Resolved |
-| AR-71 | Ancillary procedures can be deferred: WT switch, Boomletwo activation, Phone change, Niso change, ST change, SAR-set change, timeout handling, blame handling. | `DD`, `SM` | Realistic operations break long before the core withdrawal logic is reached. | Open |
-| AR-72 | The protocol has no unmodeled interaction that creates a failure beyond the listed gaps. | `R`, `DD`, `SM` | Emergent behavior can invalidate safety or liveness arguments based on individual transitions. | Explicit |
+| AR-71 | Ancillary procedures can be deferred: WT switch, Boomletwo activation, Phone change, Niso change, ST change, SAR-set change, timeout handling, blame handling. | `D`, `SM` | Realistic operations break long before the core withdrawal logic is reached. | Open |
+| AR-72 | The protocol has no unmodeled interaction that creates a failure beyond the listed gaps. | `R`, `D`, `SM` | Emergent behavior can invalidate safety or liveness arguments based on individual transitions. | Explicit |
 | AR-73 | Timing and liveness claims require simulation, formal analysis, conformance tests, and implementation evidence. | `SPEC`, `SM` | The timing and liveness claims may not be operationally defensible. | Open |
-| AR-74 | Open parameter choices for `mystery`, intervals, and tolerances can be resolved without changing the core security properties. | `SM`, `DD`, `FD`, `BD` | The promised deterrence/liveness balance may depend on values that do not actually exist. | Open |
+| AR-74 | Open parameter choices for `mystery`, intervals, and tolerances can be resolved without changing the core security properties. | `SM`, `D`, `FD`, `BD` | The promised deterrence/liveness balance may depend on values that do not actually exist. | Open |
 | AR-75 | Exposed prototyping and debug features do not invalidate the security claims made for the trusted UI. | `ST`, `HW-BB`, `HW-H7` | The trusted UI may rest on a platform that is materially weaker than assumed. | Prototype tension |
-| AR-76 | Build, update, deployment, and hardening controls prevent compromise of Iso, Niso, ST, Boomlet, WT, and SAR. | `SM`, `R`, `DD` | Malicious updates, compromised build pipelines, or service flaws can bypass protocol guarantees. | Open |
+| AR-76 | Build, update, deployment, and hardening controls prevent compromise of Iso, Niso, ST, Boomlet, WT, and SAR. | `SM`, `R`, `D` | Malicious updates, compromised build pipelines, or service flaws can bypass protocol guarantees. | Open |
 
 ### K. Cross-cutting protocol boundaries
 
@@ -198,7 +198,7 @@ limits; they are not evidence that a property has been checked.
 ## Design-gap provenance
 
 Canonical gap descriptions, priorities, statuses, and resolution evidence:
-[README.md Appendix D](README.md#appendix-design-gaps). Each `DG-*` entry maps
+[README.md Appendix D](README.md#appendix-d-detailed-design-gaps). Each `DG-*` entry maps
 to its source assumptions and formal boundaries; direct threat-catalog
 mappings appear in the same row.
 
@@ -260,7 +260,7 @@ operator-run lifecycle procedures still have high-priority gaps.
 - `Prototype tension`: stronger assurance is assumed than the named prototype establishes.
 
 Source keys: `SPEC` = `spec/SPEC.md`; `R` = repository `README.md`;
-`DD` = `DEEPDIVE.md`; `SM` = `security_models/README.md`; `FD` =
+`D` = `DESIGN.md`; `SM` = `security_models/README.md`; `FD` =
 `security_models/forced_determinism.md`; `ADR` = `adr/*.md`; `SU` =
 `setup/README.md`; `WD` = `withdrawal/README.md`; `DP` =
 `duress_protection/README.md`; `ST` = `secure_terminal/README.md`; `SP`,
