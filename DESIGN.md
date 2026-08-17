@@ -293,89 +293,46 @@ event, not which of those real-world outcomes follows.
 
 ## 6. Protocol sequence
 
-The diagram deliberately omits wire schemas and setup subprotocols. It shows
-the coupling that a withdrawal implementation must preserve.
+The shape of a withdrawal, at phase level. This deliberately hides the
+initiator/non-initiator asymmetry, every ordering and gating rule, and all
+wire detail — [Section 10](#10-withdrawal-in-detail) restores them, and the
+full message-level sequence diagrams live in the
+[withdrawal subsystem](withdrawal/README.md). What the picture is meant to
+show survives the compression: every required step either withholds signing
+or carries acknowledged duress state, and usually both.
 
 ```mermaid
 sequenceDiagram
-    actor A as Attacker
     actor U as Five users
-    participant ST as Five Secure Terminals
-    participant BI as Initiator Boomlet
-    participant BN as Four non-initiator Boomlets
+    participant B as Five Boomlets
     participant WT as Watchtower
-    participant SAR as Setup-bound SARs
+    participant SAR as Each peer's SAR
 
-    A->>U: Compel withdrawal to the attacker's destination
-    U->>ST: Initiator independently verifies unsigned tx_id
-    ST-->>BI: Signed nonce-bound tx-ID confirmation
-    BI->>WT: Signed initiator TxApproval plus addressed PSBT envelopes
-    WT-->>BN: WT and initiator approvals plus addressed PSBTs
-    BN-->>U: Present each verified transaction through its Niso
-    U->>ST: Each non-initiator independently verifies the same tx_id
-    ST-->>BN: Four signed nonce-bound tx-ID confirmations
-    BN->>WT: Four Boomlet-signed TxApproval messages
-    WT-->>BI: Peer approvals for the ordered five-TxApproval set
-    WT-->>BN: Peer approvals for the ordered five-TxApproval set
-    BI->>BI: Verify the complete five-approval set<br/>and compute approved_withdrawal_id
-    BN->>BN: Verify the complete five-approval set<br/>and compute approved_withdrawal_id
-    BN->>WT: Four approval-set attestations
-    Note over U,WT: TxApproval is pre-signing protocol authorization<br/>No Bitcoin transaction signature exists yet
+    U->>B: Each user independently confirms the tx_id
+    B->>WT: Five TxApprovals (pre-signing authorization, not signatures)
+    Note over B,WT: Everyone verifies the same five-approval set,<br/>and the four non-initiators attest receipt and agreement
+    U->>B: Private duress answer (safe and duress look identical)
+    B->>WT: Signed TxCommit + encrypted placeholder
+    WT->>SAR: Each peer's placeholder
+    SAR-->>WT: Durably recorded, then acknowledged
+    WT-->>B: All five commits + each peer's own acknowledgment
+    Note over B: Enter DIGGING — each Boomlet draws its private mystery
 
-    BI->>ST: Initial duress challenge
-    BN->>ST: Initial duress challenges
-    ST-->>BI: Safe or duress response in the same form
-    ST-->>BN: Safe or duress responses in the same form
-    BI->>WT: Initiator TxCommit plus fresh encrypted placeholder
-    WT->>WT: Verify all four approval-set attestations<br/>before SAR relay or non-initiator commits
-    WT->>SAR: Relay initiator's exact placeholder
-    SAR->>SAR: Authenticate, classify, and durably record<br/>activate duress when applicable
-    Note right of SAR: Hold both valid classes until<br/>the same fixed release deadline
-    SAR-->>WT: Acknowledgment signing the exact placeholder
-    SAR-)SAR: Begin any duress response asynchronously<br/>after acknowledgment release
-    WT-->>BN: WT-signed initiator TxCommit
-
-    loop For each non-initiator after verifying the initiator commit
-        BN->>WT: Signed TxCommit plus fresh encrypted placeholder
-        WT->>SAR: Relay that peer's exact placeholder
-        SAR->>SAR: Use the same durable path and fixed deadline
-        SAR-->>WT: Acknowledgment signing that exact placeholder
-        SAR-)SAR: Begin any duress response asynchronously after release
-    end
-
-    WT-->>BI: Complete TxCommit collection plus initiator's exact acknowledgment
-    WT-->>BN: Complete TxCommit collection plus each peer's exact acknowledgment
-    BI->>BI: Verify collection and own acknowledgment<br/>enter DIGGING and generate fresh mystery
-    BN->>BN: Verify collection and own acknowledgment<br/>enter DIGGING and generate fresh mysteries
-
-    loop Until every Boomlet reports its threshold reached
-        opt This round selects a fresh duress check
-            BI->>ST: Fresh nonce-bound challenge when selected
-            BN->>ST: Fresh nonce-bound challenges when selected
-            ST-->>BI: Safe or duress response in the same form
-            ST-->>BN: Safe or duress responses in the same form
+    loop Until all five thresholds are reached
+        opt Some rounds
+            U->>B: Fresh private duress answer
         end
-        BI->>WT: Current ping plus newly encrypted placeholder
-        BN->>WT: Four current pings plus newly encrypted placeholders
-        WT->>SAR: Relay each exact placeholder
-        SAR->>SAR: Use the same durable path and fixed deadline
-        SAR-->>WT: Exact placeholder acknowledgment
-        SAR-)SAR: Begin any duress response asynchronously<br/>after acknowledgment release
-        WT-->>BI: Recipient pong using only acknowledged pings
-        WT-->>BN: Recipient pongs using only acknowledged pings
-        BI->>BI: Validate all peers and chain view<br/>then advance or catch up and emit another ping
-        BN->>BN: Validate all peers and chain view<br/>then advance or catch up and emit another ping
+        B->>WT: Ping + freshly encrypted placeholder
+        WT->>SAR: Placeholder
+        SAR-->>WT: Acknowledgment, required before the pong
+        WT-->>B: Pong bundling the other peers' current pings
+        Note over SAR: If duress was entered, the response is<br/>already underway on its own track
     end
 
-    WT-->>BI: Reached collection only after all five thresholds
-    WT-->>BN: Reached collection only after all five thresholds
-    BI-->>U: Permit isolated signing
-    BN-->>U: Permit isolated signing
-    U->>BI: Reconstruct normal key and complete initiator signing
-    U->>BN: Reconstruct normal keys and complete other peer signing
-    BI-->>WT: Signed fragment after final revalidation
-    BN-->>WT: Four signed fragments after final revalidation
-    WT->>WT: Aggregate, verify, and broadcast<br/>the transaction bound by approved_withdrawal_id
+    WT-->>B: Reached collection: all five thresholds met
+    U->>B: Isolated signing — all five must sign
+    B->>WT: Five signed fragments
+    WT->>WT: Aggregate, verify, broadcast
 ```
 
 ## 7. Architecture and trust boundaries
