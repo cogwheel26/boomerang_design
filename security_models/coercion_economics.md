@@ -50,21 +50,13 @@ Vasek's
 [2024 AFT study](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.AFT.2024.24).
 The authors reviewed 146 news articles describing 147 incidents and retained
 the 105 cases reported from 2014 through October 2023 that met their
-wrench-attack definition. The demand recorded for each retained case was:
-
-```mermaid
-xychart-beta
-    title "Attacker demand in 105 news-reported wrench attacks"
-    x-axis "Demand recorded for the case" ["Crypto, unspecified", "Bitcoin", "Keys or device", "Unspecified"]
-    y-axis "Reported cases" 0 --> 45
-    bar [40, 26, 30, 9]
-```
-
-Sixty-six reports therefore involved a demanded cryptocurrency transfer,
-including 26 specifically demanding Bitcoin. Thirty involved means of access
-such as private keys or storage devices. This distinction matters: a compelled
-live transfer is a closer match for Boomerang than theft of an immediately
-spendable wallet or key.
+wrench-attack definition. What the attackers demanded splits into the case
+Boomerang addresses and the cases it only partly touches: sixty-six of the
+105 reports involved a demanded cryptocurrency transfer — 26 specifically
+demanding Bitcoin, the rest an unspecified cryptocurrency — thirty involved
+means of access such as private keys or storage devices, and nine recorded no
+demand. The distinction matters: a compelled live transfer is a closer match
+for Boomerang than theft of an immediately spendable wallet or key.
 
 The dominant acts were 38 burglaries, 24 kidnappings, 23 robberies, 7 forcible
 confinements, 6 murders, 3 blackmail cases, 3 cases of cryptocurrency-facilitated

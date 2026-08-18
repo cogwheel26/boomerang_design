@@ -129,7 +129,7 @@ identified. A failed decoy may also escalate harm.
 place a delay between an initiating action and unrestricted spending. Those
 properties are valuable against key theft and detected unauthorized spends.
 Depending on the construction, a fixed and observable recovery window may
-still be planable, and a vault does not by itself provide a covert physical-
+still be plannable, and a vault does not by itself provide a covert physical-
 duress signal or a prepared real-world response.
 
 The remaining problem is therefore an informed coercer who can demand genuine
@@ -183,8 +183,8 @@ releases an acknowledgment at the same fixed deadline. A Boomlet enters
 and its own SAR signature over the exact encrypted placeholder it sent.
 
 Entry to `DIGGING` is the only point at which a Boomlet generates the active
-withdrawal's **mystery**: a fresh private threshold—the number of valid
-progress rounds this device will require—drawn from minimum and maximum
+withdrawal's **mystery**: a fresh private threshold—the number of successful
+local counter increments this device will require—drawn from minimum and maximum
 bounds fixed by the implementation profile. The bounds are not chosen during
 setup. The mystery belongs only to that withdrawal and is erased with
 its active state after signature export, explicit abort, or unrecoverable
@@ -231,7 +231,10 @@ backup. No withdrawal mystery exists yet.
 
 An attacker later takes control of the five users and demands payment to a
 specific address. The attacker has enough knowledge to reject a decoy and
-watches the real withdrawal ceremony. First the initiator, then each
+watches the transaction review and protocol coordination. The claimed case
+still assumes that the attacker cannot observe the ST consent interaction
+closely enough to learn or dictate the safe response; Section 11 explains what
+fails if that physical assumption does not hold. First the initiator, then each
 non-initiator, independently verifies the same unsigned transaction identifier
 on ST. Each successful nonce-bound ST confirmation causes that peer's Boomlet
 to sign a `TxApproval`. These five messages authorize only the protocol's next
@@ -242,10 +245,12 @@ placeholder, ping, pong, reached report, and signing step to that exact
 withdrawal and approval set. Each non-initiator also signs the required
 attestation that it received and verified the complete set.
 
-Each Boomlet presents an initial duress challenge through its ST. Selecting the
-memorized five-country set means safe; any other structurally valid set means
-duress. In either case, the Boomlet creates the same kind of encrypted
-placeholder. The initiator signs its `TxCommit` first. WT may stage it, but may
+Each Boomlet presents an initial consent challenge through its ST. Selecting
+the memorized five-country set means safe; any other structurally valid set
+means duress. Those selections are physically distinguishable to an observer;
+the valid protocol outputs have the same artifact type and handling. In either
+case, the Boomlet creates the same kind of encrypted placeholder. The initiator
+signs its `TxCommit` first. WT may stage it, but may
 not relay its placeholder to SAR, acknowledge that commit, or accept a
 non-initiator commit until WT has verified all four non-initiator approval-set
 attestations. Each non-initiator signs its `TxCommit` only after verifying the
@@ -293,10 +298,10 @@ event, not which of those real-world outcomes follows.
 
 ## 6. Protocol sequence
 
-The shape of a withdrawal, at phase level. This deliberately hides the
-initiator/non-initiator asymmetry, every ordering and gating rule, and all
-wire detail — [Section 10](#10-withdrawal-in-detail) restores them, and the
-full message-level sequence diagrams live in the
+The shape of a withdrawal, at phase level. This shows the security-critical
+initiator/non-initiator gates but omits many checks, retries, and all wire
+detail — [Section 10](#10-withdrawal-in-detail) restores them, and the full
+message-level sequence diagrams live in the
 [withdrawal subsystem](withdrawal/README.md). What the picture is meant to
 show survives the compression: every required step either withholds signing
 or carries acknowledged duress state, and usually both.
@@ -308,30 +313,46 @@ sequenceDiagram
     participant WT as Watchtower
     participant SAR as Each peer's SAR
 
-    U->>B: Each user independently confirms the tx_id
-    B->>WT: Five TxApprovals (pre-signing authorization, not signatures)
-    Note over B,WT: Everyone verifies the same five-approval set,<br/>and the four non-initiators attest receipt and agreement
-    U->>B: Private duress answer (safe and duress look identical)
-    B->>WT: Signed TxCommit + encrypted placeholder
-    WT->>SAR: Each peer's placeholder
-    SAR-->>WT: Durably recorded, then acknowledged
-    WT-->>B: All five commits + each peer's own acknowledgment
-    Note over B: Enter DIGGING — each Boomlet draws its private mystery
+    U->>B: Each user independently confirms the exact tx_id
+    B->>WT: Five signed TxApprovals (not Bitcoin transaction signatures)
+    WT-->>B: Ordered five-approval set
+    Note over B,WT: Every peer verifies the set and derives approved_withdrawal_id
 
-    loop Until all five thresholds are reached
-        opt Some rounds
-            U->>B: Fresh private duress answer
+    par Initiator may prepare early
+        U->>B: Initiator enters its consent response on ST
+        B->>WT: Staged initiator TxCommit + encrypted placeholder
+    and Non-initiators prove receipt and agreement
+        B->>WT: Four signed approval-set attestations
+    end
+    Note over U,B: Safe and duress inputs differ physically if observed
+    Note over WT: Verify all four attestations before relaying the initiator placeholder or accepting other commits
+    WT->>SAR: Initiator's exact placeholder
+    SAR-->>WT: Exact acknowledgment after fixed-shape durable write
+    WT-->>B: WT-signed initiator commitment
+
+    U->>B: Non-initiators enter their consent responses on ST
+    B->>WT: Four signed TxCommits + encrypted placeholders
+    WT->>SAR: Each non-initiator's exact placeholder
+    Note over WT,SAR: Valid safe and duress use the same routing, deadline,<br/>durable-write path, retries, and visible failure behavior
+    SAR-->>WT: Exact acknowledgments
+    WT-->>B: Complete five-commit collection + each Boomlet's acknowledgment
+    Note over B: Verify both, enter DIGGING,<br/>and independently draw fresh mysteries
+
+    loop Until all five local thresholds are reached
+        opt A round selected for a recurring challenge
+            U->>B: User enters a fresh consent response
         end
-        B->>WT: Ping + freshly encrypted placeholder
-        WT->>SAR: Placeholder
-        SAR-->>WT: Acknowledgment, required before the pong
-        WT-->>B: Pong bundling the other peers' current pings
-        Note over SAR: If duress was entered, the response is<br/>already underway on its own track
+        B->>WT: Signed ping + freshly encrypted placeholder
+        WT->>SAR: Exact placeholder
+        SAR-->>WT: Acknowledgment required before pong use
+        WT-->>B: Recipient-specific pong with current peer pings
+        Note over B: A valid catch-up round need not increment the local counter
+        Note over SAR: If duress was entered, response proceeds<br/>asynchronously on its own track
     end
 
-    WT-->>B: Reached collection: all five thresholds met
+    WT-->>B: Signed reached collection for all five Boomlets
     U->>B: Isolated signing — all five must sign
-    B->>WT: Five signed fragments
+    B->>WT: Five Bitcoin signature fragments
     WT->>WT: Aggregate, verify, broadcast
 ```
 
@@ -450,11 +471,9 @@ output key during setup.
 
 Milestones are strictly increasing setup parameters, and the Boomerang branch
 is the earliest spendable branch. "Primary" describes that branch order—the
-first branch in the tree—not a preference among paths. A Boomerang withdrawal
-may begin only at or after `milestone_block_0`
-([SPEC §15.1](spec/SPEC.md)). The ceremony could technically begin earlier,
-since only the final transaction must satisfy the timelock, but the current
-design gates the entire withdrawal behind the first milestone.
+first branch in the tree—not a preference among paths. The current protocol
+requires a Boomerang withdrawal to begin only at or after
+`milestone_block_0` ([SPEC §15.1](spec/SPEC.md)).
 
 Normal-key fallback begins at `milestone_block_1`, the second milestone;
 `milestone_block_0` gates only the Boomerang branch. The first fallback branch
@@ -591,7 +610,7 @@ prove receipt, verification, and agreement on `approved_withdrawal_id`, and
 are not additional authorization, commitments, or duress evidence.
 
 **Initial duress check and commitment ([SPEC §15.5, §16](spec/SPEC.md)).**
-Each user answers the private duress challenge
+Each user enters a response to the consent challenge
 ([Section 11](#11-duress-protection-and-observability)), and each Boomlet
 wraps its signed `TxCommit`—a commitment to `approved_withdrawal_id`, not a
 Bitcoin transaction signature—together with a fresh encrypted placeholder in
@@ -709,14 +728,15 @@ responses, wrong counts, duplicate indices, and out-of-range indices; among
 structurally valid answers, equality with the consent set means safe, and any
 other five-element set means duress.
 
-Answering is designed to be a discreet act. ST is a battery-powered,
-air-gapped device that communicates only through QR codes, keeps the
-challenge and its encrypted answer in its own memory, and has a display
-deliberately sized to be covered easily; the user can take it aside, answer
-in private, and relay the retained response after returning to the normal
-environment ([`secure_terminal/README.md`](secure_terminal/README.md)). The
-protocol cannot enforce that privacy—an observer who watches an answer being
-entered defeats it, which the observability exclusions below make explicit.
+ST is a battery-powered, air-gapped trusted display-and-input device that uses
+QR transport and has a deliberately small display
+([`secure_terminal/README.md`](secure_terminal/README.md)). Those properties may
+support discreet handling, but the protocol specifies no take-away,
+retained-response, or delayed-relay procedure and cannot create physical
+privacy. A safe selection and a duress selection are visibly different to
+someone watching the input. The security argument assumes the attacker cannot
+observe that interaction closely enough to learn or dictate the safe response;
+an observed interaction defeats that assumption.
 
 Both answers produce the same artifact: a placeholder whose plaintext is 32
 zero bytes when safe or `doxing_key_for_sar` when duress, freshly encrypted
@@ -789,10 +809,11 @@ password root is [ADR 0005](adr/0005-user-chosen-doxing-password.md).
 
 ## 12. Attack economics and security argument
 
-Boomerang's central claim is economic: change a coerced transfer from a prompt,
-verifiable payout into a sequential decision under uncertain completion and
-response risk. That claim has three different kinds of support, which must not
-be confused: observed attack data, probability derived from the protocol, and
+Boomerang's central economic hypothesis is that the mechanism can change a
+coerced transfer from a prompt, verifiable payout into a sequential decision
+under uncertain completion and response risk. That hypothesis has three
+different kinds of support, which must not be confused: observed attack data,
+probability derived from the protocol, and
 deployment inputs that have not yet been measured.
 
 ### What observed attacks establish
@@ -800,17 +821,26 @@ deployment inputs that have not yet been measured.
 Violent coercion for cryptocurrency is documented and materially costly.
 Ordekian, Atondo-Siu, Hutchings, and Vasek's
 [2024 AFT study](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.AFT.2024.24)
-of news-reported wrench attacks finds that most recorded demands were for a
-transfer or for the means of access, and it identifies two cases in which
-attackers coerced victims to initiate transfers but failed to fully receive
-the funds because an exchange's 24-hour delay and verification feature let
-the victims flag and stop the transactions—observed evidence that a
-pre-payout interval can matter when someone can use it. A
+reviewed 146 news articles describing 147 incidents and retained 105 cases
+reported from 2014 through October 2023. Recorded demands were 40 unspecified
+cryptocurrency transfers, 26 Bitcoin transfers, 30 keys or devices, and nine
+unspecified demands. Outcomes were 70 reported successes, 29 failures, and six
+unstated. The `70 / 99 = 70.7%` success fraction among stated outcomes is a
+description of this selected media sample, not a population probability:
+underreporting, newsworthiness bias, and missing custody detail limit inference.
+
+The study identifies two cases in which attackers coerced victims to initiate
+transfers but failed to fully receive the funds because an exchange's 24-hour
+delay and verification feature let the victims flag and stop the
+transactions—observed evidence that a pre-payout interval can matter when
+someone can use it. A
 [2026 TRM Labs/Metropolitan Police review](https://www.trmlabs.com/reports-and-whitepapers/wrench-attacks-crypto-enabled-violent-targeting)
-adds operational context: material per-offence losses, control mechanisms
-such as confinement, and recovery that depends on coordinated action within
-hours. The datasets, their exact counts, and their explicit sampling limits
-are maintained in
+describes 17 reported London offences from March through December 2024: 59%
+kidnapping, 35% aggravated burglary, and 6% robbery, with an approximate mean
+cryptoasset loss of £660,000 per offence. That review is operational and
+commercial context, not official population statistics or protocol evidence.
+The datasets, their exact counts, and their explicit sampling limits are
+maintained in
 [coercion economics §2](security_models/coercion_economics.md#2-observed-attack-evidence).
 None of these sources measures the cost of sustained detention, the
 probability that a concealed signal produces intervention, or the loss an
@@ -847,9 +877,9 @@ count, or treating rescue as a protocol result.
 The part that can be calculated exactly comes from the specified five-peer
 profile. Let each Boomlet independently draw its mystery
 `M_i` uniformly from the inclusive profile range `{m, ..., M}` when that
-withdrawal enters `DIGGING`. Let `n = M - m + 1`. In the simplified synchronized
-case where every device counter advances together, the common counter value
-needed for all five to be ready is:
+withdrawal enters `DIGGING`. Let `n = M - m + 1`. In a simplified synchronized
+slice where all five independently maintained local counters happen to equal
+the same hypothetical value `k`, the value needed for all five to be ready is:
 
 ```text
 K = max(M_1, M_2, M_3, M_4, M_5)
@@ -874,16 +904,30 @@ F(k) = 0                         for k < m
 P(all five ready | k_1, ..., k_5) = F(k_1) * F(k_2) * F(k_3) * F(k_4) * F(k_5)
 ```
 
+The normalized curve below plots that synchronized slice. The x-axis is
+`x = F(k)`: the percentage of one Boomlet's allowed threshold values at or
+below `k`. The y-axis is `x^5`, the probability that all five independent
+thresholds are at or below `k`.
+
+```mermaid
+xychart-beta
+    title "All-five readiness in the synchronized slice k1 = ... = k5 = k"
+    x-axis "x: one Boomlet's allowed mystery values at or below k (%)" 0 --> 100
+    y-axis "Probability all five thresholds are reached (%)" 0 --> 100
+    line [0, 0.00003, 0.001, 0.0076, 0.032, 0.0977, 0.243, 0.5252, 1.024, 1.8453, 3.125, 5.0328, 7.776, 11.6029, 16.807, 23.7305, 32.768, 44.3705, 59.049, 77.3781, 100]
+```
+
 Requiring the maximum of five draws concentrates completion toward the top of
-the range: when half of the possible values are at or below the counter, each
-individual Boomlet has a 50% readiness probability but the five-of-five
-branch has only a `0.5^5 = 3.125%` readiness probability. In the
+the range: when half of one Boomlet's possible values are at or below its
+counter, each individual Boomlet has a 50% readiness probability but the
+five-of-five branch has only a `0.5^5 = 3.125%` readiness probability. In the
 corresponding continuous normalization, the mean position of the maximum is
 `5/6`, or 83.3%; its median is `0.5^(1/5)`, or 87.1%; and its 90th percentile
 is `0.9^(1/5)`, or 97.9%. Those are positions within the possible-value
-distribution, not chosen month or day values. The `x^5` curve is plotted in
-the [README](README.md#attack-economics) as the first-contact view and
-maintained with its reference table in
+distribution, not chosen month or day values. The smooth line is a normalized
+guide sampled every five percentage points; a concrete integer profile has a
+discrete staircase CDF. The curve also appears in the
+[README](README.md#attack-economics), and its reference table is maintained in
 [coercion economics §4](security_models/coercion_economics.md#4-protocol-derived-completion-distribution).
 Production `m` and `M` remain open implementation-profile constants.
 
@@ -930,8 +974,31 @@ of `T`; public evidence does not yet calibrate `C`, the distribution of `D`, or
 The attacker does not choose only once. Each incomplete round reveals that
 the ceremony has not yet reached all five thresholds, after which the
 attacker decides again whether to keep paying control costs and bearing
-response exposure or to abandon with the sunk cost; the round-by-round
-decision structure is diagrammed in
+response exposure or to abandon with the sunk cost:
+
+```mermaid
+flowchart LR
+    I["Round ends without all five ready"] --> Q{"Continue coercion?"}
+    Q -- "No" --> A["Abandon<br/>Sunk costs remain"]
+    Q -- "Yes" --> C["Pay more control cost<br/>Bear more response exposure"]
+    C --> D{"Response interrupts before<br/>the next progress decision?"}
+    D -- "Yes" --> X["Payout may be interrupted<br/>Additional attacker loss is possible"]
+    D -- "No" --> R{"All five thresholds reached?"}
+    R -- "No" --> I
+    R -- "Yes" --> S["Attempt final signing,<br/>verification, exfiltration, and escape"]
+    S --> F{"Effective disruption before<br/>usable payout and escape?"}
+    F -- "Yes" --> X
+    F -- "No" --> P["Attacker completes<br/>the payout objective"]
+
+    classDef decision fill:#fef3c7,stroke:#b45309,color:#451a03
+    classDef attacker fill:#fee2e2,stroke:#b91c1c,color:#450a0a
+    classDef exit fill:#dcfce7,stroke:#15803d,color:#052e16
+    class Q,D,R,F decision
+    class C,S,P attacker
+    class A,X exit
+```
+
+The detailed round-by-round decision structure is maintained in
 [coercion economics §6](security_models/coercion_economics.md#6-game-theoretic-attacker-utility-and-continuation).
 The exact conditional completion distribution can be calculated from the CDF
 above. For `k > s`:
@@ -955,7 +1022,7 @@ owns the measurement requirements that must precede any quantitative claim.
 
 | Lever | Effect |
 | --- | --- |
-| `MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` / `MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` (profile constants) | Set the support of every mystery draw. A wider or higher range raises expected required progress and its variance, and the five-draw maximum concentrates completion toward the top of the range. The range also bounds how early rollover must begin relative to the milestones. |
+| `MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` / `MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS` (profile constants) | Set the support of every mystery draw. Translating both bounds upward by the same amount shifts required counter progress upward without changing its spread in counter units. Moving only one endpoint changes both support and shape; widening downward can lower the expected maximum, so no generic “wider means slower and more variable” rule is valid. The selected range also affects how early rollover must begin relative to the milestones. |
 | `DURESS_CHECK_INTERVAL_IN_BLOCKS` (profile constant) | A shorter cadence creates more concealed signaling opportunities per ceremony at the cost of more user interaction and fatigue. |
 | Milestone schedule (the setup-time choice) | Fixes when deterministic fallback branches open: what a patient attacker can wait out, and when rollover discipline must act. |
 | Single active WT (profile shape) | One coordination service is a stall and denial-of-service surface. Redundancy and switching are unresolved ancillary work ([Section 15](#15-ancillary-procedures-and-open-protocol-work)) — a gap, not a lever that can be tuned today. |
