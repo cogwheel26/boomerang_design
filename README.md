@@ -90,52 +90,9 @@ terms.
 | Keep the withdrawal advancing | Every Boomlet independently draws a fresh private progress requirement, and only valid exchanges with the other devices count toward it | The users cannot disclose or accelerate a precise finish |
 | Reach signing, obtain a verifiable payout, and escape | Required messages carry fresh encrypted indications of safety or duress, and the protocol waits for exact SAR acknowledgments | A duress answer can activate a prepared response while signing remains unavailable |
 
-The attack is therefore two races sharing one ceremony:
-
-```mermaid
-flowchart TB
-    subgraph ATT["ATTACKER — reach a usable payout and escape"]
-        direction LR
-        A1["Control all five users"] --> A2["Compel the real<br/>withdrawal"]
-        A2 --> A3["Sustain control<br/>and coordination"]
-        A3 --> A4["Obtain five Bitcoin<br/>transaction signatures"]
-        A4 --> A5["Verify payout,<br/>exfiltrate, escape"]
-    end
-
-    subgraph PRO["BOOMERANG — gates the path to signing"]
-        direction LR
-        B1["Exact transaction review<br/>and device-recorded approvals"] --> B2["Encrypted answers delivered<br/>and acknowledged by each SAR"]
-        B2 --> B3["Five private progress requirements<br/>enforced by five devices"]
-        B3 --> B4["All five Boomlets<br/>report reached"]
-        B4 --> B5["Final signing<br/>becomes available"]
-    end
-
-    subgraph RES["RESPONSE — proceeds asynchronously"]
-        direction LR
-        R1["Duress answer<br/>durably activates response"] --> R2["Prepared responder<br/>assesses and acts"]
-    end
-
-    A2 -. "forces" .-> B1
-    A3 -. "must keep this moving" .-> B3
-    B5 --> A4
-    B2 -. "if duress" .-> R1
-    B3 -. "required progress carries<br/>fresh encrypted answers" .-> R1
-    R2 -. "possible interruption before<br/>the attacker finishes" .-> A5
-
-    classDef attacker fill:#fee2e2,stroke:#b91c1c,color:#450a0a
-    classDef protocol fill:#e0f2fe,stroke:#0369a1,color:#082f49
-    classDef uncertainty fill:#fef3c7,stroke:#b45309,color:#451a03
-    classDef response fill:#dcfce7,stroke:#15803d,color:#052e16
-    class A1,A2,A3,A4,A5 attacker
-    class B1,B2,B4,B5 protocol
-    class B3 uncertainty
-    class R1,R2 response
-```
-
-**Visual key:** red is the attacker's path, blue is enforced protocol progress,
-amber is private completion uncertainty, and green is the response path. Solid
-arrows show required sequencing; dashed arrows show influence or a conditional
-real-world effect.
+Boomerang therefore turns a forced withdrawal into a race. The attacker must
+maintain control through an unpredictable wait, while the required withdrawal
+traffic can start a prepared response before signing becomes available.
 
 ## A concrete coercion scenario
 
@@ -215,9 +172,54 @@ while increasing exposure to a response.
 The attacker still needs signing, a verifiable payout, exfiltration, and a
 safe escape. A primary-branch withdrawal makes signing wait on acknowledged
 duress traffic and five private thresholds, while a duress answer from any
-user starts a response on a parallel track. The detailed map below follows one
-case—coercion that begins before the withdrawal does—and exposes the ordering
-hidden by the 60-second view.
+user starts a response on a parallel track. The high-level map shows those
+tracks. The expandable map beneath it follows one case—coercion that begins
+before the withdrawal does—and exposes more of the protocol ordering.
+
+```mermaid
+flowchart TB
+    subgraph ATT["ATTACKER — reach a usable payout and escape"]
+        direction LR
+        A1["Control all five users"] --> A2["Compel the real<br/>withdrawal"]
+        A2 --> A3["Sustain control<br/>and coordination"]
+        A3 --> A4["Obtain five Bitcoin<br/>transaction signatures"]
+        A4 --> A5["Verify payout,<br/>exfiltrate, escape"]
+    end
+
+    subgraph PRO["BOOMERANG — gates the path to signing"]
+        direction LR
+        B1["Exact transaction review<br/>and device-recorded approvals"] --> B2["Encrypted answers delivered<br/>and acknowledged by each SAR"]
+        B2 --> B3["Five private progress requirements<br/>enforced by five devices"]
+        B3 --> B4["All five Boomlets<br/>report reached"]
+        B4 --> B5["Final signing<br/>becomes available"]
+    end
+
+    subgraph RES["RESPONSE — proceeds asynchronously"]
+        direction LR
+        R1["Duress answer<br/>durably activates response"] --> R2["Prepared responder<br/>assesses and acts"]
+    end
+
+    A2 -. "forces" .-> B1
+    A3 -. "must keep this moving" .-> B3
+    B5 --> A4
+    B2 -. "if duress" .-> R1
+    B3 -. "required progress carries<br/>fresh encrypted answers" .-> R1
+    R2 -. "possible interruption before<br/>the attacker finishes" .-> A5
+
+    classDef attacker fill:#fee2e2,stroke:#b91c1c,color:#450a0a
+    classDef protocol fill:#e0f2fe,stroke:#0369a1,color:#082f49
+    classDef uncertainty fill:#fef3c7,stroke:#b45309,color:#451a03
+    classDef response fill:#dcfce7,stroke:#15803d,color:#052e16
+    class A1,A2,A3,A4,A5 attacker
+    class B1,B2,B4,B5 protocol
+    class B3 uncertainty
+    class R1,R2 response
+```
+
+**Visual key:** red is the attacker's path, blue is enforced protocol progress,
+amber is private completion uncertainty, and green is the response path. Solid
+arrows show required sequencing; dashed arrows show influence or a conditional
+real-world effect.
 
 <details>
 <summary><strong>Expand the detailed protocol-gate map</strong></summary>
