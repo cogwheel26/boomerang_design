@@ -94,6 +94,12 @@ Boomerang therefore turns a forced withdrawal into a race. The attacker must
 maintain control through an unpredictable wait, while the required withdrawal
 traffic can start a prepared response before signing becomes available.
 
+> [!IMPORTANT]
+> **The glossary is required from this point onward.** The remaining sections
+> use protocol names, states, keys, and message types at technical density. Read
+> [`GLOSSARY.md`](GLOSSARY.md) before continuing and keep it available as a
+> reference.
+
 ## A concrete coercion scenario
 
 Suppose five custodians protect a high-value treasury in a Taproot output. The
@@ -689,13 +695,18 @@ verification path.
 
 ## Read next
 
+> [!IMPORTANT]
+> **The glossary is a prerequisite for the technical documents below.** Read
+> [`GLOSSARY.md`](GLOSSARY.md) first; these documents assume its protocol
+> vocabulary.
+
 | Document | Use it for |
 | --- | --- |
+| [`GLOSSARY.md`](GLOSSARY.md) | Concise lookup index for actors, keys, states, and protocol terms |
 | [`DESIGN.md`](DESIGN.md) | The complete conceptual, economic, and security argument |
 | [`spec/SPEC.md`](spec/SPEC.md) | Normative protocol behavior: actors, states, messages, cryptography, and failure rules |
 | [`security_models/`](security_models/README.md) | Threat model, assumptions, attack trees, risks, and unresolved gaps |
 | [`security_models/coercion_economics.md`](security_models/coercion_economics.md) | Detailed quantitative model, observed evidence, and calibration boundaries |
-| [`GLOSSARY.md`](GLOSSARY.md) | Concise lookup index for actors, keys, states, and protocol terms |
 | [`adr/`](adr/README.md) | Accepted design decisions and their rationale |
 
 Subsystem material covers [setup](setup/README.md),
@@ -707,7 +718,7 @@ where explanatory documents differ.
 
 | Path | Suggested route |
 | --- | --- |
-| **Orientation · 20–25 minutes** | This README, then the [glossary](GLOSSARY.md) entries for Boomlet, mystery, Watchtower, SAR, and deterministic fallback |
+| **Orientation · 20–25 minutes** | Read this README through [Boomerang in 60 seconds](#boomerang-in-60-seconds), then read [`GLOSSARY.md`](GLOSSARY.md) in full; return to [A concrete coercion scenario](#a-concrete-coercion-scenario) and continue through the README |
 | **Technical overview · about 1 hour** | [`DESIGN.md`](DESIGN.md) end to end, then the specification's protocol profile, goals and non-goals, architecture, descriptor, withdrawal protocol, and failure-behavior sections |
 | **Deep review** | [`spec/SPEC.md`](spec/SPEC.md) in full, then the [threat model](security_models/README.md), [assumption register](security_models/assumption_register.md), [forced-determinism analysis](security_models/forced_determinism.md), [coercion economics](security_models/coercion_economics.md), and the [ADRs](adr/README.md) |
 | **By contribution angle** | Protocol reviewers: [`spec/SPEC.md`](spec/SPEC.md). Threat modelers: [`security_models/`](security_models/README.md). Hardware reviewers: [Secure Terminal](secure_terminal/README.md), [duress protection](duress_protection/README.md), and the specification's Boomlet sections. Usability reviewers: [setup](setup/README.md) and [withdrawal](withdrawal/README.md) ceremonies |
