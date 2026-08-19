@@ -148,23 +148,24 @@ At its prescribed point, each user selects five countries from independently
 shuffled columns derived from the protocol's fixed 193-entry consent
 vocabulary. The memorized five-country set means safe; any other valid
 selection means duress. Those physical selections are distinguishable to
-someone watching the interaction. The narrower claim is that either valid
-selection produces the same kind of protocol-visible encrypted placeholder,
-which travels inside required messages to the Search and Rescue service (`SAR`)
-that this user bound during setup. Each SAR must durably process and acknowledge
-the exact placeholder it received; the full ordering rules are in
+someone watching the interaction. In either case, the required protocol
+messages carry the same kind of encrypted placeholder to the Search and Rescue
+service (`SAR`) that this user bound during setup. Each SAR must durably process
+and acknowledge the exact placeholder it received; the full ordering rules are
+in
 [DESIGN §10](DESIGN.md#10-withdrawal-in-detail). A Boomlet may enter the
 withdrawal state called `DIGGING` only after it verifies the complete signed
 `TxCommit` collection and its own exact SAR acknowledgment.
 
-Entering `DIGGING` is the only moment a Boomlet draws its mystery: a fresh
+Entering `DIGGING` is the only moment a Boomlet draws its `mystery`: a fresh
 private threshold, sampled from bounds fixed by the protocol profile, that
-sets how many successful local counter increments this device requires before
+sets how many successful local `counter` increments this device requires before
 it will sign. The users cannot read the thresholds before they are reached,
 did not choose them during setup, cannot lower them, and cannot make the
-counters advance early. An increment requires a valid pong tied to the active
-withdrawal, advancing local chain progress, and fresh-enough current messages
-from the other peers; an otherwise valid catch-up round need not increment.
+`counter` values advance early. An increment requires a valid `pong` tied to
+the active withdrawal, advancing local chain progress, and fresh-enough current
+messages from the other peers; an otherwise valid catch-up round does not
+increment.
 Signing begins only after every Boomlet reports that its threshold has been
 reached.
 
@@ -300,19 +301,19 @@ flowchart TD
 
 > [!IMPORTANT]
 > **Progress dependency:** initial placeholder → exact SAR acknowledgment →
-> `DIGGING`; then signed ping + freshly encrypted placeholder → exact SAR
-> acknowledgment → eligibility for pong → possible local counter increment.
+> `DIGGING`; then signed `ping` + freshly encrypted placeholder → exact SAR
+> acknowledgment → eligibility for `pong` → possible local `counter` increment.
 > Removing the duress-delivery path also removes required withdrawal progress.
 
 A delay alone merely tells an attacker how long to wait. A silent alarm alone
 may be left out of the very path the attacker needs. Boomerang couples them so
 that neither can be separated from required progress. A Boomlet must verify
 its exact initial SAR acknowledgment before entering `DIGGING`. From then on,
-each Boomlet repeatedly sends a signed progress message called a ping, and the
-Watchtower replies to rounds of pings with pongs; a device's counter can
-advance only on a valid pong. Every ping carries a freshly encrypted
+each Boomlet repeatedly sends a signed progress message called a `ping`, and
+the Watchtower replies with a `pong` for each round; a device's `counter` can
+advance only on a valid `pong`. Every `ping` carries a freshly encrypted
 placeholder, and the Watchtower must obtain SAR's exact acknowledgment of
-that placeholder before the ping may be used in a pong. Some rounds also
+that placeholder before the `ping` may be used in a `pong`. Some rounds also
 present the user with a fresh duress challenge. The attacker cannot reach
 signing without sustaining the same traffic that carries and confirms
 concealed duress state.
@@ -328,8 +329,8 @@ the user and compromised equipment are separate threats.
 Physical attacks on bitcoin holders are documented, not hypothetical. A
 [2024 peer-reviewed AFT study](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.AFT.2024.24)
 retained 105 news-reported incidents from 2014 through October 2023. Sixty-six
-recorded demands were for cryptocurrency transfers—including 26 specifically
-for Bitcoin—30 were for keys or devices, and nine were unspecified. Seventy
+recorded demands were for cryptocurrency transfers, including 26 specifically
+for Bitcoin, 30 were for keys or devices, and nine were unspecified. Seventy
 attacks were reported successful, 29 failed, and six had no stated outcome.
 
 ### What the attack evidence does—and does not—show
@@ -402,28 +403,31 @@ population statistics or protocol evidence.
 The datasets and their limits are in the
 [coercion-economics analysis](security_models/coercion_economics.md).
 
-No historical case shows Boomerang working—the sources record neither the
-custody setups nor the responder readiness that a real counterfactual would
-need, and street robbery, hot wallets, compromised hardware, and harm-focused
-attackers may receive little or no benefit. What Boomerang adds to the
-picture can, however, be plotted. During a withdrawal, each of the five
-devices privately draws how many successful local counter increments it will
-require, from a range fixed by the protocol profile; users and hosts cannot
-read a threshold before it is reached or lower it. The chart uses a simplified
-synchronized slice in which the five independently maintained counters happen
-to equal the same hypothetical value `k`. It does not posit one shared protocol
-counter.
+Published cases do not provide enough information to estimate what would have
+happened if Boomerang had been used. They rarely describe the custody setup or
+whether a prepared responder could have acted. Some reported events also do not
+match the conditions Boomerang is designed to address, such as street robberies
+involving hot wallets, incidents involving compromised hardware, or attacks
+motivated primarily by harm.
+
+The chart below illustrates how the five private thresholds specified by the
+protocol combine. When a device enters `DIGGING`, it draws a private threshold
+from a range fixed by the protocol profile. That threshold determines how many
+successful local `counter` increments the device requires. For simplicity, the
+chart examines a hypothetical point at which all five independently maintained
+`counter` values equal `k`. The equal values form only an analytical snapshot,
+and each device maintains its own `counter`.
 
 > [!IMPORTANT]
 > **How to read the readiness curve**
 >
-> - **Horizontal axis (`x`):** the percentage of one Boomlet's allowed mystery
->   values at or below hypothetical local counter value `k`.
+> - **Horizontal axis (`x`):** the percentage of one Boomlet's allowed
+>   `mystery` values at or below hypothetical local `counter` value `k`.
 > - **Vertical axis:** the probability that all five independently drawn
 >   thresholds have been reached in the special slice where all five local
->   counters equal `k`.
+>   `counter` values equal `k`.
 > - **Not shown:** elapsed time, percent of the withdrawal completed, or a claim
->   that real counters remain synchronized.
+>   that real `counter` values remain synchronized.
 
 ```mermaid
 xychart-beta
@@ -444,13 +448,14 @@ xychart-beta
 | 100% | 100% | 100% |
 
 When `x = 50%`, half of one Boomlet's allowed threshold values are at or below
-its counter `k`. That Boomlet is 50% likely to be ready, but all five are ready
-with probability `0.5^5 = 3.125%`, about 1 in 32. The smooth line is a
-normalized guide sampled every five percentage points; a concrete profile has
-integer thresholds and therefore a discrete staircase. When actual local
-counters differ, all-five readiness is the product of the five cumulative
-probabilities at their respective counters. Neither axis is elapsed time or
-percent complete. The formal definition, derivation, and caveats are in
+its `counter` value `k`. That Boomlet is 50% likely to be ready, but all five
+are ready with probability `0.5^5 = 3.125%`, about 1 in 32. The smooth line is
+a normalized guide sampled every five percentage points; a concrete profile
+has integer thresholds and therefore a discrete staircase. When actual local
+`counter` values differ, all-five readiness is the product of the five
+cumulative probabilities at their respective `counter` values. Neither axis
+is elapsed time or percent complete. The formal definition, derivation, and
+caveats are in
 [DESIGN §12](DESIGN.md#12-attack-economics-and-security-argument) and
 [coercion economics §4](security_models/coercion_economics.md#4-protocol-derived-completion-distribution).
 
@@ -522,7 +527,7 @@ The arrows show increasing block-height milestones, not equal time intervals.
 Blue is the Boomerang branch; amber marks deterministic normal-key fallback.
 
 Bitcoin consensus enforces the Taproot policy and its absolute timelocks.
-Trusted hardware and the off-chain state machine enforce mystery generation,
+Trusted hardware and the off-chain state machine enforce `mystery` generation,
 progress, and duress acknowledgments. Operators must roll funds into a fresh
 setup before fallback becomes an attractive predictable target.
 
@@ -569,7 +574,7 @@ services, jurisdiction-specific response planning, and independent review.
 Quick answers for a first read. Each points into the deeper documents.
 
 <details>
-<summary><strong>Protocol mechanics</strong> — attacker objective, private thresholds, duress delivery, and SAR acknowledgment</summary>
+<summary><strong>Protocol mechanics</strong> — attacker objective, duress delivery, and SAR acknowledgment</summary>
 
 **What must a payout-seeking attacker actually complete?**
 A valid, verifiable transfer plus a viable exit: compel every user through
@@ -578,21 +583,12 @@ ceremony progressing to completion, obtain the final Bitcoin signatures,
 verify the payment, move the bitcoin beyond recovery, and escape. Learning a
 seed phrase alone does not finish the job against the primary branch.
 
-**What can fully cooperating users still not accelerate?**
-The five private thresholds. Each Boomlet draws its mystery only on entering
-`DIGGING`, from bounds fixed by the protocol profile rather than chosen at
-setup. Its mystery counts successful local increments; each increment requires
-a valid pong for the active withdrawal, advancing local chain progress, and
-fresh-enough current messages from the other peers. The users and hosts cannot
-read a threshold before it is reached, lower it, or command an
-increment—willingly or under coercion.
-
 **How do the required withdrawal messages carry duress state?**
 Each peer's signed `TxCommit` travels with an encrypted placeholder produced
-from that user's duress answer, and every later ping carries a freshly
+from that user's duress answer, and every later `ping` carries a freshly
 encrypted placeholder. SAR must acknowledge each peer's initial placeholder
 before that peer's Boomlet may enter `DIGGING`, and must acknowledge every
-ping's placeholder before that ping may be used in a pong—so the alarm
+`ping`'s placeholder before that `ping` may be used in a `pong`—so the alarm
 channel cannot be dropped without halting required progress.
 
 **What does a SAR acknowledgment prove—and not prove?**
@@ -623,18 +619,18 @@ follows, bound to the withdrawal's `withdrawal_id`. `TxCommit` is the
 Boomlet-signed commitment to the unanimously approved withdrawal, carried
 with the initial duress placeholder. `DIGGING` is the progress state entered
 only after the complete signed `TxCommit` collection and the device's own
-exact SAR acknowledgment verify; the mystery is drawn there. Final Bitcoin
+exact SAR acknowledgment verify; the `mystery` is drawn there. Final Bitcoin
 signing happens after all five devices report their thresholds reached and is
 the only step that produces Bitcoin transaction signatures.
 
 **What do the axes of the readiness graph show?**
 The graph is a simplified slice in which all five independently maintained
-local counters happen to equal `k`. The x-axis is the share of one Boomlet's
-allowed mystery values at or below `k`; the y-axis is the probability that all
-five devices are ready, `x^5`, under independent uniform draws. A concrete
-integer profile produces a staircase, not the smooth normalized guide. It is a
-counter-state distribution, not elapsed time or percent complete. The formal
-definition and derivation are in
+local `counter` values happen to equal `k`. The x-axis is the share of one
+Boomlet's allowed `mystery` values at or below `k`; the y-axis is the
+probability that all five devices are ready, `x^5`, under independent uniform
+draws. A concrete integer profile produces a staircase, not the smooth
+normalized guide. It is a distribution over `counter` states, not elapsed time
+or percent complete. The formal definition and derivation are in
 [DESIGN §12](DESIGN.md#12-attack-economics-and-security-argument).
 
 **Can a subset of peers take the funds?**
@@ -659,13 +655,13 @@ valid, verifiable transfer and a viable exit. Attackers primarily motivated
 by harm, state or ideological actors willing to absorb exceptional cost, and
 indefinitely patient attackers fall outside the deterrence claim.
 
-**What else limits the claim?**
+**What are the main technical and human-safety limits?**
 Five-of-five prevents a bypassing subset but lets any one peer or required
 dependency stall the primary ceremony, and WT or SAR unavailability stalls it
 too—failure does not authorize fallback early. A compromised Boomlet can
 defeat that device's off-chain enforcement. A compromised Secure Terminal can
 misdisplay a transaction identifier or alter duress input, but cannot by itself
-advance a Boomlet counter or create the Boomlet signing share. The deniability
+advance a Boomlet `counter` or create the Boomlet signing share. The deniability
 claim covers protocol traffic only, not physical observation,
 learned consent responses, or a responder revealing the signal. Longer
 coercion can increase human harm; time has value only when a credible,
