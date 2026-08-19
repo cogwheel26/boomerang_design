@@ -58,8 +58,7 @@ To steal the funds, the attacker must complete every step below.
    custodians to review and confirm that exact payment.
 2. Keep all five custodians and their devices available while the required
    withdrawal procedure runs.
-3. Obtain all five final Bitcoin signatures. Nothing completed before this
-   step can spend the funds.
+3. Obtain all five final Bitcoin signatures.
 4. Verify the payout, move the bitcoin beyond recovery, and escape before a
    responder can intervene.
 
@@ -86,7 +85,7 @@ terms.
 
 | What the attacker must do | What Boomerang forces | Why it matters |
 | --- | --- | --- |
-| Compel all five users to review and confirm the same exact unsigned transaction | Each Boomlet records an approval that advances the procedure but does not sign the Bitcoin transaction | Full human cooperation does not skip the device-enforced gates |
+| Compel all five users to review and confirm the same exact unsigned transaction | Each Boomlet records an approval for the withdrawal procedure; Bitcoin signing remains a later step | Full human cooperation does not skip the device-enforced gates |
 | Keep the withdrawal advancing | Every Boomlet independently draws a fresh private progress requirement, and only valid exchanges with the other devices count toward it | The users cannot disclose or accelerate a precise finish |
 | Reach signing, obtain a verifiable payout, and escape | Required messages carry fresh encrypted indications of safety or duress, and the protocol waits for exact SAR acknowledgments | A duress answer can activate a prepared response while signing remains unavailable |
 
@@ -115,15 +114,15 @@ forces everyone through every step for the same attacker-chosen unsigned
 transaction. No one is withholding a password or pretending to cooperate.
 
 In a conventional five-of-five ceremony, that much cooperation may be enough
-to produce Bitcoin transaction signatures. In Boomerang, the human-facing
-steps come first, and none of them is a Bitcoin transaction signature. During
-this withdrawal—not during setup—each user independently confirms the
-identifier (`tx_id`) of the exact unsigned transaction on an air-gapped
-display-and-input device called the Secure Terminal. That confirmation tells
-the user's Boomlet which transaction is meant; it is not a Bitcoin transaction
-signature. The Boomlet then signs a `TxApproval`: a pre-signing protocol
-authorization bound to this withdrawal's
-`withdrawal_id`. A `TxApproval` cannot spend funds either.
+to produce Bitcoin transaction signatures. In Boomerang, transaction review
+happens before final Bitcoin signing. During this withdrawal—not during
+setup—each user independently confirms the identifier (`tx_id`) of the exact
+unsigned transaction on an air-gapped display-and-input device called the
+Secure Terminal. That confirmation tells the user's Boomlet which transaction
+is meant. The Boomlet then signs a protocol message called `TxApproval`, which
+authorizes progress for this withdrawal and is bound to its `withdrawal_id`.
+Bitcoin transaction signing becomes available only after the later
+device-enforced progress requirements have been met.
 
 A coordination service called the Watchtower collects one valid `TxApproval`
 from each of the five Boomlets. Every Boomlet verifies the ordered set of
@@ -132,8 +131,8 @@ exactly five `TxApproval` messages and independently computes the same
 withdrawal and this approval set. One peer starts each withdrawal as its
 initiator; the other four are that ceremony's non-initiators, and their
 Boomlets send attestations proving that they received and verified the
-complete set and agree on that identifier. The attestations are receipts, not
-additional authorization.
+complete set and agree on that identifier. These attestations serve as receipts
+of that agreement.
 
 The initial duress and commitment phase can overlap with final attestation
 collection. The initiator may enter its consent response and submit its signed
@@ -236,7 +235,7 @@ behavior remain in the [specification](spec/SPEC.md).
 ```mermaid
 flowchart TD
     A["Attacker controls all five users and forces<br/>a withdrawal to the attacker's address"] --> T["During withdrawal, every user verifies<br/>the same unsigned transaction ID"]
-    T --> A1["Each Boomlet signs TxApproval<br/>Pre-signing authorization—not a Bitcoin spend signature"]
+    T --> A1["Each Boomlet signs TxApproval<br/>Protocol approval for this withdrawal"]
     A1 --> A2["All Boomlets verify the ordered five-TxApproval set<br/>and derive the same approved_withdrawal_id"]
     A2 --> G["Four non-initiators attest receipt and agreement<br/>The initiator TxCommit may be staged in parallel"]
     G --> I0["Watchtower verifies all four attestations,<br/>then sends the initiator placeholder to its SAR"]
@@ -625,9 +624,8 @@ Boomlet-signed commitment to the unanimously approved withdrawal, carried
 with the initial duress placeholder. `DIGGING` is the progress state entered
 only after the complete signed `TxCommit` collection and the device's own
 exact SAR acknowledgment verify; the mystery is drawn there. Final Bitcoin
-signing happens last, only after all five devices report their thresholds
-reached. None of the earlier steps is a Bitcoin transaction signature; only
-the final step produces one.
+signing happens after all five devices report their thresholds reached and is
+the only step that produces Bitcoin transaction signatures.
 
 **What do the axes of the readiness graph show?**
 The graph is a simplified slice in which all five independently maintained
