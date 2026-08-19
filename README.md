@@ -12,28 +12,28 @@ Boomerang is a Bitcoin cold-storage protocol design for one specific threat:
 an attacker who shows up in person and forces the people who control the keys
 to cooperate.
 
-Five custodians hold funds behind a Taproot policy whose earliest spending
-branch requires all five signatures. Each signature needs a trusted hardware
-device, and each device withholds its part until an off-chain withdrawal
-procedure has produced a bounded but secret number of successful local counter
-increments. Each device draws its fresh threshold when it enters `DIGGING` for
-that withdrawal; the users and hosts cannot inspect it before it is reached,
-choose it, lower it, or command an increment.
+Five people, called custodians, protect the funds, and the earliest way to spend
+requires all five to participate. Each custodian has a trusted signing device
+that withholds its part of the Bitcoin signature until a required withdrawal
+procedure finishes. During that procedure, every device independently draws a
+fresh private requirement for how much valid progress it must observe. The
+users and their computers cannot inspect that requirement in advance, choose
+it, lower it, or make the device count invalid progress.
 
 > [!IMPORTANT]
-> **The central coupling.** The same messages that drive that procedure
-> silently carry each custodian's "safe" or "under duress" answer to a rescue
-> service arranged in advance. Under the design's trusted-hardware assumptions,
-> complete cooperation does not reveal a precise finish in advance or let the
-> attacker accelerate counter progress, and the forced progress may already
-> have delivered a duress signal to a prepared responder. Whether the resulting
+> **The central coupling.** The messages required to complete a withdrawal also
+> carry each custodian's encrypted "safe" or "under duress" answer to a rescue
+> service arranged in advance. Complete cooperation therefore does not reveal
+> a precise finish time, and continuing the forced withdrawal may deliver a
+> duress signal while signing remains unavailable. Whether the resulting
 > interval is operationally long enough to matter depends on production
 > parameters and response capability that have not yet been established.
 
 ## Contents
 
-- [Boomerang in 60 seconds](#boomerang-in-60-seconds)
 - [The attacker's job](#the-attackers-job)
+- [Who is involved](#who-is-involved)
+- [Boomerang in 60 seconds](#boomerang-in-60-seconds)
 - [A concrete coercion scenario](#a-concrete-coercion-scenario)
 - [A coerced withdrawal becomes a race](#a-coerced-withdrawal-becomes-a-race)
 - [One coupled mechanism](#one-coupled-mechanism)
@@ -44,13 +44,51 @@ choose it, lower it, or command an increment.
 - [Q&A](#qa)
 - [Read next](#read-next)
 
+## The attacker's job
+
+Boomerang assumes an attacker strong enough to identify all five custodians,
+take physical control of them and the equipment needed for a withdrawal, and
+force them to make a real payment to an attacker-chosen address. Every
+custodian follows the attacker's instructions correctly. No one withholds a
+password, substitutes a decoy, or merely pretends to cooperate.
+
+To steal the funds, the attacker must complete every step below.
+
+1. Prepare a payment to an address the attacker controls and force all five
+   custodians to review and confirm that exact payment.
+2. Keep all five custodians and their devices available while the required
+   withdrawal procedure runs.
+3. Obtain all five final Bitcoin signatures. Nothing completed before this
+   step can spend the funds.
+4. Verify the payout, move the bitcoin beyond recovery, and escape before a
+   responder can intervene.
+
+Multisig, geographic separation, and isolated keys raise the cost of finding
+and controlling every required participant. Once the attacker has assembled
+all five people and their devices, an ordinary withdrawal can become a
+schedulable checklist. Boomerang makes the third step wait on requirements
+chosen privately by the devices. The messages needed to satisfy those
+requirements also deliver encrypted answers to rescue services. The attacker
+must therefore sustain control without knowing the precise signing time, while
+a duress answer may already have started a response.
+
+## Who is involved
+
+Each custodian uses a small trusted signing device called a Boomlet. A
+coordination service called the Watchtower passes withdrawal messages among
+the five custodians. Each custodian also arranges a Search and Rescue service
+(`SAR`) in advance to receive encrypted indications that the user is safe or
+under duress and begin a prepared response when appropriate. The
+[glossary](GLOSSARY.md) provides a concise index of these and other protocol
+terms.
+
 ## Boomerang in 60 seconds
 
 | What the attacker must do | What Boomerang forces | Why it matters |
 | --- | --- | --- |
-| Compel all five users to review and confirm the same exact unsigned transaction | Each Boomlet signs a `TxApproval` bound to that withdrawal; it authorizes protocol progress and is not a Bitcoin transaction signature | Full human cooperation does not skip the device-enforced gates |
-| Keep the withdrawal advancing | Every Boomlet independently draws a fresh private threshold on entry to `DIGGING`; only successful local counter increments count | The users cannot disclose or accelerate a precise finish |
-| Reach signing, obtain a verifiable payout, and escape | Initial and recurring required progress carry freshly encrypted placeholders whose exact SAR acknowledgments gate progress | A duress value can activate a prepared response while signing remains unavailable |
+| Compel all five users to review and confirm the same exact unsigned transaction | Each Boomlet records an approval that advances the procedure but does not sign the Bitcoin transaction | Full human cooperation does not skip the device-enforced gates |
+| Keep the withdrawal advancing | Every Boomlet independently draws a fresh private progress requirement, and only valid exchanges with the other devices count toward it | The users cannot disclose or accelerate a precise finish |
+| Reach signing, obtain a verifiable payout, and escape | Required messages carry fresh encrypted indications of safety or duress, and the protocol waits for exact SAR acknowledgments | A duress answer can activate a prepared response while signing remains unavailable |
 
 The attack is therefore two races sharing one ceremony:
 
@@ -66,22 +104,22 @@ flowchart TB
 
     subgraph PRO["BOOMERANG — gates the path to signing"]
         direction LR
-        B1["Exact transaction review<br/>+ signed TxApprovals"] --> B2["Complete TxCommit set<br/>+ exact initial SAR acknowledgment"]
-        B2 --> B3["Five private thresholds<br/>on five local counters"]
+        B1["Exact transaction review<br/>and device-recorded approvals"] --> B2["Encrypted answers delivered<br/>and acknowledged by each SAR"]
+        B2 --> B3["Five private progress requirements<br/>enforced by five devices"]
         B3 --> B4["All five Boomlets<br/>report reached"]
         B4 --> B5["Final signing<br/>becomes available"]
     end
 
     subgraph RES["RESPONSE — proceeds asynchronously"]
         direction LR
-        R1["Duress placeholder<br/>durably activates response"] --> R2["Prepared responder<br/>assesses and acts"]
+        R1["Duress answer<br/>durably activates response"] --> R2["Prepared responder<br/>assesses and acts"]
     end
 
     A2 -. "forces" .-> B1
     A3 -. "must keep this moving" .-> B3
     B5 --> A4
     B2 -. "if duress" .-> R1
-    B3 -. "every ping carries a<br/>freshly encrypted placeholder" .-> R1
+    B3 -. "required progress carries<br/>fresh encrypted answers" .-> R1
     R2 -. "possible interruption before<br/>the attacker finishes" .-> A5
 
     classDef attacker fill:#fee2e2,stroke:#b91c1c,color:#450a0a
@@ -98,20 +136,6 @@ flowchart TB
 amber is private completion uncertainty, and green is the response path. Solid
 arrows show required sequencing; dashed arrows show influence or a conditional
 real-world effect.
-
-## The attacker's job
-
-Boomerang addresses a specific cold-storage failure mode: an attacker who can
-force the necessary people to cooperate. Such an attacker is not merely trying
-to learn a seed phrase. Their actual objective is to push the required users
-through transaction review and, once the wallet permits it, final Bitcoin
-signing; then verify the payment, move the bitcoin beyond recovery, and escape
-before anyone can stop them.
-
-Multisig, geographic separation, and isolated keys can make that job much
-harder. But once a sufficiently informed attacker controls all required people
-and devices, an ordinary withdrawal may still become a schedulable checklist.
-Boomerang changes the operation the attacker must finish.
 
 ## A concrete coercion scenario
 
@@ -150,11 +174,13 @@ additional authorization.
 
 The initial duress and commitment phase can overlap with final attestation
 collection. The initiator may enter its consent response and submit its signed
-`TxCommit` early, and the Watchtower may stage that commit. The Watchtower must
-verify all four attestations before relaying the initiator's placeholder to its
-SAR, acknowledging the initiator commit to the other peers, or accepting their
-signed `TxCommit` messages. Each non-initiator commits only after verifying the
-Watchtower-signed initiator commit.
+`TxCommit` early. This message commits its Boomlet to the approved withdrawal
+and travels with the encrypted answer intended for its SAR; the Watchtower may
+stage both. The Watchtower must verify all four attestations before relaying the
+initiator's encrypted answer to its SAR, acknowledging the initiator commit to
+the other peers, or accepting their signed `TxCommit` messages. Each
+non-initiator commits only after verifying the Watchtower-signed initiator
+commit.
 
 At its prescribed point, each user selects five countries from independently
 shuffled columns derived from the protocol's fixed 193-entry consent
