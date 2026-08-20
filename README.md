@@ -271,15 +271,12 @@ flowchart TD
 </details>
 
 > [!CAUTION]
-> **The protocol does not create physical privacy.** The Secure Terminal is an
-> air-gapped trusted display-and-input device, but a safe selection and a duress
-> selection are visibly different to someone watching the user's input. No
-> retained-response or delayed-relay procedure is specified. The security
-> argument therefore assumes the attacker cannot observe the interaction
-> closely enough to learn or dictate the safe response. A coercer who learns a
-> user's safe answer can force that answer at later checks; the deniability
-> claim covers protocol traffic, not observed input. Recurring checks regain
-> fresh value where coercion, or a new threat, begins mid-ceremony.
+> **Physical observation can defeat the duress check.** The Secure Terminal is
+> air-gapped, but a nearby observer can see which countries the user selects.
+> The design assumes the attacker cannot observe closely enough to learn or
+> dictate the user's safe selection. An attacker who learns it can force later
+> checks to evaluate as safe. Boomerang conceals the classification in protocol
+> messages; physical privacy remains an operational requirement.
 
 > [!NOTE]
 > **A SAR acknowledgment is not a rescue guarantee.** It proves exact protocol
@@ -318,13 +315,19 @@ present the user with a fresh duress challenge. The attacker cannot reach
 signing without sustaining the same traffic that carries and confirms
 concealed duress state.
 
-Valid safe and duress handling has the same protocol-visible response shape,
-routing, fixed release deadline, durable-write path, retry behavior, and
-externally visible failure behavior, so the answer stays concealed on that
-surface. The claim is limited to protocol traffic; physical observation of
-the user and compromised equipment are separate threats.
+Each SAR deployment uses a fixed acknowledgment delay. When SAR receives a
+placeholder, it records the receipt time and schedules the acknowledgment for
+that time plus the fixed delay. SAR releases the acknowledgment at the
+scheduled time for both valid safe and duress placeholders. If processing
+misses that time, SAR sends no late acknowledgment and presents the same
+failure in either case. Response shape, routing, durable-write path, and retry
+behavior are also the same, so protocol traffic conceals whether the answer was
+safe or duress. This concealment applies only to protocol traffic; physical
+observation of the user and compromised equipment are separate threats.
 
 ## Attack economics
+
+### Evidence and its limits
 
 Physical attacks on bitcoin holders are documented, not hypothetical. A
 [2024 peer-reviewed AFT study](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.AFT.2024.24)
@@ -333,11 +336,8 @@ recorded demands were for cryptocurrency transfers, including 26 specifically
 for Bitcoin, 30 were for keys or devices, and nine were unspecified. Seventy
 attacks were reported successful, 29 failed, and six had no stated outcome.
 
-### What the attack evidence does—and does not—show
-
-This is an evidence map, not an applicability funnel. It connects reported
-facts to the limited proposition relevant to Boomerang while keeping the
-missing counterfactual evidence visible.
+The diagram separates reported observations, the inference they support, and
+the case-level facts the reports do not provide.
 
 ```mermaid
 flowchart TB
@@ -397,8 +397,8 @@ population statistics or protocol evidence.
 > victims into initiating transfers but failed to receive all the funds because
 > an exchange's 24-hour delay and verification feature let the victims flag and
 > stop them. Those cases did not test Boomerang, and stopping a transfer is not
-> the same as rescuing a person. They are narrower evidence that withholding
-> final payout while a response channel remains usable can change an outcome.
+> the same as rescuing a person. The cases show only that withholding final
+> payout while a response channel remains usable can change an outcome.
 
 The datasets and their limits are in the
 [coercion-economics analysis](security_models/coercion_economics.md).
@@ -409,6 +409,8 @@ whether a prepared responder could have acted. Some reported events also do not
 match the conditions Boomerang is designed to address, such as street robberies
 involving hot wallets, incidents involving compromised hardware, or attacks
 motivated primarily by harm.
+
+### Readiness model
 
 The chart below illustrates how the five private thresholds specified by the
 protocol combine. When a device enters `DIGGING`, it draws a private threshold
@@ -459,11 +461,12 @@ caveats are in
 [DESIGN §12](DESIGN.md#12-attack-economics-and-security-argument) and
 [coercion economics §4](security_models/coercion_economics.md#4-protocol-derived-completion-distribution).
 
-The economic logic is simple: expected payout must exceed the cost of
-sustained control plus the expected loss from disruption. Boomerang pushes
-completion toward the far end of the range and makes required progress carry
-a response opportunity. The attacker's continuation decision repeats after
-every incomplete round:
+### The attacker's decision
+
+Expected payout must exceed the cost of sustained control plus the expected
+loss from disruption. Boomerang pushes completion toward the far end of the
+range and makes required progress carry a response opportunity. After every
+incomplete round, the attacker decides whether to continue:
 
 ```mermaid
 flowchart LR
@@ -485,9 +488,9 @@ flowchart LR
 ```
 
 No public dataset currently supplies defensible universal values for attacker
-cost or SAR effectiveness, so the project does not claim an empirical
-break-even balance. The formulas, observed data, and sensitivity boundaries are
-in the
+cost or SAR effectiveness, so the project cannot estimate the minimum expected
+proceeds needed to offset sustained-control costs and expected disruption
+losses. The formulas, observed data, and sensitivity boundaries are in the
 [detailed game-theoretic economics analysis](security_models/coercion_economics.md).
 
 ## Spending paths
@@ -562,7 +565,7 @@ disproportionate for routine spending. Any eventual deployment would require
 hardened devices, trained participants, tested recovery procedures, trustworthy
 services, jurisdiction-specific response planning, and independent review.
 
-| Strongest intended fit | Poor fit or outside the claim |
+| Suitable conditions | Unsuitable conditions |
 | --- | --- |
 | High-value, low-velocity treasury funds | Routine or high-frequency spending |
 | A custody policy designed around planned physical coercion | Immediately spendable hot-wallet funds |
@@ -571,7 +574,7 @@ services, jurisdiction-specific response planning, and independent review.
 
 ## Q&A
 
-Quick answers for a first read. Each points into the deeper documents.
+Quick answers for a first read.
 
 <details>
 <summary><strong>Protocol mechanics</strong> — attacker objective, duress delivery, and SAR acknowledgment</summary>
