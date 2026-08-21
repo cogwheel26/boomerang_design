@@ -133,21 +133,22 @@ cases. Seventeen of the study's 23 robberies occurred during P2P transactions;
 many such incidents concern mobile or immediately available funds and fall
 outside the intended use.
 
-There are four different counterfactual effects:
+There are three different counterfactual cases.
 
-1. **Deterrence:** prior knowledge of uncertain commitment and response risk
-   causes a cost-sensitive attacker not to start.
-2. **Abandonment:** after control begins, the attacker stops because continued
-   cost and exposure no longer justify an uncertain payout.
-3. **Payout interruption:** an effective response arrives after durable duress
-   activation but before signing, exfiltration, or escape.
-4. **Rescue opportunity:** the response interval permits a safe intervention
-   for the victims.
+1. **Deterrence** occurs when prior knowledge of uncertain completion and
+   response risk causes a cost-sensitive attacker not to start.
+2. **Abandonment** occurs when an attacker stops after control begins because
+   continued cost and exposure no longer justify an uncertain payout.
+3. **External response before payout** becomes possible when durable duress
+   activation leaves time to act before signing, exfiltration, or escape. An
+   effective response may interrupt payout, permit a safe intervention for the
+   victims, do both, or achieve neither.
 
-Only the third effect has a close analogue in the two exchange-delay cases,
-and even there the intervention mechanism was different. The datasets support
-none of the four as a numerical Boomerang outcome rate. Prevention and rescue
-remain conditional pathways, not historical claims.
+Payout interruption within the third case has a close analogue in the two
+exchange-delay cases, although their intervention mechanism was different. The
+datasets provide no numerical Boomerang rate for deterrence, abandonment,
+payout interruption, or safe intervention. These effects remain conditional
+possibilities rather than historical results.
 
 ## 4. Protocol-derived completion distribution
 
@@ -396,11 +397,13 @@ The evidence supports four bounded conclusions:
   readiness is mathematically concentrated toward the upper end of the
   possible threshold values.
 
-Together, those facts establish a plausible path by which Boomerang could
-deter some compatible attacks, cause abandonment, interrupt payout, or create
-a rescue opportunity. They do not establish an incident-prevention rate, a
-rescue probability, a universal attacker cost, a production mystery range, or
-the claim that any named historical victim would have been saved.
+Together, those facts show how Boomerang could deter some compatible attacks,
+cause abandonment, or provide time for an external response before payout. A
+response may interrupt payout, permit a safe intervention, do both, or achieve
+neither. The evidence does not establish an incident-prevention rate, an
+intervention success rate, a universal attacker cost, a production mystery
+range, or the conclusion that any named historical victim would have been
+saved.
 
 Longer coercion can increase injury, trauma, retaliation, and danger to victims,
 families, and responders. Time is valuable only when a credible, prepared, and
