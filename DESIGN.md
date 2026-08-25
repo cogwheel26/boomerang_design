@@ -1008,7 +1008,7 @@ decryption failures share one externally observable rejection class
 ([ADR 0002](adr/0002-java-card-cryptographic-profile.md),
 [SPEC §9.5–9.6, §19.2–19.3](spec/SPEC.md)).
 
-**Why Niso also checks.** Niso must parse, present, hydrate, and relay protocol
+**Niso checks.** Niso must parse, present, hydrate, and relay protocol
 objects. Its checks allow an honest Niso to reject invalid data before showing
 a transaction to the user, hydrating a PSBT, or forwarding a signing package.
 They do not authorize spending. Niso therefore validates PSBT syntax, amounts,
@@ -1101,13 +1101,15 @@ Implementations must preserve those message semantics, enforcement boundaries,
 and assumptions. Unmodeled interactions may still produce failures beyond the
 current catalog.
 
-**Operational response.** Exact SAR acknowledgment does not guarantee timely,
-lawful, effective, correctly directed, or safe intervention. Rescue may fail,
-reach the wrong person, expose private data, or trigger retaliation. The design
-defers procedures for WT switching, Boomletwo activation, Phone, Niso and ST
-replacement, SAR replacement, timeouts, and blame. Operator discipline must
-fill gaps the protocol does not enforce, which is itself an unresolved
-assumption.
+**Operational response.** Exact SAR acknowledgment does not establish that the
+rescue data is current and correctly attributed, and it does not guarantee
+timely, lawful, effective, or safe intervention. Stale, forged, rolled-back, or
+misattributed rescue data can direct responders to the wrong location or an
+uninvolved person. Intervention can expose private data or trigger retaliation.
+The design defers procedures for WT switching, Boomletwo activation, Phone,
+Niso and ST replacement, prolonged SAR unavailability, timeouts, and blame.
+Operator discipline must fill gaps the protocol does not enforce, which is
+itself an unresolved assumption.
 
 **Human harm.** An attacker may punish a suspected signal, hold victims until a
 fallback milestone, or continue for reasons unrelated to payout. Prolonged
@@ -1136,7 +1138,7 @@ today when the corresponding failure occurs.
 3. Replacing a Phone.
 4. Replacing a Niso.
 5. Replacing an ST.
-6. Replacing a peer's single setup-bound SAR.
+6. Handling prolonged unavailability of a setup-bound SAR
 7. Handling timeouts caused by freshness checks.
 8. Handling prolonged peer non-response, including blame assignment and
    notifying the other peers.

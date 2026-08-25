@@ -2133,10 +2133,13 @@ or duress.
 
 WT or SAR unavailability returns `SERVICE_UNAVAILABLE` and stalls the Boomerang
 path. Implementations MAY abort only after explicit user or operator
-abandonment and later begin a new ceremony, but MUST NOT silently substitute an
-unagreed service identity.
+abandonment. A later ceremony under the same setup still uses the setup-bound
+SAR. Changing SAR requires a fresh setup and corresponding fund rollover;
+implementations MUST NOT substitute another SAR within the existing setup.
 
-`OPEN ISSUE`: multi-WT failover, single-SAR replacement after setup, blame assignment, and interoperable timeout schedules are not yet defined.
+`OPEN ISSUE`: multi-WT failover, operator response to prolonged SAR
+unavailability, blame assignment, and interoperable timeout schedules are not
+yet defined.
 
 ### 18.5 Boomletwo
 
@@ -2278,7 +2281,8 @@ The following work remains:
 - define reorg and divergent-chain-view recovery;
 - publish complete wire schema IDs and interoperability vectors;
 - define ST prompt encoding and display-grid conformance requirements;
-- define multi-WT failover and single-SAR replacement procedures;
+- define multi-WT failover and operator response to prolonged SAR
+  unavailability;
 - define Boomletwo activation, deactivation, revocation, and anti-clone behavior;
 - define operational timeout and blame procedures;
 - validate Java Card performance, endurance, and side-channel behavior across target cards;

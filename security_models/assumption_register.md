@@ -140,7 +140,7 @@ jurisdiction-dependent rescue, and parameter selection remain open.
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
 | AR-70 | Setup-instance uniqueness is provided by `peer_setup_nonce`, canonical `setup_instance_id`, ST recomputation and review, strict record ordering, and chained setup checkpoints. | `SPEC`, `ADR` | No setup-identity protocol gap remains. | Resolved |
-| AR-71 | Ancillary procedures can be deferred: WT switch, Boomletwo activation, Phone change, Niso change, ST change, SAR-set change, timeout handling, blame handling. | `D`, `SM` | Realistic operations break long before the core withdrawal logic is reached. | Open |
+| AR-71 | Ancillary procedures can be deferred: WT switch, Boomletwo activation, Phone change, Niso change, ST change, response to setup-bound SAR unavailability, timeout handling, blame handling. | `D`, `SM` | Realistic operations break long before the core withdrawal logic is reached. | Open |
 | AR-72 | The protocol has no unmodeled interaction that creates a failure beyond the listed gaps. | `R`, `D`, `SM` | Emergent behavior can invalidate safety or liveness arguments based on individual transitions. | Explicit |
 | AR-73 | Timing and liveness claims require simulation, formal analysis, conformance tests, and implementation evidence. | `SPEC`, `SM` | The timing and liveness claims may not be operationally defensible. | Open |
 | AR-74 | Open parameter choices for `mystery`, intervals, and tolerances can be resolved without changing the core security properties. | `SM`, `D`, `FD`, `BD` | The promised deterrence/liveness balance may depend on values that do not actually exist. | Open |
@@ -181,7 +181,7 @@ limits; they are not evidence that a property has been checked.
 | FM-16 | Exact placeholder acknowledgement | Progress may depend only on a SAR signature over the byte-for-byte encrypted placeholder sent for the active `approved_withdrawal_id`. |
 | FM-17 | Explicit liveness fairness | Safety does not imply eventual approval, acknowledgement, universal reach, signing, relay, or broadcast. Any liveness result must name peer, WT, SAR, network, and scheduler fairness. |
 | FM-18 | Preserved freshness provenance | Later transitions must remain grounded in the signer, sequence, ceremony ID, accepted chain view, and state that made the earlier evidence fresh. |
-| FM-19 | Exactly one setup-bound SAR per peer | No SAR quorum, replacement, failover, or disagreement property follows from the current profile. |
+| FM-19 | Exactly one setup-bound SAR per peer | Each setup fixes one SAR identity per peer. Selection, replacement, or identity failover within that setup is prohibited. Changing SAR requires a fresh setup. |
 | FM-20 | Full MuSig2 session safety | A transaction-level signing abstraction does not cover nonce generation, aggregate-key binding, public-nonce handling, partial signatures, erasure, or session-confusion failures required by BIP327. |
 | FM-21 | Separate deterministic fallback ceremony | Boundary-level milestone availability does not establish the end-to-end safety, privacy, or liveness of a fallback spend. |
 | FM-22 | Unique placeholder-instance identity | Fresh IV, Boomlet identity, and `approved_withdrawal_id` must distinguish every security-relevant instance. |
