@@ -1008,25 +1008,23 @@ decryption failures share one externally observable rejection class
 ([ADR 0002](adr/0002-java-card-cryptographic-profile.md),
 [SPEC §9.5–9.6, §19.2–19.3](spec/SPEC.md)).
 
-**Dual checks by design.** Every check that both Boomlet and Niso can perform
-is performed by both. Niso validates the PSBT's syntax, amounts, descriptor
-membership, and milestone eligibility, while Boomlet independently
-re-derives `tx_id` and revalidates descriptor membership and ceremony state
-before signing; Niso and Boomlet each independently verify
-`reached_pings_collection` ([SPEC §15.2, §15.11–15.12](spec/SPEC.md)). Niso remains
-untrusted for authorization; the duplication exists so that a compromised
-host must also defeat the trusted device, not merely lie to it.
+**Why Niso also checks.** Niso must parse, present, hydrate, and relay protocol
+objects. Its checks allow an honest Niso to reject invalid data before showing
+a transaction to the user, hydrating a PSBT, or forwarding a signing package.
+They do not authorize spending. Niso therefore validates PSBT syntax, amounts,
+descriptor membership, milestone eligibility, and
+`reached_pings_collection`. Boomlet independently checks every property needed
+to release its signing share, including `tx_id`, descriptor membership,
+ceremony state, and `reached_pings_collection`
+([ADR 0007](adr/0007-niso-prevalidation-and-boomlet-revalidation.md),
+[SPEC §15.2, §15.11–15.12](spec/SPEC.md)).
 
 **Device load and endurance.** Long ceremonies require sustained per-round
 signing, MAC, and KDF work plus persistent-write traffic on a card with limited
 transient memory and finite write endurance. Whether target cards can sustain
 the expected `ping` and `pong` cycle counts is unvalidated
-([SPEC §19.2, §22](spec/SPEC.md)). Two alternative device designs were
-considered earlier in the design and are recorded here as context, not current
-recommendations. One distributes heavy computation to other entities with the
-card acting as final verifier; the other collapses the Boomlet and ST into a
-single hardware-wallet-class device. The current profile keeps one Boomlet and
-one ST per peer ([SPEC §2](spec/SPEC.md)).
+([SPEC §19.2, §22](spec/SPEC.md)). The current profile keeps one Boomlet and one
+ST per peer ([SPEC §2](spec/SPEC.md)).
 
 The design has the following costs.
 

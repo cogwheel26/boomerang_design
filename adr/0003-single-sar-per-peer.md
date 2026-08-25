@@ -1,8 +1,7 @@
 # ADR 0003: Use One SAR Per Peer
 
-Status: Accepted
-
-Date: 2026-06-16
+- **Status:** Accepted
+- **Recorded:** 2026-06-16
 
 ## Context
 

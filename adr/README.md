@@ -17,6 +17,7 @@ not override the specification.
 | [0004](0004-per-channel-directional-keys.md) | Use one four-key directional schedule per endpoint pair. |
 | [0005](0005-user-chosen-doxing-password.md) | Use a user-chosen doxing password. |
 | [0006](0006-per-withdrawal-mystery-generation.md) | Generate mystery per withdrawal at digging entry. |
+| [0007](0007-niso-prevalidation-and-boomlet-revalidation.md) | Prevalidate protocol data on Niso and independently revalidate signing conditions on Boomlet. |
 
 ## Status Values
 
