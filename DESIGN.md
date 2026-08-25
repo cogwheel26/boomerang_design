@@ -615,9 +615,7 @@ permitted freshness window
 relative to its local height. Whether or not the `counter` advances, a valid
 `pong` performs bounded `last_seen_block` catch-up, and the Boomlet emits its
 next `ping` with a freshly encrypted `placeholder`. Height decreases, sequence
-regressions, or material chain-view disagreement stall the ceremony. The
-freshness relations are drawn in
-[`withdrawal/block_constraints.svg`](withdrawal/block_constraints.svg).
+regressions, or material chain-view disagreement stall the ceremony.
 
 **Repeated duress checks and `reached_pings_collection`
 ([SPEC §15.10–15.11](spec/SPEC.md)).** Rounds are randomly selected for a
@@ -742,11 +740,7 @@ The normative duress protocol is [SPEC §16 and Appendix A](spec/SPEC.md). The
 duress subsystem document,
 [`duress_protection/README.md`](duress_protection/README.md), records the
 design rationale and evaluation criteria. The specification controls where
-they differ. The enrollment and challenge ceremonies are drawn in
-[duress_protection_setup_diagram.svg](duress_protection/duress_protection_setup_diagram.svg)
-and
-[duress_protection_withdrawal_diagram.svg](duress_protection/duress_protection_withdrawal_diagram.svg).
-Secure Terminal expectations and hardware are in
+they differ. Secure Terminal expectations and hardware are in
 [`secure_terminal/README.md`](secure_terminal/README.md); ADR 0005 defines the
 [rescue-data password derivation](adr/0005-user-chosen-doxing-password.md).
 
@@ -1184,6 +1178,13 @@ The recommended review order follows.
    [duress](duress_protection/README.md), and
    [Secure Terminal](secure_terminal/README.md) documents provide subsystem
    views. Where they differ, the specification controls.
+5. The setup and withdrawal-role SVG diagrams provide visual cross-checks
+   against those subsystem procedures. Review the
+   [setup sequence](setup/setup_diagram_without_states.svg),
+   [initiator withdrawal](withdrawal/initiator_withdrawal_diagram_without_states.svg),
+   and
+   [non-initiator withdrawal](withdrawal/non_initiator_withdrawal_diagram_without_states.svg)
+   diagrams. They are explanatory; the specification remains normative.
 
 A serious verification effort must include adversarial protocol review,
 canonical test vectors, state-machine and replay tests, hardware evaluation,

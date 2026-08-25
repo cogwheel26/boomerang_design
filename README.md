@@ -697,7 +697,7 @@ verification path.
 > [`GLOSSARY.md`](GLOSSARY.md) first; these documents assume its protocol
 > vocabulary.
 
-| Document | Use it for |
+| Resource | Use it for |
 | --- | --- |
 | [`GLOSSARY.md`](GLOSSARY.md) | Concise lookup index for actors, keys, states, and protocol terms |
 | [`DESIGN.md`](DESIGN.md) | The complete conceptual, economic, and security argument |
@@ -705,11 +705,13 @@ verification path.
 | [`security_models/`](security_models/README.md) | Threat model, assumptions, attack trees, risks, and unresolved gaps |
 | [`security_models/coercion_economics.md`](security_models/coercion_economics.md) | Detailed quantitative model, observed evidence, and calibration boundaries |
 | [`adr/`](adr/README.md) | Accepted design decisions and their rationale |
+| [Setup procedure](setup/README.md) and [setup sequence SVG](setup/setup_diagram_without_states.svg) | Setup ceremony and its message sequence |
+| [Withdrawal procedure](withdrawal/README.md), [initiator SVG](withdrawal/initiator_withdrawal_diagram_without_states.svg), and [non-initiator SVG](withdrawal/non_initiator_withdrawal_diagram_without_states.svg) | Withdrawal steps and role-specific message sequences |
+| [Duress protection](duress_protection/README.md) | Consent enrollment and duress signaling |
+| [Secure Terminal](secure_terminal/README.md) | Trusted display, input, QR transport, and hardware expectations |
 
-Subsystem material covers [setup](setup/README.md),
-[withdrawal](withdrawal/README.md), [duress protection](duress_protection/README.md),
-and the [Secure Terminal](secure_terminal/README.md). The specification controls
-where explanatory documents differ.
+The subsystem documents and listed SVGs are explanatory. The specification
+controls where they differ.
 
 ### Suggested reading paths
 
@@ -718,4 +720,5 @@ where explanatory documents differ.
 | **Orientation · 20–25 minutes** | Read this README through [Boomerang in 60 seconds](#boomerang-in-60-seconds), then read [`GLOSSARY.md`](GLOSSARY.md) in full; return to [A concrete coercion scenario](#a-concrete-coercion-scenario) and continue through the README |
 | **Technical overview · about 1 hour** | [`DESIGN.md`](DESIGN.md) end to end, then the specification's protocol profile, goals and non-goals, architecture, descriptor, withdrawal protocol, and failure-behavior sections |
 | **Deep review** | [`spec/SPEC.md`](spec/SPEC.md) in full, then the [threat model](security_models/README.md), [assumption register](security_models/assumption_register.md), [forced-determinism analysis](security_models/forced_determinism.md), [coercion economics](security_models/coercion_economics.md), and the [ADRs](adr/README.md) |
+| **Visual protocol review** | Compare the setup and withdrawal-role SVGs in the resource table with their subsystem procedures; resolve discrepancies against the specification |
 | **By contribution angle** | Protocol reviewers: [`spec/SPEC.md`](spec/SPEC.md). Threat modelers: [`security_models/`](security_models/README.md). Hardware reviewers: [Secure Terminal](secure_terminal/README.md), [duress protection](duress_protection/README.md), and the specification's Boomlet sections. Usability reviewers: [setup](setup/README.md) and [withdrawal](withdrawal/README.md) ceremonies |
