@@ -4,7 +4,7 @@ Boomerang is an unfinished Bitcoin cold-storage protocol design for a threat
 model that includes planned physical coercion. It is not production-ready.
 This document is the technical companion to the
 [first-contact README](README.md). Sections 1–6 build the concept, Sections
-7–11 describe the protocol realization, and Sections 12–17 cover the economic
+7–11 describe the protocol realization, and Sections 12–16 cover the economic
 argument, boundaries, and status. The
 [protocol specification](spec/SPEC.md) is normative for exact behavior and
 controls wherever the two differ.
@@ -27,7 +27,6 @@ controls wherever the two differ.
 14. [Failure and human-safety boundaries](#14-failure-and-human-safety-boundaries)
 15. [Ancillary procedures and open protocol work](#15-ancillary-procedures-and-open-protocol-work)
 16. [Design status and verification path](#16-design-status-and-verification-path)
-17. [External context](#17-external-context)
 
 ## 1. Attack lifecycle
 
@@ -74,8 +73,7 @@ attacker's decision and give a prearranged responder an opportunity to act.
 ## 2. Design objective
 
 The objective is to prevent compelled human cooperation from reliably
-producing a prompt payout. Boomerang does not expect a person under threat to
-defeat the attacker through refusal. Its earliest Taproot script branch is the
+producing a prompt payout. Its earliest Taproot script branch is the
 five-of-five Boomerang branch, available no earlier than
 `milestone_block_0`. Bitcoin checks that timelock and the five signatures; the
 Boomlet devices withhold their parts of those signatures until an off-chain
@@ -132,6 +130,11 @@ Depending on the construction, a fixed and observable recovery window may
 still be plannable, and a vault does not by itself provide a covert physical-
 duress signal or a prepared real-world response.
 
+[BIP 345, `OP_VAULT`](https://bips.dev/345/) is a closed consensus proposal for
+a covenant with a fixed delayed withdrawal and a prespecified recovery path.
+Its known response interval contrasts with Boomerang's off-chain,
+per-withdrawal thresholds. Boomerang does not depend on the proposal.
+
 The remaining problem is therefore an informed coercer who can demand genuine
 cooperation and verify the result. Boomerang combines multiple custodians,
 isolated keys, on-chain timelocks, trusted devices, and an external response
@@ -164,9 +167,15 @@ The concealed signaling layer combines private ST input, encrypted
 Rescue service** (`SAR`). A safe response and a structurally valid duress
 response produce the same protocol artifact and follow the same
 protocol-visible handling. Each signed `TxCommit` binds its `placeholder` to
-the approved withdrawal. SAR acknowledges the exact encrypted `placeholder`
-after durable processing, and a Boomlet requires its own acknowledgment along
-with the complete signed `TxCommit` collection before progress can begin.
+the approved withdrawal. Each SAR deployment configures a fixed acknowledgment
+delay. When SAR receives a complete placeholder request, it records the receipt
+time and schedules acknowledgment release for that time plus the delay. For
+both valid safe and duress placeholders, SAR releases the acknowledgment at
+the scheduled time only after the required processing and durable write. If
+processing misses that time, SAR sends no late acknowledgment and exposes the
+same failure for both classifications. Each retry is timed from its own
+receipt. A Boomlet requires its own acknowledgment along with the complete
+signed `TxCommit` collection before progress can begin.
 
 The completion layer is enforced by the Boomlets. On entry to `DIGGING`, each
 Boomlet draws a fresh private `mystery` from the implementation profile's
@@ -285,7 +294,7 @@ sequenceDiagram
     U->>B: Non-initiators enter their consent responses on ST
     B->>WT: Four signed TxCommits + encrypted placeholders
     WT->>SAR: Each non-initiator's exact placeholder
-    Note over WT,SAR: Valid safe and duress use the same routing, deadline,<br/>durable-write path, retries, and visible failure behavior
+    Note over WT,SAR: Valid safe and duress use the same routing and fixed acknowledgment delay from receipt,<br/>durable-write path, retries, and visible failure behavior
     SAR-->>WT: Exact acknowledgments
     WT-->>B: Complete five-commit collection + each Boomlet's acknowledgment
     Note over B: Verify both, enter DIGGING,<br/>and independently draw fresh mysteries
@@ -461,14 +470,15 @@ Replay and identity bindings connect the phases
 [ADR 0001](adr/0001-setup-replay-and-phase-checkpoints.md)). Each Boomlet
 signs a peer setup record containing a fresh `peer_setup_nonce`; the
 deterministic `setup_instance_id` hashes the ordered signed peer records, the
-user-approved WT preference order, and the milestone blocks, so any change in
-participants, ordering, milestones, protocol version as well as a new setup attempt with the same aforementioned parameters produces a different
-setup instance. The user approves a nonce-bound commitment to that exact
-instance on ST before agreement proceeds, and every later phase extends a
-chained `setup_checkpoint` whose phase labels (`parameters_agreed`,
-`wt_ready`, `sar_ready`, `backup_ready`) must verify identically across all
-five peers. Peer-local receipts stay local and never enter the shared
-checkpoint.
+user-approved WT preference order, and the milestone blocks. The fresh
+`peer_setup_nonce` gives every setup attempt a different identifier even when
+the other inputs are unchanged. Changes to the participants, peer order, WT
+preference order, milestones, or protocol version also change the identifier.
+The user approves a nonce-bound commitment to that exact instance on ST before
+agreement proceeds, and every later phase extends a chained `setup_checkpoint`
+whose phase labels (`parameters_agreed`, `wt_ready`, `sar_ready`,
+`backup_ready`) must verify identically across all five peers. Peer-local
+receipts stay local and never enter the shared checkpoint.
 
 Consent enrollment happens on ST before the Boomlet ever moves to the
 networked environment. Two independent nonce-bound rounds over the fixed
@@ -672,13 +682,11 @@ other five-element set means duress.
 
 ST is a battery-powered, air-gapped trusted display-and-input device that uses
 QR transport and has a deliberately small display
-([`secure_terminal/README.md`](secure_terminal/README.md)). Those properties may
-support discreet handling, but the protocol specifies no take-away,
-retained-response, or delayed-relay procedure and cannot create physical
-privacy. A safe selection and a duress selection are visibly different to
-someone watching the input. The security argument assumes the attacker cannot
-observe that interaction closely enough to learn or dictate the safe response;
-an observed interaction defeats that assumption.
+([`secure_terminal/README.md`](secure_terminal/README.md)). A nearby observer
+can still see which countries the user selects. The security argument assumes
+the attacker cannot observe closely enough to learn or dictate the user's safe
+selection. An attacker who learns it can force later checks to evaluate as
+safe. Protocol-traffic concealment does not provide physical privacy.
 
 Both answers produce the same artifact. The `placeholder` plaintext is 32 zero
 bytes when safe or `doxing_key_for_sar` when duress, freshly encrypted
@@ -711,12 +719,13 @@ literature ([Section 17](#17-external-context)).
 
 Boomerang conceals the safe or duress classification only in protocol traffic.
 For valid safe and duress `placeholder` values, the message type, size class,
-WT-to-SAR routing, acknowledgment type, fixed release deadline,
-durable-write path, queue and commit policy, retry schedule, operator-visible
-protocol status, and final externally visible failure behavior must not depend
-on SAR's classification. WT-visible or attacker-observable logs, metrics,
-status fields, and errors must not disclose it. Repeated delivery of the same
-valid `placeholder` is idempotent and must retain the same observable behavior.
+WT-to-SAR routing, acknowledgment type, and fixed acknowledgment delay measured
+from receipt must be the same. The durable-write path, queue and commit policy,
+retry schedule, operator-visible protocol status, and final externally visible
+failure behavior must also be independent of SAR's classification. WT-visible
+or attacker-observable logs, metrics, status fields, and errors must not
+disclose it. Repeated delivery of the same valid `placeholder` is idempotent
+and must retain the same observable behavior.
 
 The acknowledgment contains no status field. SAR signs the exact encrypted
 `placeholder` envelope it received. Boomlet decrypts the
@@ -757,12 +766,14 @@ deployment inputs remain unmeasured.
 Violent coercion for cryptocurrency is documented and materially costly.
 Ordekian, Atondo-Siu, Hutchings, and Vasek's
 [2024 AFT study](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.AFT.2024.24)
-reviewed 146 news articles describing 147 incidents and retained 105 cases
-reported from 2014 through October 2023. Recorded demands were 40 unspecified
-cryptocurrency transfers, 26 Bitcoin transfers, 30 keys or devices, and nine
-unspecified demands. Outcomes were 70 reported successes, 29 failures, and six
-unstated. The `70 / 99 = 70.7%` success fraction among stated outcomes describes
-this selected media sample rather than a population probability. Underreporting,
+combines interviews, news reports, and online forums to characterize physical
+attacks on cryptocurrency users. Its case review examined 146 news articles
+describing 147 incidents and retained 105 cases reported from 2014 through
+October 2023. Recorded demands were 40 unspecified cryptocurrency transfers,
+26 Bitcoin transfers, 30 keys or devices, and nine unspecified demands.
+Outcomes were 70 reported successes, 29 failures, and six unstated. The
+`70 / 99 = 70.7%` success fraction among stated outcomes describes this
+selected media sample rather than a population probability. Underreporting,
 newsworthiness bias, and missing custody detail limit inference.
 
 The study identifies two cases in which attackers coerced victims to initiate
@@ -774,8 +785,9 @@ usable changed the outcome. A
 describes 17 reported London offences from March through December 2024. It
 classifies them as 59% kidnapping, 35% aggravated burglary, and 6% robbery,
 with an approximate mean cryptoasset loss of £660,000 per offence. That review
-is operational and commercial context, not official population statistics or
-protocol evidence.
+also emphasizes prearranged escalation, duress procedures, and coordination
+among law enforcement and financial services. It is operational and commercial
+context, not official population statistics or protocol evidence.
 The datasets, their exact counts, and their explicit sampling limits are
 maintained in
 [coercion economics §2](security_models/coercion_economics.md#2-observed-attack-evidence).
@@ -786,13 +798,12 @@ invent those values.
 
 ### Counterfactual conditions and possible effects
 
-A historical case is not a Boomerang counterfactual merely because it involved
-cryptocurrency and violence. Boomerang could change the attack only if the
-target held high-value, low-velocity funds under this policy; the attacker had
-to complete a live withdrawal rather than take immediately usable credentials;
-the primary branch and trusted devices remained intact; deterministic fallback
-was not already the easier route; a user supplied duress; and an effective
-response could arrive before payout.
+A historical attack is a candidate for Boomerang counterfactual analysis only
+when the target held high-value, low-velocity funds under this policy; the
+attacker had to complete a live withdrawal rather than take immediately usable
+credentials; the primary branch and trusted devices remained intact;
+deterministic fallback was not already the easier route; a user supplied
+duress; and an effective response could arrive before payout.
 
 [Coercion economics §3](security_models/coercion_economics.md#3-historical-fit-and-counterfactual-outcomes)
 analyzes which observed attack forms are potentially compatible with these
@@ -862,31 +873,30 @@ the range. When half of one Boomlet's possible values are at or below its
 five-of-five branch has only a `0.5^5 = 3.125%` readiness probability. In the
 corresponding continuous normalization, the mean position of the maximum is
 `5/6`, or 83.3%; its median is `0.5^(1/5)`, or 87.1%; and its 90th percentile
-is `0.9^(1/5)`, or 97.9%. Those are positions within the possible-value
-distribution, not chosen month or day values. The smooth line is a normalized
-guide sampled every five percentage points; a concrete integer profile has a
-discrete staircase CDF. The curve also appears in the
+is `0.9^(1/5)`, or 97.9%. These values locate the maximum within the
+possible-value distribution. The smooth line is a normalized guide sampled
+every five percentage points; a concrete integer profile has a discrete
+staircase CDF. The curve also appears in the
 [README](README.md#attack-economics), and its reference table is maintained in
 [coercion economics §4](security_models/coercion_economics.md#4-protocol-derived-completion-distribution).
 Production `m` and `M` remain open implementation-profile constants.
 
-`K` is also not wall-clock duration. It describes successful `counter`
-increments in an ideal synchronized execution. Real rounds require chain
-advance, fresh enough `ping` messages from every other peer, exact SAR
-acknowledgments, and `pong` spacing. A valid no-advance round, chain-view
-stall, unavailable peer, WT outage, or SAR outage can make elapsed time
-longer. Fallback can instead give the attacker a known time at which a
-normal-key branch becomes available.
+In the synchronized model, `K` counts the successful `counter` increments
+required for all five Boomlets to be ready. Real elapsed time also depends on
+chain advance, fresh enough `ping` messages from every other peer, exact SAR
+acknowledgments, and `pong` spacing. A valid no-advance round, chain-view stall,
+unavailable peer, WT outage, or SAR outage can lengthen it. Fallback can instead
+give the attacker a known time at which a normal-key branch becomes available.
 
 ### Attacker utility and continuation
 
-Use the following variables.
+Use the following definitions.
 
-- `T` be the random time until a verifiable payout and exfiltration;
-- `D` be the time of effective disruption, with `D = infinity` if none occurs;
-- `V` be the attacker's usable payout;
-- `C(t)` be cumulative operating cost through time `t`; and
-- `L` be the additional loss if disruption occurs before payout.
+- `T` is the random time until a verifiable payout and exfiltration.
+- `D` is the time of effective disruption, with `D = infinity` if none occurs.
+- `V` is the attacker's usable payout.
+- `C(t)` is cumulative operating cost through time `t`.
+- `L` is the additional loss if disruption occurs before payout.
 
 A compact attacker-utility model follows.
 
@@ -910,11 +920,9 @@ Observed losses help establish plausible stakes, and the protocol defines part
 of `T`; public evidence does not yet calibrate `C`, the distribution of `D`, or
 `L` for Boomerang deployments.
 
-The attacker does not choose only once. Each incomplete round reveals that
-the ceremony has not yet reached all five thresholds, after which the
-attacker decides again whether to keep paying control costs and bearing
-response exposure or to abandon with the sunk cost. The flow below shows that
-repeated decision.
+After every incomplete round, the attacker decides whether to keep paying
+control costs and bearing response exposure or to abandon with the sunk cost.
+The flow below shows this repeated decision.
 
 ```mermaid
 flowchart LR
@@ -995,8 +1003,9 @@ The cryptographic profile is chosen for constrained secure elements. The
 symmetric suite uses AES-256-CBC with PKCS#7 padding, full-tag AES-CMAC
 encrypt-then-MAC, and an SP 800-108 counter-mode KDF built on the same AES-CMAC
 primitive. This suite reuses one hardware engine for encryption,
-authentication, and key derivation. This is suitable for Java Card-class
-devices that often lack AEAD modes and a second hash-based primitive family.
+authentication, and key derivation. The profile selects this reuse because
+Java Card-class devices often lack AEAD modes and a second hash-based primitive
+family.
 CMAC verification always precedes decryption and padding validation, and all
 decryption failures share one externally observable rejection class
 ([ADR 0002](adr/0002-java-card-cryptographic-profile.md),
@@ -1100,10 +1109,8 @@ rescue data is current and correctly attributed, and it does not guarantee
 timely, lawful, effective, or safe intervention. Stale, forged, rolled-back, or
 misattributed rescue data can direct responders to the wrong location or an
 uninvolved person. Intervention can expose private data or trigger retaliation.
-The design defers procedures for WT switching, Boomletwo activation, Phone,
-Niso and ST replacement, prolonged SAR unavailability, timeouts, and blame.
-Operator discipline must fill gaps the protocol does not enforce, which is
-itself an unresolved assumption.
+Operational procedures remain incomplete, so operator discipline must fill
+gaps the protocol does not enforce. This is an unresolved assumption.
 
 **Human harm.** An attacker may punish a suspected signal, hold victims until a
 fallback milestone, or continue for reasons unrelated to payout. Prolonged
@@ -1113,11 +1120,11 @@ exceptionally resourced, or indefinitely patient attackers. No deployment
 should treat a longer ceremony as inherently protective. Time helps only when
 a credible and rehearsed response can use it without creating greater risk.
 
-The security models maintain the catalog above in greater depth. The
-[risk register and design gaps](security_models/README.md), the adversary
-decompositions in the [attack trees](security_models/attack_trees.md), and
-the itemized [assumption register](security_models/assumption_register.md)
-with its unproven formal-analysis obligations.
+The [risk register and design gaps](security_models/README.md), the adversary
+decompositions in the [attack trees](security_models/attack_trees.md), and the
+itemized [assumption register](security_models/assumption_register.md) analyze
+this catalog in greater depth. The assumption register also records unproven
+formal-analysis obligations.
 
 ## 15. Ancillary procedures and open protocol work
 
@@ -1132,7 +1139,7 @@ today when the corresponding failure occurs.
 3. Replacing a Phone.
 4. Replacing a Niso.
 5. Replacing an ST.
-6. Handling prolonged unavailability of a setup-bound SAR
+6. Handling prolonged unavailability of a setup-bound SAR.
 7. Handling timeouts caused by freshness checks.
 8. Handling prolonged peer non-response, including blame assignment and
    notifying the other peers.
@@ -1148,13 +1155,12 @@ unproven.
 ## 16. Design status and verification path
 
 Boomerang is a draft design, not a production wallet, certified device, or
-complete response service. Production `mystery` bounds and cadence values, reorg policy,
-wire-schema limits and vectors, hardware validation, service failover,
-Boomletwo lifecycle, device replacement, timeout and blame procedures, and
-jurisdiction-specific response operations remain open. The assumption that all
-of those ancillary procedures
-([Section 15](#15-ancillary-procedures-and-open-protocol-work)) can be
-supplied without changing the security model has not been demonstrated.
+complete response service. Production `mystery` bounds and cadence values,
+reorg policy, wire-schema limits and vectors, and hardware validation remain
+open. The [ancillary-procedure inventory](#15-ancillary-procedures-and-open-protocol-work)
+and jurisdiction-specific response operations also remain open. The assumption
+that the ancillary procedures can be supplied without changing the security
+model has not been demonstrated.
 
 A Rust proof of concept exists at
 [github.com/bitryonix/boomerang](https://github.com/bitryonix/boomerang). It
@@ -1199,29 +1205,3 @@ not expose. Human response latency includes users answering duress checks at
 unpredictable hours. Simulating those delay scenarios is a prerequisite for
 selecting production `mystery` bounds, cadence, and tolerance values
 ([SPEC §6, §22](spec/SPEC.md)).
-
-## 17. External context
-
-- Ordekian, Atondo-Siu, Hutchings, and Vasek's
-  [2024 AFT study of wrench attacks](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.AFT.2024.24)
-  combines interviews, news reports, and online forums to characterize physical
-  attacks on cryptocurrency users. It supports treating targeting, coercion,
-  underreporting, and physical safety as first-class concerns; it does not
-  evaluate Boomerang.
-- Clark and Hengartner's
-  [*Panic Passwords: Authenticating under Duress*](https://www.usenix.org/conference/hotsec-08/panic-passwords-authenticating-under-duress)
-  analyzes coercion-aware authentication, including iteration and forced-
-  randomization threats and a five-dictionary construction. It is conceptual
-  background for the consent challenge, not a proof of this protocol's
-  observability or usability.
-- [BIP 345, `OP_VAULT`](https://bips.dev/345/), describes a covenant proposal
-  with a fixed delayed withdrawal and a prespecified recovery path. It is a
-  useful contrast between a known response interval and Boomerang's off-chain
-  per-withdrawal thresholds. BIP 345 is a **Closed** proposal for consensus
-  work. It is not an active Bitcoin consensus rule or a dependency of
-  Boomerang.
-- TRM Labs and the Metropolitan Police Service's
-  [wrench-attack response framework](https://www.trmlabs.com/reports-and-whitepapers/wrench-attacks-crypto-enabled-violent-targeting)
-  emphasizes prearranged escalation, duress procedures, and coordination among
-  law enforcement and financial services. It is operational and commercial
-  context, not protocol evidence or proof that any SAR response will succeed.
