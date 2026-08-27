@@ -7,7 +7,30 @@
 
 ## Diagrams
 
-For the message sequence diagram, please refer to the [initiator SVG](initiator_withdrawal_diagram_without_states.svg) and [non-initiator SVG](non_initiator_withdrawal_diagram_without_states.svg) files.
+The compact protocol-development sources are the
+[initiator view](initiator_withdrawal_protocol_development.puml)
+and
+[non-initiator view](non_initiator_withdrawal_protocol_development.puml).
+They show causal gates, role differences, repeated digging behavior, and
+Boomlet state transitions. Their named message and acceptance contracts are
+defined in
+[withdrawal_development_contracts.md](withdrawal_development_contracts.md).
+
+The canonical sequences with prose comments removed are the
+[initiator no-prose source](initiator_withdrawal_diagram_without_states_without_prose_comments.puml)
+and
+[non-initiator no-prose source](non_initiator_withdrawal_diagram_without_states_without_prose_comments.puml).
+Their compact guard calls are defined in
+[withdrawal_no_prose_guards.md](withdrawal_no_prose_guards.md), and their
+cryptographic calls are defined in
+[no_prose_crypto_contracts.md](../no_prose_crypto_contracts.md).
+
+The detailed graphical sequence diagrams are the
+[initiator SVG](initiator_withdrawal_diagram_without_states.svg) and
+[non-initiator SVG](non_initiator_withdrawal_diagram_without_states.svg).
+The development views, contract tables, detailed diagrams, and this README are
+explanatory implementation aids. Normative protocol requirements are defined
+only by [SPEC.md](../spec/SPEC.md).
 
 ## Procedure
 

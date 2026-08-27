@@ -9,12 +9,26 @@
 
 ## Diagrams
 
+The compact protocol-development source is
+[setup_protocol_development.puml](setup_protocol_development.puml).
+It shows causal gates, trust-boundary crossings, checkpoint order, and Boomlet
+state transitions. Its named message and acceptance contracts are defined in
+[setup_development_contracts.md](setup_development_contracts.md).
+
+The canonical sequence with prose comments removed is
+[setup_diagram_without_states_without_prose_comments.puml](setup_diagram_without_states_without_prose_comments.puml).
+Its compact guard calls are defined in
+[setup_no_prose_guards.md](setup_no_prose_guards.md), and its cryptographic
+calls are defined in
+[no_prose_crypto_contracts.md](../no_prose_crypto_contracts.md).
+
 The canonical annotated source is
 [setup_diagram_without_states.puml](setup_diagram_without_states.puml), with
 [setup_diagram_without_states.svg](setup_diagram_without_states.svg) as its
 generated graphical rendering.
 
-The annotated diagram and this README are explanatory implementation aids.
+The development view, contract tables, annotated diagram, and this README are
+explanatory implementation aids.
 Normative protocol requirements are defined only by
 [SPEC.md](../spec/SPEC.md).
 
