@@ -1,4 +1,4 @@
-@startuml setup_diagram_without_states
+@startuml setup_diagram_without_states_no_prose
 ' GS-* definitions: setup_no_prose_guards.md
 ' C-* definitions: ../no_prose_crypto_contracts.md
 skinparam sequenceMessageAlign left
@@ -22,12 +22,6 @@ note over User:  **User** \n <i>milestone_block_collection: Collection<milestone
 / note over SAR:  **SAR** \n <i>sar_privkey \n <i>sar_id: { \n <i>    sar_tor_address, \n <i>    sar_pubkey \n <i>} \n
 / note over Phone:  **Phone** \n <i>dynamic_doxing_data
 note over ST:  **ST** \n <i>DURESS_DISPLAY_VOCABULARY
-note over User, SAR
-<b>PARAMETERS
-# #define PROTOCOL_VERSION
-# #define MAX_TRIES_FOR_DIGGING_GAME_IN_BLOCKS
-# #define MIN_TRIES_FOR_DIGGING_GAME_IN_BLOCKS
-end note
 group SAR sign-up
 
 ' Step 1

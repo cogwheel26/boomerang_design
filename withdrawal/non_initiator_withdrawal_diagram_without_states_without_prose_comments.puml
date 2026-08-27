@@ -1,6 +1,7 @@
-@startuml non_initiator_withdrawal_diagram_without_states
+@startuml non_initiator_withdrawal_diagram_without_states_no_prose
 ' GW-* definitions: withdrawal_no_prose_guards.md
 ' C-* definitions: ../no_prose_crypto_contracts.md
+!include withdrawal_no_prose_fragments.puml
 skinparam sequenceMessageAlign left
 title Non-Initiator Withdrawal Sequence Diagram (Without States)
 box "User Side" #AliceBlue
@@ -20,17 +21,18 @@ participant SAR order 102 #Yellow
 
 |||
 
-note over User, SAR:  **Notation** \n In this withdrawal diagram, peer_0 denotes the initiator role and peer_1 denotes this non-initiator example; \n these are role labels, not fixed active setup peer indexes. \n Approval collections are canonicalized in active setup peer order by peer_ids_collection.
-
 note over User, SAR
 <b>PARAMETERS
 # #define TOLERANCE_IN_BLOCKS_FROM_TX_APPROVAL_BY_INITIATOR_PEER_TO_TX_APPROVAL_BY_WT
 # #define TOLERANCE_IN_BLOCKS_FROM_TX_APPROVAL_BY_WT_TO_RECEIVING_WT_TX_APPROVAL_BY_NON_INITIATOR_PEERS
- Assert peer_i_tx_approval.withdrawal_id == withdrawal_id [1 <= i <= 4] \n GW-NONINIT-APPROVAL-AT-WT-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_i_tx_approval) [1 <= i <= 4]
- GW-NONINIT-APPROVAL-AT-PEER-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_i_tx_approval) [1 <= i <= 4]
+# Assert peer_i_tx_approval.withdrawal_id == withdrawal_id [1 <= i <= 4] 
+# GW-NONINIT-APPROVAL-AT-WT-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_i_tx_approval) [1 <= i <= 4]
+# GW-NONINIT-APPROVAL-AT-PEER-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_i_tx_approval) [1 <= i <= 4]
 # #define \n TOLERANCE_IN_BLOCKS_FROM_TX_APPROVAL_BY_WT_TO_RECEIVING_NON_INITIATOR_TX_APPROVAL_BY_OTHER_NON_INITIATOR_PEERS
- Assert peer_0_tx_commit.approved_withdrawal_id == approved_withdrawal_id \n GW-INIT-COMMIT-AT-NONINIT-FRESH(most_work_bitcoin_block_height, peer_0_tx_commit)
- Assert peer_1_tx_commit.approved_withdrawal_id == approved_withdrawal_id \n GW-NONINIT-COMMIT-AT-WT-FRESH(most_work_bitcoin_block_height, peer_1_tx_commit)
+# Assert peer_0_tx_commit.approved_withdrawal_id == approved_withdrawal_id 
+# GW-INIT-COMMIT-AT-NONINIT-FRESH(most_work_bitcoin_block_height, peer_0_tx_commit)
+# Assert peer_1_tx_commit.approved_withdrawal_id == approved_withdrawal_id 
+#GW-NONINIT-COMMIT-AT-WT-FRESH(most_work_bitcoin_block_height, peer_1_tx_commit)
 end note
 
 autonumber 10 "<b>[00]"
@@ -77,14 +79,14 @@ hnote over User #Pink:  Assert tx_id == psbt.derive_tx_id()
 
 ' Step 20
 User o-> ST: <b>WithdrawalNonInitiatorStInput1 \n magic: "withdrawal_non_initiator_peer_approved_that_txid_received_is_the_same_as_the_one_derived_from_withdrawal_psbt"
-hnote over ST #Lavender:  tx_id_with_nonce_signed_by_st := sign_message(st_1_identity_privkey, \n "Boomerang/withdrawal/tx_review_approval", tx_id_with_nonce) \n tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1 := C-SEAL(ST_1, Boomlet_1, canonical_encode("withdrawal_tx_review_approval"), tx_id_with_nonce_signed_by_st)
+$WITHDRAWAL_ST_REVIEW_APPROVE("st_1_identity_privkey", "ST_1", "Boomlet_1", "tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1")
 
 ' Step 21
 ST o-> Niso: <b>WithdrawalNonInitiatorStNisoMessage1 \n tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1
 hnote over Niso #Lavender: most_work_bitcoin_block_height := rpc_client.get_block_height() \n niso_1_event_block_height := most_work_bitcoin_block_height.
 ' Step 22
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage3 \n tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1; niso_1_event_block_height
-hnote over Boomlet #White: <b>LOCAL</b> tx_id_with_nonce_signed_by_st := C-OPEN(Boomlet_1, ST_1, canonical_encode("withdrawal_tx_review_approval"), tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1) \n <b>CHECK</b> <b>Freshness check \n Assert tx_id_with_nonce_signed_by_st.content == tx_id_with_nonce
+$WITHDRAWAL_ST_REVIEW_ACCEPT("Boomlet_1", "ST_1", "tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1")
 end
 hnote over Boomlet #Lavender:  approval_nonce := random_bytes(32) \n _peer_1_tx_approval := TxApproval{ \n withdrawal_id: withdrawal_id, \n approval_nonce: approval_nonce, \n event_block_height: niso_1_event_block_height \n } \n _peer_1_tx_approval_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/tx_approval", _peer_1_tx_approval) \n _peer_1_tx_approval_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt := C-SEAL(Boomlet_1, WT, canonical_encode("withdrawal_tx_approval", withdrawal_id), _peer_1_tx_approval_signed_by_boomlet_1)
 
@@ -115,14 +117,14 @@ autonumber 27 "<b>[00n]"
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage4 \n ordered_non_initiator_peer_tx_approvals; niso_1_event_block_height
 hnote over Boomlet #White: <b>LOCAL</b> peer_i_tx_approval := peer_i_tx_approval_signed_by_boomlet_i.content [1 <= i <= \n 4] \n update niso_1_event_block_height with received value. \n <b>CHECK</b> Assert peer_i_tx_approval.withdrawal_id == withdrawal_id [1 <= i <= 4] \n Assert ordered_non_initiator_peer_tx_approvals contains exactly one approval for \n each active setup peer except initiator_peer_id \n <b>LOCAL</b> ordered_peer_tx_approvals := insert stored \n peer_0_tx_approval_signed_by_boomlet_0 into ordered_non_initiator_peer_tx_approvals at initiator_peer_id's \n active setup peer position \n approved_withdrawal_id := tagged_sha256("Boomerang/approved_withdrawal_id", \n canonical_encode(withdrawal_id, ordered_peer_tx_approvals)) \n <b>CHECK</b> GW-NONINIT-APPROVAL-AT-PEER-FRESH(niso_1_event_block_height, wt_tx_approval, peer_i_tx_approval) [1 <= i <= 4]
 group duress_check
-hnote over Boomlet #Lavender:  duress_check_space := DuressCheckSpace{space: random_permutation([1..193])} \n duress_check_nonce := random_bytes(32) \n duress_check_space_with_nonce := MessageWithNonce{ \n content: duress_check_space \n nonce: duress_check_nonce } \n store outstanding {duress_check_nonce, duress_check_space, phase} \n duress_check_space_with_nonce_encrypted_by_boomlet_1_for_st := C-SEAL(Boomlet_1, ST_1, canonical_encode("withdrawal_duress_challenge"), duress_check_space_with_nonce)
+$WITHDRAWAL_DURESS_CHALLENGE_CREATE("Boomlet_1", "ST_1", "duress_check_space_with_nonce_encrypted_by_boomlet_1_for_st")
 
 ' Step 28n
 Boomlet o-> Niso: <b>WithdrawalNonInitiatorBoomletNisoMessage4 \n duress_check_space_with_nonce_encrypted_by_boomlet_1_for_st
 
 ' Step 29n
 Niso o-> ST: <b>WithdrawalNonInitiatorNisoStMessage2 \n duress_check_space_with_nonce_encrypted_by_boomlet_1_for_st
-hnote over ST #Lavender:  duress_check_space_with_nonce := C-OPEN(ST_1, Boomlet_1, canonical_encode("withdrawal_duress_challenge"), duress_check_space_with_nonce_encrypted_by_boomlet_1_for_st) \n duress_check_space := duress_check_space_with_nonce.content \n duress_display_columns := independently_shuffle_with_index_maps(duress_check_space.space, columns=5)
+$WITHDRAWAL_DURESS_CHALLENGE_OPEN("ST_1", "Boomlet_1", "duress_check_space_with_nonce_encrypted_by_boomlet_1_for_st")
 
 ' Step 30n
 ST o-> User: <b>WithdrawalNonInitiatorStOutput2 \n duress_display_columns
@@ -130,13 +132,16 @@ hnote over User #Lavender:  user_selection := select_one_from_each(duress_displa
 
 ' Step 31n
 User o-> ST: <b>WithdrawalNonInitiatorStInput2 \n user_selection
-hnote over ST #White: <b>CHECK</b> GW-DURESS-SELECTION(user_selection, duress_display_columns) \n <b>LOCAL</b> duress_signal_index := \n original_indices_from_display_selection(duress_display_columns, user_selection) \n duress_signal_index_with_nonce := MessageWithNonce{ \n content: duress_signal_index \n nonce: duress_check_space_with_nonce.nonce } \n duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1 := C-SEAL(ST_1, Boomlet_1, canonical_encode("withdrawal_duress_response"), duress_signal_index_with_nonce) \n <b>CHECK</b> GW-DURESS-INDEXES(duress_signal_index)
+hnote over ST #Pink: GW-DURESS-SELECTION(user_selection, duress_display_columns)
+$WITHDRAWAL_DURESS_RESPONSE_CREATE("ST_1", "Boomlet_1", "duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1")
+hnote over ST #Pink: GW-DURESS-INDEXES(duress_signal_index)
 ' Step 32n
 ST o-> Niso: <b>WithdrawalNonInitiatorStNisoMessage2 \n duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1
 
 ' Step 33n
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage5 \n duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1
-hnote over Boomlet #White: <b>LOCAL</b> duress_signal_index_with_nonce := C-OPEN(Boomlet_1, ST_1, canonical_encode("withdrawal_duress_response"), duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1) \n <b>CHECK</b> GW-DURESS-RESPONSE(duress_signal_index_with_nonce, duress_check_nonce) \n <b>LOCAL</b> consume outstanding duress check \n duress_signal := duress_check_space.space[duress_signal_index_with_nonce.content.indices] \n doxing_key_for_sar := tagged_sha256("Boomerang/doxing_key_for_sar", doxing_key || sar_pubkey_bytes) \n duress_placeholder_plaintext := Evaluate(duress_signal, duress_consent_set, doxing_key_for_sar) [either \n all-zero 32-byte padding or doxing_key_for_sar] \n duress_placeholder := C-SEAL(Boomlet_1, SAR, canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder_plaintext)
+$WITHDRAWAL_DURESS_RESPONSE_OPEN("Boomlet_1", "ST_1", "duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1")
+hnote over Boomlet #Lavender: duress_placeholder := C-SEAL(Boomlet_1, SAR, canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder_plaintext)
 end group
 hnote over Boomlet #Lavender:  approval_set_attestation_fingerprint := \n tagged_sha256("Boomerang/withdrawal/approval_set_attestation_fingerprint", \n canonical_encode(ordered_peer_tx_approvals, wt_tx_approval_signed_by_wt)) \n approval_set_attestation_fingerprint_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/approval_set_attestation", approval_set_attestation_fingerprint)
 
@@ -179,11 +184,7 @@ Niso o-> WT: <b>WithdrawalNonInitiatorNisoWtMessage3 \n peer_1_tx_commit_signed_
 hnote over WT #Lavender: peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1 := \n C-OPEN(WT, Boomlet_1, canonical_encode("withdrawal_tx_commit", approved_withdrawal_id), peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt) \n peer_1_tx_commit_signed_by_boomlet_1_padded := \n peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1.content \n duress_placeholder := peer_1_tx_commit_signed_by_boomlet_1_padded.padding \n peer_1_tx_commit_signed_by_boomlet_1 := peer_1_tx_commit_signed_by_boomlet_1_padded.content
 ' Step 42
 WT o-> SAR: <b>WithdrawalNonInitiatorWtSarMessage1[=WithdrawalWtSarMessage1] \n duress_placeholder; boomlet_1_identity_pubkey; approved_withdrawal_id
-hnote over SAR #White: <b>LOCAL</b> duress_placeholder_plaintext := C-OPEN(SAR, Boomlet_1, canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder) \n is_safe_placeholder := (duress_placeholder_plaintext == zero_bytes_32) \n derived_doxing_data_identifier := tagged_sha256("Boomerang/doxing_data_identifier", \n duress_placeholder_plaintext) \n is_valid_duress_placeholder := (!is_safe_placeholder && sar_record_exists(derived_doxing_data_identifier)) \n <b>CHECK</b> GW-SAR-PLACEHOLDER(is_safe_placeholder, is_valid_duress_placeholder)
-opt #LightBlue SEARCH AND RESCUE [is_valid_duress_placeholder and (approved_withdrawal_id, \n boomlet_identity_pubkey, duress_placeholder.iv) not previously saved]
-hnote over SAR #Lavender:  doxing_data_identifier := derived_doxing_data_identifier \n doxing_key_for_sar := duress_placeholder_plaintext \n static_doxing_data := C-SAR-STORE-OPEN(doxing_key_for_sar, canonical_encode("sar_static_data", doxing_data_identifier), static_doxing_data_encrypted_by_doxing_key_for_sar) \n dynamic_doxing_data := C-SAR-STORE-OPEN(doxing_key_for_sar, canonical_encode("sar_dynamic_data", doxing_data_identifier), dynamic_doxing_data_encrypted_by_doxing_key_for_sar) \n save(approved_withdrawal_id, boomlet_1_identity_pubkey, duress_placeholder.iv) \n Enter SEARCH_AND_RESCUE_MODE
-end
-hnote over SAR #Lavender:  duress_placeholder_signed_by_sar := sign_message(sar_privkey, \n "Boomerang/withdrawal/sar_placeholder_response", duress_placeholder) \n duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_1 := C-SEAL(SAR, Boomlet_1, canonical_encode("withdrawal_sar_placeholder_response", approved_withdrawal_id), duress_placeholder_signed_by_sar)
+$WITHDRAWAL_SAR_PROCESS_PLACEHOLDER("Boomlet_1", "boomlet_1_identity_pubkey", "duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_1")
 
 ' Step 43
 SAR o-> WT: <b>WithdrawalNonInitiatorSarWtMessage1 \n duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_1

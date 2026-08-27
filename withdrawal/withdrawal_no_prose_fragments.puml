@@ -1,0 +1,33 @@
+' Shared local-operation fragments for both withdrawal role diagrams.
+
+!procedure $WITHDRAWAL_ST_REVIEW_APPROVE($st_private_key, $st_entity, $boomlet_entity, $response_envelope)
+hnote over ST #Lavender: tx_id_with_nonce_signed_by_st := sign_message($st_private_key, \n "Boomerang/withdrawal/tx_review_approval", tx_id_with_nonce) \n $response_envelope := C-SEAL($st_entity, $boomlet_entity, canonical_encode("withdrawal_tx_review_approval"), tx_id_with_nonce_signed_by_st)
+!endprocedure
+
+!procedure $WITHDRAWAL_ST_REVIEW_ACCEPT($boomlet_entity, $st_entity, $response_envelope)
+hnote over Boomlet #White: <b>LOCAL</b> tx_id_with_nonce_signed_by_st := C-OPEN($boomlet_entity, $st_entity, canonical_encode("withdrawal_tx_review_approval"), $response_envelope) \n <b>CHECK</b> <b>Freshness check \n Assert tx_id_with_nonce_signed_by_st.content == tx_id_with_nonce
+!endprocedure
+
+!procedure $WITHDRAWAL_DURESS_CHALLENGE_CREATE($boomlet_entity, $st_entity, $challenge_envelope)
+hnote over Boomlet #Lavender: duress_check_space := DuressCheckSpace{space: random_permutation([1..193])} \n duress_check_nonce := random_bytes(32) \n duress_check_space_with_nonce := MessageWithNonce{ \n content: duress_check_space \n nonce: duress_check_nonce } \n store outstanding {duress_check_nonce, duress_check_space, phase} \n $challenge_envelope := C-SEAL($boomlet_entity, $st_entity, canonical_encode("withdrawal_duress_challenge"), duress_check_space_with_nonce)
+!endprocedure
+
+!procedure $WITHDRAWAL_DURESS_CHALLENGE_OPEN($st_entity, $boomlet_entity, $challenge_envelope)
+hnote over ST #Lavender: duress_check_space_with_nonce := C-OPEN($st_entity, $boomlet_entity, canonical_encode("withdrawal_duress_challenge"), $challenge_envelope) \n duress_check_space := duress_check_space_with_nonce.content \n duress_display_columns := independently_shuffle_with_index_maps(duress_check_space.space, columns=5)
+!endprocedure
+
+!procedure $WITHDRAWAL_DURESS_RESPONSE_CREATE($st_entity, $boomlet_entity, $response_envelope)
+hnote over ST #Lavender: duress_signal_index := \n original_indices_from_display_selection(duress_display_columns, user_selection) \n duress_signal_index_with_nonce := MessageWithNonce{ \n content: duress_signal_index \n nonce: duress_check_space_with_nonce.nonce } \n $response_envelope := C-SEAL($st_entity, $boomlet_entity, canonical_encode("withdrawal_duress_response"), duress_signal_index_with_nonce)
+!endprocedure
+
+!procedure $WITHDRAWAL_DURESS_RESPONSE_OPEN($boomlet_entity, $st_entity, $response_envelope)
+hnote over Boomlet #White: <b>LOCAL</b> duress_signal_index_with_nonce := C-OPEN($boomlet_entity, $st_entity, canonical_encode("withdrawal_duress_response"), $response_envelope) \n <b>CHECK</b> GW-DURESS-RESPONSE(duress_signal_index_with_nonce, duress_check_nonce) \n <b>LOCAL</b> consume outstanding duress check \n duress_signal := duress_check_space.space[duress_signal_index_with_nonce.content.indices] \n doxing_key_for_sar := tagged_sha256("Boomerang/doxing_key_for_sar", doxing_key || sar_pubkey_bytes) \n duress_placeholder_plaintext := Evaluate(duress_signal, duress_consent_set, doxing_key_for_sar) [either \n all-zero 32-byte padding or doxing_key_for_sar]
+!endprocedure
+
+!procedure $WITHDRAWAL_SAR_PROCESS_PLACEHOLDER($boomlet_entity, $boomlet_public_key, $response_envelope)
+hnote over SAR #White: <b>LOCAL</b> duress_placeholder_plaintext := C-OPEN(SAR, $boomlet_entity, canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder) \n is_safe_placeholder := (duress_placeholder_plaintext == zero_bytes_32) \n derived_doxing_data_identifier := tagged_sha256("Boomerang/doxing_data_identifier", \n duress_placeholder_plaintext) \n is_valid_duress_placeholder := (!is_safe_placeholder && sar_record_exists(derived_doxing_data_identifier)) \n <b>CHECK</b> GW-SAR-PLACEHOLDER(is_safe_placeholder, is_valid_duress_placeholder)
+opt #LightBlue SEARCH AND RESCUE [is_valid_duress_placeholder and (approved_withdrawal_id, \n boomlet_identity_pubkey, duress_placeholder.iv) not previously saved]
+hnote over SAR #Lavender: doxing_data_identifier := derived_doxing_data_identifier \n doxing_key_for_sar := duress_placeholder_plaintext \n static_doxing_data := C-SAR-STORE-OPEN(doxing_key_for_sar, canonical_encode("sar_static_data", doxing_data_identifier), static_doxing_data_encrypted_by_doxing_key_for_sar) \n dynamic_doxing_data := C-SAR-STORE-OPEN(doxing_key_for_sar, canonical_encode("sar_dynamic_data", doxing_data_identifier), dynamic_doxing_data_encrypted_by_doxing_key_for_sar) \n save(approved_withdrawal_id, $boomlet_public_key, duress_placeholder.iv) \n Enter SEARCH_AND_RESCUE_MODE
+end
+hnote over SAR #Lavender: duress_placeholder_signed_by_sar := sign_message(sar_privkey, \n "Boomerang/withdrawal/sar_placeholder_response", duress_placeholder) \n $response_envelope := C-SEAL(SAR, $boomlet_entity, canonical_encode("withdrawal_sar_placeholder_response", approved_withdrawal_id), duress_placeholder_signed_by_sar)
+!endprocedure

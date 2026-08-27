@@ -24,6 +24,8 @@ Their compact guard calls are defined in
 [withdrawal_no_prose_guards.md](withdrawal_no_prose_guards.md), and their
 cryptographic calls are defined in
 [no_prose_crypto_contracts.md](../no_prose_crypto_contracts.md).
+Repeated role-parameterized operations are defined in
+[withdrawal_no_prose_fragments.puml](withdrawal_no_prose_fragments.puml).
 
 The detailed graphical sequence diagrams are the
 [initiator SVG](initiator_withdrawal_diagram_without_states.svg) and
