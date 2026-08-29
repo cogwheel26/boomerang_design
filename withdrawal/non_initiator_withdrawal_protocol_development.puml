@@ -108,7 +108,8 @@ end
 
 ref over User, SARs
   Continue with the common digging, reached-collection, signing, export, and reset sequence
-  in initiator_withdrawal_diagram_without_states_without_prose_comments.puml.
+  in the WI-DIG, WI-FINAL, WI-SIGN, and WI-RELAY groups of
+  initiator_withdrawal_protocol_development.puml.
   Apply the same peer-local guards with peer i as the recipient.
 end ref
 

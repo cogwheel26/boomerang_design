@@ -1,7 +1,7 @@
 # Setup development contracts
 
 This file supplies the compact contracts referenced by
-[`setup_diagram_without_states_without_prose_comments.puml`](setup_diagram_without_states_without_prose_comments.puml).
+[`setup_protocol_development.puml`](setup_protocol_development.puml).
 It is a protocol-development aid. Normative requirements remain in
 [`SPEC.md`](../spec/SPEC.md), especially Sections 9, 12, 13, 17, and 18.
 

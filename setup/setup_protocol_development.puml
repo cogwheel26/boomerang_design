@@ -117,11 +117,11 @@ WT --> User: S-WT-3  peer-specific payment info bound to setup_instance_id via N
 User -> WT: S-WT-4  payment receipt via Niso
 WT --> Boomlet: S-WT-5  Sig_WT(WtSetupReceipt) via Niso
 note over Boomlet #Pink: Accept local receipt under G-WT-SETUP-RECEIPT
+note over Boomlet #Lavender: C_wt := checkpoint(setup_instance_id, wt_ready, C_parameters)
 Boomlet -> Peers: S-WT-6  Sig_Boomlet(C_wt) via Niso
-Peers --> Boomlet: S-WT-7  matching Sig_Boomlet_j(C_wt) from every peer via Niso
+Peers --> Boomlet: S-WT-7  matching Sig_Boomlet_j(C_wt) from every other peer via Niso
 note over Boomlet #Pink
-  C_wt := checkpoint(setup_instance_id, wt_ready, C_parameters)
-  Accept under G-SETUP-CHECKPOINT.
+  Accept the local signature and four peer signatures under G-SETUP-CHECKPOINT.
   PARAMETERS_AGREED -> WT_READY
 end note
 end
@@ -133,11 +133,11 @@ WT -> SAR: S-SAR-ACT-2  encrypted identifier payload, Boomlet identity, setup_in
 SAR --> WT: S-SAR-ACT-3  Enc_Boomlet(Sig_SAR(SarSetupResponse))
 WT --> Boomlet: S-SAR-ACT-4  Sig_WT(wrapper with exact SAR response) via Niso
 note over Boomlet #Pink: Accept WT wrapper and local SAR response under G-SAR-SETUP-RESPONSE
+note over Boomlet #Lavender: C_sar := checkpoint(setup_instance_id, sar_ready, C_wt)
 Boomlet -> Peers: S-SAR-ACT-5  Sig_Boomlet(C_sar) via Niso
-Peers --> Boomlet: S-SAR-ACT-6  matching Sig_Boomlet_j(C_sar) from every peer via Niso
+Peers --> Boomlet: S-SAR-ACT-6  matching Sig_Boomlet_j(C_sar) from every other peer via Niso
 note over Boomlet #Pink
-  C_sar := checkpoint(setup_instance_id, sar_ready, C_wt)
-  Accept under G-SETUP-CHECKPOINT.
+  Accept the local signature and four peer signatures under G-SETUP-CHECKPOINT.
   WT_READY -> SAR_READY
 end note
 end
@@ -158,11 +158,11 @@ note over Boomletwo #Pink: Require empty target; authenticate, decrypt, and impo
 Boomletwo --> Iso: S-BACKUP-7  Sig_Boomletwo(BackupDone)
 Iso -> Boomlet: S-BACKUP-8  Sig_Boomletwo(BackupDone)
 note over Boomlet #Pink: Accept under G-BACKUP-DONE; mark backup complete
+note over Boomlet #Lavender: C_backup := checkpoint(setup_instance_id, backup_ready, C_sar)
 Boomlet -> Peers: S-BACKUP-9  Sig_Boomlet(C_backup) via Niso
-Peers --> Boomlet: S-BACKUP-10  matching Sig_Boomlet_j(C_backup) from every peer via Niso
+Peers --> Boomlet: S-BACKUP-10  matching Sig_Boomlet_j(C_backup) from every other peer via Niso
 note over Boomlet #Pink
-  C_backup := checkpoint(setup_instance_id, backup_ready, C_sar)
-  Accept under G-SETUP-CHECKPOINT.
+  Accept the local signature and four peer signatures under G-SETUP-CHECKPOINT.
   SAR_READY -> BACKUP_READY; persist final checkpoint before success.
 end note
 Boomlet --> User: S-DONE  setup complete via Niso
