@@ -279,7 +279,7 @@ The protocol data model uses:
 
 - `bool`;
 - `u8`, `u16`, `u32`, and `u64`, encoded unsigned and big-endian;
-- fixed byte strings such as `bytes16`, `bytes32`, `bytes33`, and `bytes64`;
+- fixed byte strings `bytes16`, `bytes32`, `bytes33`, and `bytes64`;
 - variable `bytes`;
 - UTF-8 `text`;
 - ordered `list<T>`;
@@ -309,6 +309,10 @@ u32:     0x12 || value[4]
 u64:     0x13 || value[8]
 bytes:   0x20 || uint32_be(length) || value
 text:    0x21 || uint32_be(utf8_length) || utf8_nfc_bytes
+bytes16: 0x22 || value[16]
+bytes32: 0x23 || value[32]
+bytes33: 0x24 || value[33]
+bytes64: 0x25 || value[64]
 list:    0x30 || uint32_be(count) || canonical_encode(item_0) || ...
 tuple:   0x31 || uint16_be(count) || canonical_encode(item_0) || ...
 struct:  0x40 || uint16_be(schema_id) || uint16_be(schema_version)
@@ -320,17 +324,49 @@ struct:  0x40 || uint16_be(schema_id) || uint16_be(schema_version)
 The `0x00` null tag is reserved in this protocol version. Optional fields are
 omitted; they MUST NOT be encoded as null.
 
+The fixed byte-string encodings contain no length field. Their tags determine
+their exact payload widths and their total encoded sizes are therefore 17, 33,
+34, and 65 bytes respectively. The generic `bytes` encoding is used only when
+the expected protocol type is genuinely variable length. A fixed byte string
+MUST NOT use the generic `bytes` tag, even when its declared length equals the
+required fixed width. A variable `bytes` value MUST use the generic tag and
+length field even when its runtime length is 16, 32, 33, or 64 bytes.
+
 Struct fields MUST appear in ascending field-ID order. For schema version `1`,
 all listed fields are required and `field_count` MUST exactly match the schema's
-required field count. Unknown, missing, duplicate, out-of-order, wrong-type, or
-trailing fields MUST be rejected unless a later schema version explicitly
-permits extensions. The expected schema type fixes the type tag: for example, a
-`u32` field MUST use the `u32` tag even when the value would fit in `u8` or
-`u16`. Invalid UTF-8, non-normalized non-ASCII text, non-ASCII Boomlet-parsed
-text, and trailing bytes MUST be rejected. Each schema or message type supported
-by a `PROTOCOL_VERSION` has a fixed positive maximum canonical encoded size.
+required field count. Field ID `0` is reserved for every schema version and
+MUST NOT be assigned or encoded; decoders MUST reject it. Unknown, missing,
+duplicate, out-of-order, wrong-type, or trailing fields MUST be rejected unless
+a later schema version explicitly permits extensions. The expected schema type
+fixes the type tag: for example, a `u32` field MUST use the `u32` tag even when
+the value would fit in `u8` or `u16`, and a `bytes32` field MUST use the
+`bytes32` tag rather than a generic 32-byte `bytes` value. Invalid UTF-8,
+non-normalized non-ASCII text, non-ASCII Boomlet-parsed text, and trailing bytes
+MUST be rejected. Each schema or message type supported by a
+`PROTOCOL_VERSION` has a fixed positive maximum canonical encoded size.
 Implementations MUST reject objects exceeding that schema or message type's
 limit before allocation or decoding.
+
+Schema version `0` is reserved. Decoders MUST reject zero and unsupported
+versions before decoding fields. Changes to a schema's field set, IDs, types,
+required status, validation, or meaning require a new schema version.
+
+A decoder MUST consume exactly one expected canonical value at the top-level
+transport boundary and every bounded nested boundary, rejecting any suffix.
+Multiple values MUST use a list, tuple, or struct.
+
+Decoders MUST enforce schema-derived and `PROTOCOL_VERSION` global nesting
+limits. Depth counts open structs, lists, and tuples; a top-level container has
+depth `1`, and primitives add no depth. The schema limit is its deepest valid
+path, and the global limit is no lower than the catalog's deepest valid path.
+A decoder MUST reject before descending past either limit.
+
+For each `PROTOCOL_VERSION`, the catalog MUST set finite payload-byte limits for
+variable `bytes` and `text`; item-count and encoded-size limits for lists; and
+encoded-size limits for schemas and top-level objects. Tuple counts are exact.
+Before allocation, copying, or iteration, decoders MUST use overflow-safe
+arithmetic to check lengths and counts against local and enclosing limits and
+remaining input. Decoders MUST reject any exceeded limit.
 
 `canonical_encode(value_0, ..., value_n)` is shorthand for canonical encoding of
 the ordered tuple containing exactly those values. It is not raw
@@ -344,7 +380,8 @@ Transport framing MAY add a length prefix or QR encoding, but signatures, hashes
 - BIP340 signing public keys are the corresponding 32-byte x-only encodings;
 - private scalars are 32-byte big-endian values in the valid secp256k1 range;
 - SHA-256 values and identifiers are 32 bytes;
-- AES-CBC IVs and AES-CMAC tags are 16 bytes.
+- AES-CBC IVs and AES-CMAC tags are 16 bytes;
+- BIP340 signatures are 64 bytes.
 
 Invalid points, infinity, non-curve points, invalid scalars, and non-canonical encodings MUST be rejected.
 
@@ -653,8 +690,9 @@ Payment execution is outside Boomlet and does not alter the cryptographic requir
 
 The following schemas define semantic field order and canonical IDs. Schema IDs
 are assigned by the order in this section, starting at `1`. Field IDs are
-assigned by field order inside each schema, starting at `1`. All listed fields
-are required for schema version `1`.
+assigned by field order inside each schema, starting at `1`; field ID `0` is
+reserved and is never assigned. All listed fields are required for schema
+version `1`.
 
 Schema names use `UpperCamelCase`. Values and fields use `snake_case`. A
 peer-indexed value uses `i` as the index placeholder, so `peer_i_id` denotes
@@ -2212,10 +2250,17 @@ after completion, stall, or abort.
 A conforming implementation MUST provide tests for:
 
 - canonical encoding and rejection of alternate encodings, including exact
-  schema IDs and field IDs, missing fields, extra fields, duplicate fields,
-  out-of-order fields, wrong-type fields, wrong integer tags for the expected
-  schema type, reserved-null encodings, context-wrong wrapper `value` payloads,
-  non-ASCII Boomlet-parsed protocol text, and trailing bytes;
+  schema IDs and field IDs, zero field IDs, zero and unsupported schema
+  versions, missing fields, extra fields, duplicate fields, out-of-order
+  fields, wrong-type fields, wrong integer tags for the expected schema type,
+  generic `bytes` encodings substituted for `bytes16`, `bytes32`, `bytes33`, or
+  `bytes64`, fixed-width tags substituted for generic `bytes`, truncated or
+  extended fixed-width payloads, reserved-null encodings, context-wrong wrapper
+  `value` payloads, non-ASCII Boomlet-parsed protocol text, top-level and nested
+  trailing bytes, and nesting above schema-derived or global limits;
+- boundary vectors for every field, collection, schema, and overall limit,
+  including acceptance at the limit and rejection above it, beyond remaining
+  input, or on arithmetic overflow;
 - normal-key derivation, including BIP39 seed derivation, BIP32 path
   `m/52102'/coin_type'/account'/0/key_index`, child private key, and BIP340
   x-only `normal_pubkey` encoding;

@@ -18,6 +18,7 @@ not override the specification.
 | [0005](0005-user-chosen-doxing-password.md) | Use a user-chosen doxing password. |
 | [0006](0006-per-withdrawal-mystery-generation.md) | Generate mystery per withdrawal at digging entry. |
 | [0007](0007-niso-prevalidation-and-boomlet-revalidation.md) | Prevalidate protocol data on Niso and independently revalidate signing conditions on Boomlet. |
+| [0008](0008-distinct-fixed-byte-encodings.md) | Give common fixed-width cryptographic byte strings distinct canonical tags. |
 
 ## Status Values
 
