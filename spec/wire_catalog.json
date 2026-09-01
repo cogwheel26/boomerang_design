@@ -1,0 +1,553 @@
+{
+  "catalog_format_version": 1,
+  "catalog_status": "initial_structural",
+  "authority_for": "canonical_wire_catalog",
+  "normative_spec": "spec/SPEC.md",
+  "protocol_version_symbol": "PROTOCOL_VERSION",
+  "transport_scope": "canonical_protocol_objects_only",
+  "invariants": {
+    "schema_count": 28,
+    "field_count": 105,
+    "text_field_count": 20,
+    "variable_bytes_field_count": 4,
+    "list_field_count": 7,
+    "dynamic_value_field_count": 5,
+    "byte_order": "big_endian",
+    "schema_version_zero": "reserved",
+    "unsupported_schema_version": "reject",
+    "field_id_zero": "reserved",
+    "field_order": "ascending_id",
+    "version_1_fields": "all_required",
+    "null_tag": "reserved",
+    "trailing_bytes": "reject",
+    "dynamic_value_requires_exact_context": true
+  },
+  "unresolved": {
+    "text_encoder_non_nfc_input": [
+      "normalize_before_encoding",
+      "reject_before_encoding"
+    ],
+    "text_field_profiles": "null text_profile entries",
+    "global_nesting_depth": null,
+    "field_payload_limits": "null max_payload_bytes entries",
+    "list_item_limits": "null max_items entries",
+    "schema_size_limits": "null max_encoded_size entries",
+    "schema_nesting_limits": "null max_nesting_depth entries",
+    "top_level_object_limits": null
+  },
+  "reserved_tags": [
+    "0x00"
+  ],
+  "header_scalars": [
+    {
+      "name": "u16_raw",
+      "encoded_size": 2,
+      "byte_order": "big_endian",
+      "tagged": false
+    },
+    {
+      "name": "u32_raw",
+      "encoded_size": 4,
+      "byte_order": "big_endian",
+      "tagged": false
+    }
+  ],
+  "primitives": [
+    {
+      "name": "bool",
+      "encodings": {
+        "false": "0x01",
+        "true": "0x02"
+      },
+      "encoded_size": 1
+    },
+    {
+      "name": "u8",
+      "tag": "0x10",
+      "payload_bytes": 1,
+      "encoded_size": 2
+    },
+    {
+      "name": "u16",
+      "tag": "0x11",
+      "payload_bytes": 2,
+      "encoded_size": 3
+    },
+    {
+      "name": "u32",
+      "tag": "0x12",
+      "payload_bytes": 4,
+      "encoded_size": 5
+    },
+    {
+      "name": "u64",
+      "tag": "0x13",
+      "payload_bytes": 8,
+      "encoded_size": 9
+    },
+    {
+      "name": "bytes",
+      "tag": "0x20",
+      "length_type": "u32_raw",
+      "header_bytes": 5,
+      "encoded_size_formula": "5 + payload_bytes"
+    },
+    {
+      "name": "text",
+      "tag": "0x21",
+      "length_type": "u32_raw",
+      "header_bytes": 5,
+      "encoding": "UTF-8",
+      "wire_normalization": "NFC",
+      "decoder_non_nfc_input": "reject",
+      "boomlet_parsed_profile": "ASCII",
+      "encoded_size_formula": "5 + utf8_payload_bytes"
+    },
+    {
+      "name": "bytes16",
+      "tag": "0x22",
+      "payload_bytes": 16,
+      "encoded_size": 17
+    },
+    {
+      "name": "bytes32",
+      "tag": "0x23",
+      "payload_bytes": 32,
+      "encoded_size": 33
+    },
+    {
+      "name": "bytes33",
+      "tag": "0x24",
+      "payload_bytes": 33,
+      "encoded_size": 34
+    },
+    {
+      "name": "bytes64",
+      "tag": "0x25",
+      "payload_bytes": 64,
+      "encoded_size": 65
+    }
+  ],
+  "containers": [
+    {
+      "name": "list",
+      "tag": "0x30",
+      "count_type": "u32_raw",
+      "header_bytes": 5,
+      "ordering": "preserved"
+    },
+    {
+      "name": "tuple",
+      "tag": "0x31",
+      "count_type": "u16_raw",
+      "header_bytes": 3,
+      "count_rule": "exact_expected_type_count"
+    },
+    {
+      "name": "struct",
+      "tag": "0x40",
+      "schema_id_type": "u16_raw",
+      "schema_version_type": "u16_raw",
+      "field_count_type": "u16_raw",
+      "header_bytes": 7,
+      "field_id_type": "u16_raw",
+      "field_header_bytes": 2
+    }
+  ],
+  "context_rules": {
+    "signed_message_content": {
+      "selector": [
+        "SignedMessage.domain",
+        "caller_expected_type"
+      ],
+      "require_exact_schema_or_primitive_tuple": true,
+      "context_wrong_value": "reject"
+    },
+    "message_with_nonce_content": {
+      "selector": "enclosing_protocol_context",
+      "require_exact_schema_or_primitive_tuple": true,
+      "context_wrong_value": "reject"
+    },
+    "padded_message_content": {
+      "selector": "enclosing_signature_domain",
+      "variants": {
+        "Boomerang/withdrawal/tx_commit_envelope": "SignedMessage<TxCommit>",
+        "Boomerang/withdrawal/ping_envelope": "SignedMessage<Ping>"
+      },
+      "context_wrong_value": "reject"
+    },
+    "padded_message_padding": {
+      "selector": "enclosing_signature_domain",
+      "variants": {
+        "Boomerang/withdrawal/tx_commit_envelope": "CbcCmacEnvelope",
+        "Boomerang/withdrawal/ping_envelope": "CbcCmacEnvelope"
+      },
+      "authenticated_as_received": true,
+      "context_wrong_value": "reject"
+    },
+    "boomlet_backup_replay_state": {
+      "selector": "active_protocol_state",
+      "require_exact_schema_or_primitive_tuple": true,
+      "context_wrong_value": "reject"
+    }
+  },
+  "schemas": [
+    {
+      "id": 1,
+      "name": "CbcCmacEnvelope",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "version", "type": "u8", "required": true },
+        { "id": 2, "name": "iv", "type": "bytes16", "required": true },
+        { "id": 3, "name": "ciphertext", "type": "bytes", "required": true, "max_payload_bytes": null },
+        { "id": 4, "name": "tag", "type": "bytes16", "required": true }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "SignedMessage",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "signer_identity_pubkey", "type": "bytes33", "required": true },
+        { "id": 2, "name": "domain", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 3, "name": "content", "type": "value", "required": true, "context_rule": "signed_message_content" },
+        { "id": 4, "name": "signature", "type": "bytes64", "required": true }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "MessageWithNonce",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "content", "type": "value", "required": true, "context_rule": "message_with_nonce_content" },
+        { "id": 2, "name": "nonce", "type": "bytes32", "required": true }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "PaddedMessage",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "content", "type": "value", "required": true, "context_rule": "padded_message_content" },
+        { "id": 2, "name": "padding", "type": "value", "required": true, "context_rule": "padded_message_padding" }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "SarServiceFeePaymentInfo",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "service_fee_invoice", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 2, "name": "payment_deadline", "type": "u64", "required": true },
+        { "id": 3, "name": "sar_id", "type": "SarId", "required": true }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "WtServiceFeePaymentInfo",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "service_fee_invoice", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 3, "name": "payment_deadline", "type": "u64", "required": true },
+        { "id": 4, "name": "wt_id", "type": "WtId", "required": true }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "DuressCheckSpace",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "space", "type": "list<u16>", "required": true, "max_items": null }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "WtId",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "wt_tor_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 2, "name": "wt_pubkey", "type": "bytes33", "required": true }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "SarId",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "sar_tor_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 2, "name": "sar_pubkey", "type": "bytes33", "required": true }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "StaticDoxingData",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "name", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 2, "name": "national_id", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 3, "name": "address_home", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 4, "name": "address_work", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 5, "name": "phone_number_mobile", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 6, "name": "phone_number_home", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 7, "name": "phone_number_work", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 8, "name": "trusted_person_name", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 9, "name": "trusted_person_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 10, "name": "trusted_person_phone_number", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "DynamicDoxingData",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "schema_id", "type": "u32", "required": true },
+        { "id": 2, "name": "captured_at", "type": "u64", "required": true },
+        { "id": 3, "name": "payload", "type": "bytes", "required": true, "max_payload_bytes": null, "payload_schema_selector": "schema_id" }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "ServicePaymentReceipt",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "service_id", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 2, "name": "invoice_reference", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 3, "name": "payment_proof", "type": "bytes", "required": true, "max_payload_bytes": null }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "PeerId",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "boom_pubkey", "type": "bytes32", "required": true },
+        { "id": 2, "name": "normal_pubkey", "type": "bytes32", "required": true },
+        { "id": 3, "name": "boomlet_identity_pubkey", "type": "bytes33", "required": true }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "PeerSetupRecord",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "peer_id", "type": "PeerId", "required": true },
+        { "id": 2, "name": "peer_setup_nonce", "type": "bytes32", "required": true },
+        { "id": 3, "name": "tor_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "MilestoneBlocks",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "milestone_block_0", "type": "u32", "required": true },
+        { "id": 2, "name": "milestone_block_1", "type": "u32", "required": true },
+        { "id": 3, "name": "milestone_block_2", "type": "u32", "required": true },
+        { "id": 4, "name": "milestone_block_3", "type": "u32", "required": true },
+        { "id": 5, "name": "milestone_block_4", "type": "u32", "required": true },
+        { "id": 6, "name": "milestone_block_5", "type": "u32", "required": true }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "BoomerangParamsSeed",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "ordered_peer_setup_records", "type": "list<SignedMessage>", "required": true, "max_items": null, "ordering_rule": "boomlet_identity_pubkey_bytes" },
+        { "id": 2, "name": "wt_ids", "type": "list<WtId>", "required": true, "max_items": null },
+        { "id": 3, "name": "milestone_blocks", "type": "MilestoneBlocks", "required": true }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "BoomerangParams",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "peer_ids", "type": "list<PeerId>", "required": true, "max_items": null, "ordering_rule": "corresponding_peer_setup_record_order" },
+        { "id": 3, "name": "wt_ids", "type": "list<WtId>", "required": true, "max_items": null },
+        { "id": 4, "name": "milestone_blocks", "type": "MilestoneBlocks", "required": true },
+        { "id": 5, "name": "boomerang_descriptor", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "WtSetupReceipt",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "boomerang_params_fingerprint", "type": "bytes32", "required": true }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "SarSetupResponse",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "doxing_data_identifier", "type": "bytes32", "required": true },
+        { "id": 3, "name": "fingerprint_of_static_doxing_data_encrypted_by_doxing_key_for_sar", "type": "bytes32", "required": true },
+        { "id": 4, "name": "iv_of_static_doxing_data_encrypted_by_doxing_key_for_sar", "type": "bytes16", "required": true }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "WtSarSetupResponse",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "content", "type": "CbcCmacEnvelope", "required": true },
+        { "id": 3, "name": "wt_suffix", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "BoomletBackupRequest",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "backup_boomlet_pubkey", "type": "bytes33", "required": true },
+        { "id": 2, "name": "backup_normal_pubkey", "type": "bytes32", "required": true }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "BackupDone",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "backup_boomlet_pubkey", "type": "bytes33", "required": true },
+        { "id": 3, "name": "boomlet_pubkey", "type": "bytes33", "required": true }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "BoomletBackupState",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "boomlet_identity_private_key", "type": "bytes32", "required": true },
+        { "id": 3, "name": "boomlet_identity_public_key", "type": "bytes33", "required": true },
+        { "id": 4, "name": "boomlet_musig2_private_share", "type": "bytes32", "required": true },
+        { "id": 5, "name": "boomlet_musig2_public_share", "type": "bytes32", "required": true },
+        { "id": 6, "name": "normal_public_key", "type": "bytes32", "required": true },
+        { "id": 7, "name": "st_identity_public_key", "type": "bytes33", "required": true },
+        { "id": 8, "name": "tor_secret_key", "type": "bytes", "required": true, "max_payload_bytes": null },
+        { "id": 9, "name": "selected_sar_id", "type": "SarId", "required": true },
+        { "id": 10, "name": "doxing_key", "type": "bytes32", "required": true },
+        { "id": 11, "name": "duress_consent_set", "type": "list<u16>", "required": true, "max_items": null },
+        { "id": 12, "name": "peer_setup_record_signed_by_boomlet", "type": "SignedMessage", "required": true },
+        { "id": 13, "name": "boomerang_params", "type": "BoomerangParams", "required": true },
+        { "id": 14, "name": "setup_checkpoint", "type": "bytes32", "required": true },
+        { "id": 15, "name": "sar_setup_response_signed_by_sar", "type": "SignedMessage", "required": true },
+        { "id": 16, "name": "replay_state", "type": "value", "required": true, "context_rule": "boomlet_backup_replay_state" },
+        { "id": 17, "name": "backup_complete", "type": "bool", "required": true }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "TxApproval",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "withdrawal_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "approval_nonce", "type": "bytes32", "required": true },
+        { "id": 3, "name": "event_block_height", "type": "u32", "required": true }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "WtTxApproval",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "withdrawal_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "event_block_height", "type": "u32", "required": true }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "TxCommit",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "approved_withdrawal_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "event_block_height", "type": "u32", "required": true }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "Ping",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "approved_withdrawal_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "last_seen_block", "type": "u32", "required": true },
+        { "id": 3, "name": "ping_seq_num", "type": "u64", "required": true },
+        { "id": 4, "name": "reached_mystery_flag", "type": "bool", "required": true }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "Pong",
+      "version": 1,
+      "max_encoded_size": null,
+      "max_nesting_depth": null,
+      "fields": [
+        { "id": 1, "name": "approved_withdrawal_id", "type": "bytes32", "required": true },
+        { "id": 2, "name": "event_block_height", "type": "u32", "required": true },
+        { "id": 3, "name": "prev_pings", "type": "list<SignedMessage>", "required": true, "max_items": null }
+      ]
+    }
+  ]
+}
