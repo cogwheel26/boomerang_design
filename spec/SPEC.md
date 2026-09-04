@@ -817,6 +817,7 @@ Schema ID registry:
 | 26 | `TxCommit` |
 | 27 | `Ping` |
 | 28 | `Pong` |
+| 29 | `DuressSignalIndex` |
 
 ```text
 CbcCmacEnvelope {
@@ -917,7 +918,7 @@ MilestoneBlocks {
 }
 
 BoomerangParamsSeed {
-  ordered_peer_setup_records: list<SignedMessage>,
+  ordered_peer_setup_records: list<SignedMessage<PeerSetupRecord>>,
   wt_ids: list<WtId>,
   milestone_blocks: MilestoneBlocks
 }
@@ -971,10 +972,10 @@ BoomletBackupState {
   selected_sar_id: SarId,
   doxing_key: bytes32,
   duress_consent_set: list<u16>,
-  peer_setup_record_signed_by_boomlet: SignedMessage,
+  peer_setup_record_signed_by_boomlet: SignedMessage<PeerSetupRecord>,
   boomerang_params: BoomerangParams,
   setup_checkpoint: bytes32,
-  sar_setup_response_signed_by_sar: SignedMessage,
+  sar_setup_response_signed_by_sar: SignedMessage<SarSetupResponse>,
   replay_state: value,
   backup_complete: bool
 }
@@ -1005,7 +1006,11 @@ Ping {
 Pong {
   approved_withdrawal_id: bytes32,
   event_block_height: u32,
-  prev_pings: list<SignedMessage>
+  prev_pings: list<SignedMessage<Ping>>
+}
+
+DuressSignalIndex {
+  indices: list<u16>
 }
 ```
 
@@ -1017,7 +1022,8 @@ the object unless explicitly shown.
 specify the expected content schema or primitive tuple shape.
 `MessageWithNonce.content`, `PaddedMessage.content`, `PaddedMessage.padding`,
 and `BoomletBackupState.replay_state` MUST be validated against the exact
-enclosing protocol context.
+enclosing protocol context. The setup and withdrawal duress-response contexts
+use `DuressSignalIndex`, whose `indices` list contains exactly five values.
 
 `PaddedMessage` is the canonical outer object used when a signed withdrawal
 commit or ping is bound to a `duress_placeholder`. `padding` is opaque to the
@@ -1311,7 +1317,9 @@ setup_instance_id =
   )
 ```
 
-`wt_ids` is the user-approved WT preference order and MUST be preserved.
+`wt_ids` is the user-approved WT preference order, MUST contain at least one
+and at most five `WtId` values, and MUST be preserved unchanged from
+`BoomerangParamsSeed` into the finalized `BoomerangParams`.
 Different peer records, WT identities or order, milestones, protocol versions,
 or setup nonces produce a different identifier.
 

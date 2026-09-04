@@ -14,14 +14,13 @@ wire catalog still marks some context type registries as incomplete.
 | --- | --- | ---: |
 | `DuressCheckSpace.space.item_count` | Required number of encoded country indices | 193 exact |
 | `BoomerangParamsSeed.ordered_peer_setup_records.item_count` | Required number of signed peer setup records | 5 exact |
-| `BoomerangParamsSeed.wt_ids.item_count` | Maximum number of WT identities in the seed | `OPEN` |
+| `BoomerangParamsSeed.wt_ids.item_count` | Maximum number of WT identities in the seed | 5 exact |
 | `BoomerangParams.peer_ids.item_count` | Required number of peer identities | 5 exact |
-| `BoomerangParams.wt_ids.item_count` | Maximum number of WT identities in the finalized parameters | `OPEN` |
+| `BoomerangParams.wt_ids.item_count` | Maximum number of WT identities in the finalized parameters | 5 exact |
 | `BoomletBackupState.duress_consent_set.item_count` | Required number of selected country indices | 5 exact |
 | `Pong.prev_pings.item_count` | Required number of signed Pings from peers other than the recipient | 4 exact |
 | `DuressSignalIndex.indices.item_count` | Required number of returned original-list indices | 5 exact |
 | `list.<context>.item_count` | Required or maximum item count for each protocol list that is selected by context rather than declared as a schema field | `OPEN` |
-| `tuple.<context>.item_count` | Exact item count fixed by the expected tuple type in each protocol context | `OPEN` |
 
 ## Variable field payload sizes
 
@@ -30,7 +29,7 @@ four-byte payload-length field.
 
 | Limit | Definition | Value |
 | --- | --- | ---: |
-| `CbcCmacEnvelope.ciphertext.max_payload_bytes` | Maximum ciphertext bytes accepted in the envelope's registered context | `OPEN` |
+| `CbcCmacEnvelope.ciphertext.max_payload_bytes` | Maximum ciphertext bytes accepted across all registered encryption contexts | `OPEN` |
 | `CbcCmacEnvelope.<context>.ciphertext.max_payload_bytes` | Maximum ciphertext payload bytes accepted for each registered encryption context | Per-context table below |
 | `SignedMessage.domain.max_payload_bytes` | Maximum ASCII bytes in a registered signature domain | 45 exact |
 | `SarServiceFeePaymentInfo.service_fee_invoice.max_payload_bytes` | Maximum UTF-8 bytes in a SAR service-fee invoice | `OPEN` |
@@ -72,7 +71,6 @@ Each value includes the list tag, four-byte count, and all encoded items.
 | `Pong.prev_pings.max_encoded_bytes` | Maximum canonical size of four signed Pings | 833 exact |
 | `DuressSignalIndex.indices.max_encoded_bytes` | Complete canonical size of five encoded indices | 20 exact |
 | `list.<context>.max_encoded_bytes` | Maximum canonical size of each protocol list that is selected by context rather than declared as a schema field | `OPEN` |
-| `tuple.<context>.max_encoded_bytes` | Maximum canonical size of each protocol tuple shape, including its exact-count header and encoded items | `OPEN` |
 
 ## Schema encoded sizes
 
@@ -135,7 +133,6 @@ before that field is decoded.
 | Packet ID | Limit | Definition | Value |
 | ---: | --- | --- | ---: |
 | 1 | `CbcCmacEnvelope.<context>.max_plaintext_bytes` | Maximum canonical plaintext bytes for each registered encryption context | Per-context table below |
-| 1 | `CbcCmacEnvelope.<context>.max_ciphertext_bytes` | Maximum PKCS#7-padded ciphertext bytes for each registered encryption context | Per-context table below |
 | 1 | `CbcCmacEnvelope.<context>.max_encoded_bytes` | Maximum complete envelope size for each registered encryption context | Per-context table below |
 | 2 | `SignedMessage.<domain>.max_encoded_bytes` | Maximum signed-message size for each registered domain and exact content type | Per-domain table below |
 | 3 | `MessageWithNonce.<context>.max_encoded_bytes` | Maximum nonce-wrapper size for each registered content context | Per-context table below |
