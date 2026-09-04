@@ -1,17 +1,16 @@
 {
   "catalog_format_version": 1,
-  "catalog_status": "initial_structural",
+  "catalog_status": "structural_contexts_incomplete",
   "authority_for": "canonical_wire_catalog",
   "normative_spec": "spec/SPEC.md",
   "protocol_version_symbol": "PROTOCOL_VERSION",
   "transport_scope": "canonical_protocol_objects_only",
+  "profile_constants": {
+    "peer_count": 5,
+    "duress_vocabulary_size": 193,
+    "duress_selection_count": 5
+  },
   "invariants": {
-    "schema_count": 28,
-    "field_count": 105,
-    "text_field_count": 20,
-    "variable_bytes_field_count": 4,
-    "list_field_count": 7,
-    "dynamic_value_field_count": 5,
     "byte_order": "big_endian",
     "schema_version_zero": "reserved",
     "unsupported_schema_version": "reject",
@@ -28,12 +27,7 @@
       "reject_before_encoding"
     ],
     "text_field_profiles": "null text_profile entries",
-    "global_nesting_depth": null,
-    "field_payload_limits": "null max_payload_bytes entries",
-    "list_item_limits": "null max_items entries",
-    "schema_size_limits": "null max_encoded_size entries",
-    "schema_nesting_limits": "null max_nesting_depth entries",
-    "top_level_object_limits": null
+    "context_types": "context rules without enumerated variants"
   },
   "reserved_tags": [
     "0x00"
@@ -196,12 +190,10 @@
       "id": 1,
       "name": "CbcCmacEnvelope",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "version", "type": "u8", "required": true },
         { "id": 2, "name": "iv", "type": "bytes16", "required": true },
-        { "id": 3, "name": "ciphertext", "type": "bytes", "required": true, "max_payload_bytes": null },
+        { "id": 3, "name": "ciphertext", "type": "bytes", "required": true },
         { "id": 4, "name": "tag", "type": "bytes16", "required": true }
       ]
     },
@@ -209,11 +201,9 @@
       "id": 2,
       "name": "SignedMessage",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "signer_identity_pubkey", "type": "bytes33", "required": true },
-        { "id": 2, "name": "domain", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 2, "name": "domain", "type": "text", "required": true, "text_profile": null },
         { "id": 3, "name": "content", "type": "value", "required": true, "context_rule": "signed_message_content" },
         { "id": 4, "name": "signature", "type": "bytes64", "required": true }
       ]
@@ -222,8 +212,6 @@
       "id": 3,
       "name": "MessageWithNonce",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "content", "type": "value", "required": true, "context_rule": "message_with_nonce_content" },
         { "id": 2, "name": "nonce", "type": "bytes32", "required": true }
@@ -233,8 +221,6 @@
       "id": 4,
       "name": "PaddedMessage",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "content", "type": "value", "required": true, "context_rule": "padded_message_content" },
         { "id": 2, "name": "padding", "type": "value", "required": true, "context_rule": "padded_message_padding" }
@@ -244,10 +230,8 @@
       "id": 5,
       "name": "SarServiceFeePaymentInfo",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
-        { "id": 1, "name": "service_fee_invoice", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 1, "name": "service_fee_invoice", "type": "text", "required": true, "text_profile": null },
         { "id": 2, "name": "payment_deadline", "type": "u64", "required": true },
         { "id": 3, "name": "sar_id", "type": "SarId", "required": true }
       ]
@@ -256,11 +240,9 @@
       "id": 6,
       "name": "WtServiceFeePaymentInfo",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
-        { "id": 2, "name": "service_fee_invoice", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 2, "name": "service_fee_invoice", "type": "text", "required": true, "text_profile": null },
         { "id": 3, "name": "payment_deadline", "type": "u64", "required": true },
         { "id": 4, "name": "wt_id", "type": "WtId", "required": true }
       ]
@@ -269,20 +251,16 @@
       "id": 7,
       "name": "DuressCheckSpace",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
-        { "id": 1, "name": "space", "type": "list<u16>", "required": true, "max_items": null }
+        { "id": 1, "name": "space", "type": "list<u16>", "required": true, "exact_items": { "constant": "duress_vocabulary_size" } }
       ]
     },
     {
       "id": 8,
       "name": "WtId",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
-        { "id": 1, "name": "wt_tor_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 1, "name": "wt_tor_address", "type": "text", "required": true, "text_profile": null },
         { "id": 2, "name": "wt_pubkey", "type": "bytes33", "required": true }
       ]
     },
@@ -290,10 +268,8 @@
       "id": 9,
       "name": "SarId",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
-        { "id": 1, "name": "sar_tor_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
+        { "id": 1, "name": "sar_tor_address", "type": "text", "required": true, "text_profile": null },
         { "id": 2, "name": "sar_pubkey", "type": "bytes33", "required": true }
       ]
     },
@@ -301,51 +277,43 @@
       "id": 10,
       "name": "StaticDoxingData",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
-        { "id": 1, "name": "name", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 2, "name": "national_id", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 3, "name": "address_home", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 4, "name": "address_work", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 5, "name": "phone_number_mobile", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 6, "name": "phone_number_home", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 7, "name": "phone_number_work", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 8, "name": "trusted_person_name", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 9, "name": "trusted_person_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 10, "name": "trusted_person_phone_number", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+        { "id": 1, "name": "name", "type": "text", "required": true, "text_profile": null },
+        { "id": 2, "name": "national_id", "type": "text", "required": true, "text_profile": null },
+        { "id": 3, "name": "address_home", "type": "text", "required": true, "text_profile": null },
+        { "id": 4, "name": "address_work", "type": "text", "required": true, "text_profile": null },
+        { "id": 5, "name": "phone_number_mobile", "type": "text", "required": true, "text_profile": null },
+        { "id": 6, "name": "phone_number_home", "type": "text", "required": true, "text_profile": null },
+        { "id": 7, "name": "phone_number_work", "type": "text", "required": true, "text_profile": null },
+        { "id": 8, "name": "trusted_person_name", "type": "text", "required": true, "text_profile": null },
+        { "id": 9, "name": "trusted_person_address", "type": "text", "required": true, "text_profile": null },
+        { "id": 10, "name": "trusted_person_phone_number", "type": "text", "required": true, "text_profile": null }
       ]
     },
     {
       "id": 11,
       "name": "DynamicDoxingData",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "schema_id", "type": "u32", "required": true },
         { "id": 2, "name": "captured_at", "type": "u64", "required": true },
-        { "id": 3, "name": "payload", "type": "bytes", "required": true, "max_payload_bytes": null, "payload_schema_selector": "schema_id" }
+        { "id": 3, "name": "payload", "type": "bytes", "required": true, "payload_schema_selector": "schema_id" }
       ]
     },
     {
       "id": 12,
       "name": "ServicePaymentReceipt",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
-        { "id": 1, "name": "service_id", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 2, "name": "invoice_reference", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null },
-        { "id": 3, "name": "payment_proof", "type": "bytes", "required": true, "max_payload_bytes": null }
+        { "id": 1, "name": "service_id", "type": "text", "required": true, "text_profile": null },
+        { "id": 2, "name": "invoice_reference", "type": "text", "required": true, "text_profile": null },
+        { "id": 3, "name": "payment_proof", "type": "bytes", "required": true }
       ]
     },
     {
       "id": 13,
       "name": "PeerId",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "boom_pubkey", "type": "bytes32", "required": true },
         { "id": 2, "name": "normal_pubkey", "type": "bytes32", "required": true },
@@ -356,20 +324,16 @@
       "id": 14,
       "name": "PeerSetupRecord",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "peer_id", "type": "PeerId", "required": true },
         { "id": 2, "name": "peer_setup_nonce", "type": "bytes32", "required": true },
-        { "id": 3, "name": "tor_address", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+        { "id": 3, "name": "tor_address", "type": "text", "required": true, "text_profile": null }
       ]
     },
     {
       "id": 15,
       "name": "MilestoneBlocks",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "milestone_block_0", "type": "u32", "required": true },
         { "id": 2, "name": "milestone_block_1", "type": "u32", "required": true },
@@ -383,11 +347,9 @@
       "id": 16,
       "name": "BoomerangParamsSeed",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
-        { "id": 1, "name": "ordered_peer_setup_records", "type": "list<SignedMessage>", "required": true, "max_items": null, "ordering_rule": "boomlet_identity_pubkey_bytes" },
-        { "id": 2, "name": "wt_ids", "type": "list<WtId>", "required": true, "max_items": null },
+        { "id": 1, "name": "ordered_peer_setup_records", "type": "list<SignedMessage>", "required": true, "exact_items": { "constant": "peer_count" }, "ordering_rule": "boomlet_identity_pubkey_bytes" },
+        { "id": 2, "name": "wt_ids", "type": "list<WtId>", "required": true },
         { "id": 3, "name": "milestone_blocks", "type": "MilestoneBlocks", "required": true }
       ]
     },
@@ -395,22 +357,18 @@
       "id": 17,
       "name": "BoomerangParams",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
-        { "id": 2, "name": "peer_ids", "type": "list<PeerId>", "required": true, "max_items": null, "ordering_rule": "corresponding_peer_setup_record_order" },
-        { "id": 3, "name": "wt_ids", "type": "list<WtId>", "required": true, "max_items": null },
+        { "id": 2, "name": "peer_ids", "type": "list<PeerId>", "required": true, "exact_items": { "constant": "peer_count" }, "ordering_rule": "corresponding_peer_setup_record_order" },
+        { "id": 3, "name": "wt_ids", "type": "list<WtId>", "required": true },
         { "id": 4, "name": "milestone_blocks", "type": "MilestoneBlocks", "required": true },
-        { "id": 5, "name": "boomerang_descriptor", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+        { "id": 5, "name": "boomerang_descriptor", "type": "text", "required": true, "text_profile": null }
       ]
     },
     {
       "id": 18,
       "name": "WtSetupReceipt",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "boomerang_params_fingerprint", "type": "bytes32", "required": true }
@@ -420,8 +378,6 @@
       "id": 19,
       "name": "SarSetupResponse",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "doxing_data_identifier", "type": "bytes32", "required": true },
@@ -433,20 +389,16 @@
       "id": 20,
       "name": "WtSarSetupResponse",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "content", "type": "CbcCmacEnvelope", "required": true },
-        { "id": 3, "name": "wt_suffix", "type": "text", "required": true, "text_profile": null, "max_payload_bytes": null }
+        { "id": 3, "name": "wt_suffix", "type": "text", "required": true, "text_profile": null }
       ]
     },
     {
       "id": 21,
       "name": "BoomletBackupRequest",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "backup_boomlet_pubkey", "type": "bytes33", "required": true },
         { "id": 2, "name": "backup_normal_pubkey", "type": "bytes32", "required": true }
@@ -456,8 +408,6 @@
       "id": 22,
       "name": "BackupDone",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "backup_boomlet_pubkey", "type": "bytes33", "required": true },
@@ -468,8 +418,6 @@
       "id": 23,
       "name": "BoomletBackupState",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "boomlet_identity_private_key", "type": "bytes32", "required": true },
@@ -478,10 +426,10 @@
         { "id": 5, "name": "boomlet_musig2_public_share", "type": "bytes32", "required": true },
         { "id": 6, "name": "normal_public_key", "type": "bytes32", "required": true },
         { "id": 7, "name": "st_identity_public_key", "type": "bytes33", "required": true },
-        { "id": 8, "name": "tor_secret_key", "type": "bytes", "required": true, "max_payload_bytes": null },
+        { "id": 8, "name": "tor_secret_key", "type": "bytes", "required": true },
         { "id": 9, "name": "selected_sar_id", "type": "SarId", "required": true },
         { "id": 10, "name": "doxing_key", "type": "bytes32", "required": true },
-        { "id": 11, "name": "duress_consent_set", "type": "list<u16>", "required": true, "max_items": null },
+        { "id": 11, "name": "duress_consent_set", "type": "list<u16>", "required": true, "exact_items": { "constant": "duress_selection_count" } },
         { "id": 12, "name": "peer_setup_record_signed_by_boomlet", "type": "SignedMessage", "required": true },
         { "id": 13, "name": "boomerang_params", "type": "BoomerangParams", "required": true },
         { "id": 14, "name": "setup_checkpoint", "type": "bytes32", "required": true },
@@ -494,8 +442,6 @@
       "id": 24,
       "name": "TxApproval",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "withdrawal_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "approval_nonce", "type": "bytes32", "required": true },
@@ -506,8 +452,6 @@
       "id": 25,
       "name": "WtTxApproval",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "withdrawal_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "event_block_height", "type": "u32", "required": true }
@@ -517,8 +461,6 @@
       "id": 26,
       "name": "TxCommit",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "approved_withdrawal_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "event_block_height", "type": "u32", "required": true }
@@ -528,8 +470,6 @@
       "id": 27,
       "name": "Ping",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "approved_withdrawal_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "last_seen_block", "type": "u32", "required": true },
@@ -541,12 +481,10 @@
       "id": 28,
       "name": "Pong",
       "version": 1,
-      "max_encoded_size": null,
-      "max_nesting_depth": null,
       "fields": [
         { "id": 1, "name": "approved_withdrawal_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "event_block_height", "type": "u32", "required": true },
-        { "id": 3, "name": "prev_pings", "type": "list<SignedMessage>", "required": true, "max_items": null }
+        { "id": 3, "name": "prev_pings", "type": "list<SignedMessage>", "required": true, "exact_items": { "constant": "peer_count", "offset": -1 } }
       ]
     }
   ]

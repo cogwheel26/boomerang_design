@@ -698,6 +698,7 @@ verification path.
 | [`GLOSSARY.md`](GLOSSARY.md) | Concise lookup index for actors, keys, states, and protocol terms |
 | [`DESIGN.md`](DESIGN.md) | The complete conceptual, economic, and security argument |
 | [`spec/SPEC.md`](spec/SPEC.md) | Normative protocol behavior: actors, states, messages, cryptography, and failure rules |
+| [`spec/wire_catalog.txt`](spec/wire_catalog.txt) | Generated ASCII packet layouts, field IDs, size formulas, and nesting paths |
 | [`security_models/`](security_models/README.md) | Threat model, assumptions, attack trees, risks, and unresolved gaps |
 | [`security_models/coercion_economics.md`](security_models/coercion_economics.md) | Detailed quantitative model, observed evidence, and calibration boundaries |
 | [`adr/`](adr/README.md) | Accepted design decisions and their rationale |

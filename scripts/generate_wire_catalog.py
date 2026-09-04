@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the canonical wire catalog and report its derived structure."""
+"""Generate the wire catalog report from the canonical JSON catalog."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CATALOG = ROOT / "spec" / "wire_catalog.json"
-DEFAULT_REPORT = ROOT / "spec" / "wire_catalog_report.txt"
+DEFAULT_REPORT = ROOT / "spec" / "wire_catalog.txt"
 TAG_PATTERN = re.compile(r"0x[0-9A-Fa-f]{2}")
 NAME_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 
@@ -101,11 +101,21 @@ class Catalog:
         self.header_scalars = self._records("header_scalars")
         self.containers = self._records("containers")
         self.schemas = self._records("schemas")
+        constants = data.get("profile_constants", {})
+        if not isinstance(constants, dict):
+            self.errors.append("profile_constants must be an object")
+            constants = {}
+        self.profile_constants: dict[str, Any] = constants
         contexts = data.get("context_rules", {})
         if not isinstance(contexts, dict):
             self.errors.append("context_rules must be an object")
             contexts = {}
         self.contexts: dict[str, Any] = contexts
+        encryption_contexts = data.get("encryption_contexts", {})
+        if not isinstance(encryption_contexts, dict):
+            self.errors.append("encryption_contexts must be an object")
+            encryption_contexts = {}
+        self.encryption_contexts: dict[str, Any] = encryption_contexts
         self.primitive_by_name = self._index(self.primitives, "primitive")
         self.scalar_by_name = self._index(self.header_scalars, "header scalar")
         self.container_by_name = self._index(self.containers, "container")
@@ -143,6 +153,7 @@ class Catalog:
         self._validate_tags_and_headers()
         self._validate_schemas()
         self._validate_contexts()
+        self._validate_encryption_contexts()
         self._validate_cycles()
         if self.errors:
             raise CatalogError("\n".join(f"- {error}" for error in self.errors))
@@ -150,38 +161,15 @@ class Catalog:
     def _validate_top_level(self) -> None:
         if self.data.get("catalog_format_version") != 1:
             self.errors.append("catalog_format_version must be 1")
+        for name, value in self.profile_constants.items():
+            if not NAME_PATTERN.fullmatch(name):
+                self.errors.append(f"invalid profile constant name {name!r}")
+            if not self._is_positive_integer(value):
+                self.errors.append(f"profile constant {name} must be a positive integer")
         invariants = self.data.get("invariants")
         if not isinstance(invariants, dict):
             self.errors.append("invariants must be an object")
             return
-        fields = [
-            field
-            for schema in self.schemas
-            if isinstance(schema.get("fields"), list)
-            for field in schema["fields"]
-            if isinstance(field, dict)
-        ]
-        expected_counts = {
-            "schema_count": len(self.schemas),
-            "field_count": len(fields),
-            "text_field_count": sum(field.get("type") == "text" for field in fields),
-            "variable_bytes_field_count": sum(
-                field.get("type") == "bytes" for field in fields
-            ),
-            "list_field_count": sum(
-                isinstance(field.get("type"), str)
-                and field["type"].startswith("list<")
-                for field in fields
-            ),
-            "dynamic_value_field_count": sum(
-                field.get("type") == "value" for field in fields
-            ),
-        }
-        for name, expected in expected_counts.items():
-            if invariants.get(name) != expected:
-                self.errors.append(
-                    f"invariants.{name} is {invariants.get(name)!r}, expected {expected}"
-                )
         expected_rules = {
             "byte_order": "big_endian",
             "schema_version_zero": "reserved",
@@ -352,8 +340,6 @@ class Catalog:
             name = schema.get("name", "<unnamed>")
             if schema.get("version") != 1:
                 self.errors.append(f"{name}.version must be 1")
-            self._validate_optional_positive(schema, "max_encoded_size", name)
-            self._validate_optional_positive(schema, "max_nesting_depth", name)
             fields = schema.get("fields")
             if not isinstance(fields, list):
                 self.errors.append(f"{name}.fields must be an array")
@@ -371,13 +357,6 @@ class Catalog:
                 self.errors.append(f"{name} has duplicate field name {duplicate}")
             for field in fields:
                 self._validate_field(schema, field)
-
-    def _validate_optional_positive(
-        self, record: dict[str, Any], key: str, location: str
-    ) -> None:
-        value = record.get(key)
-        if value is not None and not self._is_positive_integer(value):
-            self.errors.append(f"{location}.{key} must be null or a positive integer")
 
     def _validate_field(self, schema: dict[str, Any], field: dict[str, Any]) -> None:
         location = f"{schema.get('name', '<unnamed>')}.{field.get('name', '<unnamed>')}"
@@ -399,36 +378,69 @@ class Catalog:
                 self.errors.append(f"{location} references missing context rule {rule!r}")
         elif "context_rule" in field:
             self.errors.append(f"{location} has a context rule but is not type value")
-        if expression.name in {"bytes", "text"} and not expression.args:
-            self._validate_optional_nonnegative(field, "max_payload_bytes", location)
+        if expression.name in {"bytes", "text"} and "max_payload_bytes" in field:
+            self.errors.append(
+                f"{location}.max_payload_bytes belongs in the normative SPEC limit registry"
+            )
         if expression.name == "text" and "text_profile" not in field:
             self.errors.append(f"{location}.text_profile is missing")
         if expression.name == "list":
-            self._validate_optional_nonnegative(field, "max_items", location)
+            has_exact = "exact_items" in field
+            has_maximum = "max_items" in field
+            if has_exact and has_maximum:
+                self.errors.append(
+                    f"{location} cannot define both exact_items and max_items"
+                )
+            elif has_maximum:
+                self.errors.append(
+                    f"{location}.max_items belongs in the normative SPEC limit registry"
+                )
+            elif has_exact:
+                self._validate_exact_items(field["exact_items"], location)
 
-    def _validate_optional_nonnegative(
-        self, record: dict[str, Any], key: str, location: str
-    ) -> None:
-        if key not in record:
-            self.errors.append(f"{location}.{key} is missing")
+    def _validate_exact_items(self, rule: Any, location: str) -> None:
+        if not isinstance(rule, dict):
+            self.errors.append(f"{location}.exact_items must be an object")
             return
-        value = record[key]
-        if value is not None and (
-            not isinstance(value, int) or isinstance(value, bool) or value < 0
-        ):
-            self.errors.append(f"{location}.{key} must be null or a nonnegative integer")
+        if set(rule) - {"constant", "offset"}:
+            self.errors.append(f"{location}.exact_items has unknown properties")
+        constant = rule.get("constant")
+        if constant not in self.profile_constants:
+            self.errors.append(
+                f"{location}.exact_items references missing profile constant {constant!r}"
+            )
+            return
+        offset = rule.get("offset", 0)
+        if not isinstance(offset, int) or isinstance(offset, bool):
+            self.errors.append(f"{location}.exact_items.offset must be an integer")
+            return
+        if self.profile_constants[constant] + offset < 0:
+            self.errors.append(f"{location}.exact_items resolves below zero")
 
     def _validate_type(
         self, expression: TypeExpr, location: str, context_expression: bool
     ) -> None:
-        if expression.name == "list":
-            if len(expression.args) != 1:
-                self.errors.append(f"{location} list type must have one argument")
+        if expression.name in {"list", "tuple"}:
+            expected = 1 if expression.name == "list" else None
+            if expected is not None and len(expression.args) != expected:
+                self.errors.append(
+                    f"{location} {expression.name} type must have {expected} argument"
+                )
+            if expression.name == "tuple" and not expression.args:
+                self.errors.append(f"{location} tuple type must have at least one argument")
             for argument in expression.args:
                 self._validate_type(argument, location, context_expression)
             return
         if expression.args:
-            if not context_expression or expression.name not in self.schema_by_name:
+            if expression.name == "CbcCmacEnvelope":
+                if len(expression.args) != 1:
+                    self.errors.append(
+                        f"{location} CbcCmacEnvelope context must have one plaintext type"
+                    )
+                for argument in expression.args:
+                    self._validate_type(argument, location, context_expression=True)
+                return
+            if expression.name not in self.schema_by_name:
                 self.errors.append(f"{location} uses unsupported generic type {expression}")
                 return
             dynamic_fields = self._dynamic_fields(self.schema_by_name[expression.name])
@@ -450,6 +462,14 @@ class Catalog:
             if not isinstance(rule, dict):
                 self.errors.append(f"context rule {name} must be an object")
                 continue
+            semantic_role = rule.get("semantic_role")
+            if semantic_role is not None and (
+                not isinstance(semantic_role, str)
+                or not NAME_PATTERN.fullmatch(semantic_role)
+            ):
+                self.errors.append(
+                    f"context rule {name}.semantic_role must be a valid name"
+                )
             variants = rule.get("variants")
             if variants is None:
                 continue
@@ -468,6 +488,49 @@ class Catalog:
                     continue
                 self._validate_type(expression, location, context_expression=True)
 
+    def _validate_encryption_contexts(self) -> None:
+        registry = self.encryption_contexts
+        if registry.get("contexts_complete") is not True:
+            self.errors.append("encryption_contexts.contexts_complete must be true")
+        variants = registry.get("variants")
+        if not isinstance(variants, dict) or not variants:
+            self.errors.append("encryption_contexts.variants must be a nonempty object")
+            return
+        signed_variants = self.contexts.get("signed_message_content", {}).get(
+            "variants", {}
+        )
+        for context, entry in variants.items():
+            location = f"encryption context {context!r}"
+            if not isinstance(entry, dict):
+                self.errors.append(f"{location} must be an object")
+                continue
+            type_name = entry.get("type")
+            if not isinstance(type_name, str):
+                self.errors.append(f"{location}.type must be a type string")
+                continue
+            try:
+                expression = parse_type(type_name)
+            except ValueError as error:
+                self.errors.append(f"{location}.type is invalid: {error}")
+                continue
+            self._validate_type(expression, location, context_expression=True)
+            domain = entry.get("signature_domain")
+            if domain is None:
+                continue
+            if not isinstance(domain, str):
+                self.errors.append(f"{location}.signature_domain must be a string")
+                continue
+            if expression.name != "SignedMessage" or len(expression.args) != 1:
+                self.errors.append(
+                    f"{location}.signature_domain requires a SignedMessage<T> type"
+                )
+                continue
+            expected_type = signed_variants.get(domain)
+            if not isinstance(expected_type, str) or parse_type(expected_type) != expression.args[0]:
+                self.errors.append(
+                    f"{location}.signature_domain does not match the registered content type"
+                )
+
     def _validate_cycles(self) -> None:
         graph: dict[str, set[str]] = {name: set() for name in self.schema_by_name}
         for schema in self.schemas:
@@ -483,18 +546,6 @@ class Catalog:
                 except ValueError:
                     continue
                 graph[owner].update(self._schema_references(expression))
-                if expression == TypeExpr("value"):
-                    rule = self.contexts.get(field.get("context_rule"), {})
-                    variants = rule.get("variants", {}) if isinstance(rule, dict) else {}
-                    if isinstance(variants, dict):
-                        for value in variants.values():
-                            if isinstance(value, str):
-                                try:
-                                    graph[owner].update(
-                                        self._schema_references(parse_type(value))
-                                    )
-                                except ValueError:
-                                    pass
 
         active: list[str] = []
         visited: set[str] = set()
@@ -527,54 +578,131 @@ class Catalog:
     def _dynamic_fields(schema: dict[str, Any]) -> list[dict[str, Any]]:
         return [field for field in schema.get("fields", []) if field.get("type") == "value"]
 
-    def schema_formula(self, schema: dict[str, Any]) -> str:
-        fields = schema["fields"]
-        fixed = self.container_by_name["struct"]["header_bytes"]
-        fixed += self.container_by_name["struct"]["field_header_bytes"] * len(fields)
-        terms: list[str] = []
-        for field in fields:
-            part = self._field_formula(schema, field)
-            if isinstance(part, int):
-                fixed += part
-            else:
-                terms.append(part)
-        return " + ".join([str(fixed), *terms])
+    def _list_item_count(self, field: dict[str, Any], location: str) -> int | str:
+        exact = field.get("exact_items")
+        if isinstance(exact, dict):
+            constant = exact["constant"]
+            return self.profile_constants[constant] + exact.get("offset", 0)
+        return f"{location}.max_items"
 
-    def _field_formula(self, schema: dict[str, Any], field: dict[str, Any]) -> int | str:
-        expression = parse_type(field["type"])
-        location = f"{schema['name']}.{field['name']}"
+    def schema_max_size(self, schema: dict[str, Any]) -> int | None:
+        return self._schema_max_size(schema, (), ())
+
+    def _schema_max_size(
+        self,
+        schema: dict[str, Any],
+        arguments: tuple[TypeExpr, ...],
+        stack: tuple[str, ...],
+    ) -> int | None:
+        name = schema["name"]
+        instance = str(TypeExpr(name, arguments))
+        if instance in stack:
+            raise CatalogError(
+                f"context expansion cycle {' -> '.join((*stack, instance))}"
+            )
+        dynamic_fields = self._dynamic_fields(schema)
+        substitutions = {
+            field["name"]: argument
+            for field, argument in zip(dynamic_fields, arguments)
+        }
+        total = self.container_by_name["struct"]["header_bytes"]
+        total += self.container_by_name["struct"]["field_header_bytes"] * len(
+            schema["fields"]
+        )
+        for field in schema["fields"]:
+            expression = parse_type(field["type"])
+            if expression.name == "value":
+                size = self._value_max_size(
+                    field,
+                    substitutions.get(field["name"]),
+                    (*stack, instance),
+                )
+            else:
+                size = self._field_max_size(field, expression, (*stack, instance))
+            if size is None:
+                return None
+            total += size
+        return total
+
+    def _field_max_size(
+        self,
+        field: dict[str, Any],
+        expression: TypeExpr,
+        stack: tuple[str, ...],
+    ) -> int | None:
         if expression.name in self.primitive_by_name and not expression.args:
             primitive = self.primitive_by_name[expression.name]
             if "encoded_size" in primitive:
                 return primitive["encoded_size"]
-            return f"({primitive['header_bytes']} + {location}.max_payload_bytes)"
+            return None
         if expression.name == "list":
-            item = self._type_formula(expression.args[0])
-            return f"({self.container_by_name['list']['header_bytes']} + {location}.max_items * ({item}))"
-        if expression.name == "value":
-            return self._context_formula(field["context_rule"])
-        return f"max_size({expression})"
+            location = field["name"]
+            count = self._list_item_count(field, location)
+            item_size = self._type_max_size(expression.args[0], stack)
+            if not isinstance(count, int) or item_size is None:
+                return None
+            return self.container_by_name["list"]["header_bytes"] + count * item_size
+        return self._type_max_size(expression, stack)
 
-    def _type_formula(self, expression: TypeExpr) -> str:
+    def _type_max_size(
+        self, expression: TypeExpr, stack: tuple[str, ...]
+    ) -> int | None:
         if expression.name in self.primitive_by_name and not expression.args:
-            primitive = self.primitive_by_name[expression.name]
-            if "encoded_size" in primitive:
-                return str(primitive["encoded_size"])
-            return f"max_size({expression})"
+            value = self.primitive_by_name[expression.name].get("encoded_size")
+            return value if isinstance(value, int) else None
         if expression.name == "list":
-            return f"max_size({expression})"
-        return f"max_size({expression})"
+            return None
+        if expression.name == "tuple":
+            sizes = [self._type_max_size(argument, stack) for argument in expression.args]
+            if any(size is None for size in sizes):
+                return None
+            return self.container_by_name["tuple"]["header_bytes"] + sum(
+                size for size in sizes if size is not None
+            )
+        if expression.name == "CbcCmacEnvelope" and len(expression.args) == 1:
+            plaintext_size = self._type_max_size(expression.args[0], stack)
+            if plaintext_size is None:
+                return None
+            ciphertext_size = (plaintext_size // 16 + 1) * 16
+            return 56 + ciphertext_size
+        if expression.name == "SignedMessage" and len(expression.args) == 1:
+            content_size = self._type_max_size(expression.args[0], stack)
+            if content_size is None:
+                return None
+            rule = self.contexts.get("signed_message_content", {})
+            variants = rule.get("variants", {}) if isinstance(rule, dict) else {}
+            matching_domains = [
+                domain
+                for domain, content_type in variants.items()
+                if isinstance(content_type, str)
+                and parse_type(content_type) == expression.args[0]
+            ] if isinstance(variants, dict) else []
+            if not matching_domains:
+                return None
+            domain_size = max(len(domain.encode("ascii")) for domain in matching_domains)
+            return 119 + domain_size + content_size
+        schema = self.schema_by_name[expression.name]
+        return self._schema_max_size(schema, expression.args, stack)
 
-    def _context_formula(self, rule_name: str) -> str:
-        rule = self.contexts[rule_name]
+    def _value_max_size(
+        self,
+        field: dict[str, Any],
+        substitution: TypeExpr | None,
+        stack: tuple[str, ...],
+    ) -> int | None:
+        if substitution is not None:
+            return self._type_max_size(substitution, stack)
+        rule = self.contexts[field["context_rule"]]
         variants = rule.get("variants")
         if not isinstance(variants, dict):
-            return f"max_size(context({rule_name}))"
-        values = sorted(set(variants.values()))
-        terms = [f"max_size({value})" for value in values]
-        if len(terms) == 1:
-            return terms[0]
-        return f"max({', '.join(terms)})"
+            return None
+        sizes = [
+            self._type_max_size(parse_type(value), stack)
+            for value in sorted(set(variants.values()))
+        ]
+        if any(size is None for size in sizes):
+            return None
+        return max(size for size in sizes if size is not None)
 
     def schema_depth(self, schema: dict[str, Any]) -> DepthResult:
         return self._schema_depth(schema, (), ())
@@ -586,8 +714,11 @@ class Catalog:
         stack: tuple[str, ...],
     ) -> DepthResult:
         name = schema["name"]
-        if name in stack:
-            raise CatalogError(f"context expansion cycle {' -> '.join((*stack, name))}")
+        instance = str(TypeExpr(name, arguments))
+        if instance in stack:
+            raise CatalogError(
+                f"context expansion cycle {' -> '.join((*stack, instance))}"
+            )
         dynamic_fields = self._dynamic_fields(schema)
         substitutions = {
             field["name"]: argument
@@ -601,10 +732,10 @@ class Catalog:
                 child = self._value_depth(
                     field,
                     substitutions.get(field["name"]),
-                    (*stack, name),
+                    (*stack, instance),
                 )
             else:
-                child = self._type_depth(expression, (*stack, name))
+                child = self._type_depth(expression, (*stack, instance))
             unresolved.update(child.unresolved_contexts)
             if child.depth > best.depth:
                 label = f"{field['name']}:{child.path[0]}" if child.path else field["name"]
@@ -625,6 +756,19 @@ class Catalog:
                 (str(expression), *child.path),
                 child.unresolved_contexts,
             )
+        if expression.name == "tuple":
+            children = [self._type_depth(argument, stack) for argument in expression.args]
+            child = max(children, key=lambda result: result.depth)
+            unresolved = set().union(
+                *(result.unresolved_contexts for result in children)
+            )
+            return DepthResult(
+                1 + child.depth,
+                (str(expression), *child.path),
+                frozenset(unresolved),
+            )
+        if expression.name == "CbcCmacEnvelope" and len(expression.args) == 1:
+            return DepthResult(1, (str(expression),))
         schema = self.schema_by_name[expression.name]
         return self._schema_depth(schema, expression.args, stack)
 
@@ -649,30 +793,6 @@ class Catalog:
         unresolved = set().union(*(result.unresolved_contexts for result in results))
         return DepthResult(best.depth, best.path, frozenset(unresolved))
 
-    def unresolved_bounds(self) -> list[str]:
-        result: list[str] = []
-        unresolved = self.data.get("unresolved", {})
-        if isinstance(unresolved, dict):
-            if unresolved.get("global_nesting_depth") is None:
-                result.append("global_nesting_depth")
-            if unresolved.get("top_level_object_limits") is None:
-                result.append("top_level_object_limits")
-        for schema in self.schemas:
-            name = schema["name"]
-            if schema.get("max_encoded_size") is None:
-                result.append(f"{name}.max_encoded_size")
-            if schema.get("max_nesting_depth") is None:
-                result.append(f"{name}.max_nesting_depth")
-            for field in schema["fields"]:
-                location = f"{name}.{field['name']}"
-                expression = parse_type(field["type"])
-                if expression.name in {"bytes", "text"} and field.get("max_payload_bytes") is None:
-                    result.append(f"{location}.max_payload_bytes")
-                if expression.name == "list" and field.get("max_items") is None:
-                    result.append(f"{location}.max_items")
-                    result.append(f"{location}.max_encoded_size derived from item and element bounds")
-        return result
-
     def unresolved_text_metadata(self) -> list[str]:
         result: list[str] = []
         unresolved = self.data.get("unresolved", {})
@@ -694,6 +814,68 @@ class Catalog:
                 rule = self.contexts[rule_name]
                 if not isinstance(rule.get("variants"), dict):
                     result.append(f"{schema['name']}.{field['name']} uses {rule_name}")
+        return result
+
+    def signed_contexts(
+        self,
+    ) -> list[tuple[str, TypeExpr, int | None, int | None, DepthResult]]:
+        """Return the exact derivable metrics for every registered signature domain."""
+        rule = self.contexts.get("signed_message_content", {})
+        variants = rule.get("variants", {}) if isinstance(rule, dict) else {}
+        result = []
+        for domain, type_name in variants.items():
+            expression = parse_type(type_name)
+            content_size = self._type_max_size(expression, ())
+            signed_size = (
+                119 + len(domain.encode("ascii")) + content_size
+                if content_size is not None
+                else None
+            )
+            child = self._type_depth(expression, ())
+            depth = DepthResult(
+                1 + child.depth,
+                ("SignedMessage", *child.path),
+                child.unresolved_contexts,
+            )
+            result.append((domain, expression, content_size, signed_size, depth))
+        return result
+
+    def encryption_context_metrics(
+        self,
+    ) -> list[tuple[str, TypeExpr, int | None, int | None, int | None, DepthResult]]:
+        """Return plaintext, ciphertext, envelope, and plaintext-depth metrics."""
+        variants = self.encryption_contexts.get("variants", {})
+        result = []
+        for context, entry in variants.items():
+            expression = parse_type(entry["type"])
+            domain = entry.get("signature_domain")
+            if isinstance(domain, str):
+                content_size = self._type_max_size(expression.args[0], ())
+                plaintext_size = (
+                    119 + len(domain.encode("ascii")) + content_size
+                    if content_size is not None
+                    else None
+                )
+            else:
+                plaintext_size = self._type_max_size(expression, ())
+            ciphertext_size = (
+                (plaintext_size // 16 + 1) * 16
+                if plaintext_size is not None
+                else None
+            )
+            envelope_size = (
+                56 + ciphertext_size if ciphertext_size is not None else None
+            )
+            result.append(
+                (
+                    context,
+                    expression,
+                    plaintext_size,
+                    ciphertext_size,
+                    envelope_size,
+                    self._type_depth(expression, ()),
+                )
+            )
         return result
 
 
@@ -718,42 +900,119 @@ def display_path(path: Path) -> str:
         return str(path.resolve())
 
 
+def readable_wrap(value: str, subsequent_indent: str = "  ") -> str:
+    return textwrap.fill(
+        value,
+        width=96,
+        subsequent_indent=subsequent_indent,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+
 def print_main_results(catalog: Catalog) -> None:
     field_count = sum(len(schema["fields"]) for schema in catalog.schemas)
-    print("Validation passed")
-    print(f"Source {display_path(catalog.source)}")
+    print("Summary")
+    print(f"Catalog status {catalog.data.get('catalog_status', 'unspecified')}")
     print(f"Schemas {len(catalog.schemas)}")
     print(f"Fields {field_count}")
 
+    print("\nStructural profile constants")
+    for name, value in catalog.profile_constants.items():
+        print(f"{name} {value}")
+
+    print("\nDeterministic collection counts")
+    for schema in catalog.schemas:
+        for field in schema["fields"]:
+            exact = field.get("exact_items")
+            if not isinstance(exact, dict):
+                continue
+            location = f"{schema['name']}.{field['name']}"
+            count = catalog._list_item_count(field, location)
+            source = exact["constant"]
+            offset = exact.get("offset", 0)
+            derivation = source if offset == 0 else f"{source} {offset:+d}"
+            print(f"{location} {count} items, from {derivation}")
+
+    print("\nExact structural list sizes")
+    list_header = catalog.container_by_name["list"]["header_bytes"]
+    for schema in catalog.schemas:
+        for field in schema["fields"]:
+            expression = parse_type(field["type"])
+            if expression.name != "list":
+                continue
+            location = f"{schema['name']}.{field['name']}"
+            count = catalog._list_item_count(field, location)
+            item_size = catalog._type_max_size(expression.args[0], ())
+            if isinstance(count, int) and item_size is not None:
+                value = f"exactly {list_header + count * item_size} bytes"
+                print(readable_wrap(f"{location} {value}"))
+
     depths = [(schema, catalog.schema_depth(schema)) for schema in catalog.schemas]
-    deepest_schema, deepest = max(depths, key=lambda item: item[1].depth)
+    _, deepest = max(depths, key=lambda item: item[1].depth)
     print("\nKnown deepest nesting path")
-    print(f"{deepest.depth} containers  {' -> '.join(deepest.path)}")
+    print("Depth counts open structs, lists, and tuples. Primitive values add no depth.")
+    print("Generic context-selected values can increase a path until they are enumerated.")
+    print(readable_wrap(f"{deepest.depth} containers  {' -> '.join(deepest.path)}"))
 
     print("\nSchema nesting paths")
+    print("Each line gives the deepest path currently derivable from the catalog.")
     for schema, result in depths:
         suffix = ""
         if result.unresolved_contexts:
             suffix = f"  unresolved {', '.join(sorted(result.unresolved_contexts))}"
-        print(f"{schema['name']}  {result.depth}  {' -> '.join(result.path)}{suffix}")
+        print(readable_wrap(
+            f"{schema['name']}  {result.depth}  {' -> '.join(result.path)}{suffix}"
+        ))
 
-    print("\nSymbolic maximum-size formulas")
+    print("\nExact schema sizes")
+    print("These values are fully determined by the catalog structure.")
     for schema in catalog.schemas:
-        print(f"{schema['name']} = {catalog.schema_formula(schema)}")
+        maximum = catalog.schema_max_size(schema)
+        if maximum is not None:
+            print(readable_wrap(f"{schema['name']} exactly {maximum} bytes"))
+
+    print("\nRegistered signature-domain metrics")
+    print("All signatures are fixed 64-byte Schnorr signatures encoded as bytes64 (65 bytes).")
+    print("Sizes include the complete SignedMessage struct and its exact ASCII domain.")
+    for domain, expression, content_size, signed_size, depth in catalog.signed_contexts():
+        content_label = (
+            f"content {content_size} bytes, signed {signed_size} bytes"
+            if content_size is not None and signed_size is not None
+            else "size OPEN"
+        )
+        depth_label = f"depth {depth.depth}"
+        if depth.unresolved_contexts:
+            depth_label += f" (unresolved {', '.join(sorted(depth.unresolved_contexts))})"
+        print(readable_wrap(
+            f"{domain} => {expression}; {content_label}; {depth_label}"
+        ))
+
+    print("\nRegistered CBC-CMAC encryption-context metrics")
+    print("The registry is complete for canonical CBC-CMAC context labels in the protocol.")
+    print("Ciphertext includes mandatory PKCS#7 padding; envelope includes all wire fields.")
+    for context, expression, plaintext, ciphertext, envelope, depth in (
+        catalog.encryption_context_metrics()
+    ):
+        size_label = (
+            f"plaintext {plaintext} bytes, ciphertext {ciphertext} bytes, envelope {envelope} bytes"
+            if plaintext is not None and ciphertext is not None and envelope is not None
+            else "size OPEN"
+        )
+        print(readable_wrap(
+            f"{context} => {expression}; {size_label}; plaintext depth {depth.depth}"
+        ))
 
     contexts = catalog.unresolved_contexts()
     print(f"\nContext-dependent paths without enumerated variants {len(contexts)}")
+    print("These generic value fields still need an exact type for every protocol context.")
     for item in contexts:
         print(item)
 
     text_metadata = catalog.unresolved_text_metadata()
     print(f"\nUnresolved text metadata {len(text_metadata)}")
+    print("Entries below are missing required text-profile metadata.")
     for item in text_metadata:
-        print(item)
-
-    bounds = catalog.unresolved_bounds()
-    print(f"\nUnresolved bounds {len(bounds)}")
-    for item in bounds:
         print(item)
 
 
@@ -790,58 +1049,117 @@ def ascii_table(rows: list[list[str]], widths: list[int]) -> list[str]:
     return output
 
 
-def primitive_layout(primitive: dict[str, Any]) -> str:
+def byte_count(value: int) -> str:
+    unit = "byte" if value == 1 else "bytes"
+    return f"{value} {unit}"
+
+
+def context_value_details(catalog: Catalog, field: dict[str, Any]) -> list[str]:
+    rule_name = field["context_rule"]
+    rule = catalog.contexts[rule_name]
+    details = [f"context rule {rule_name}"]
+    selector = rule.get("selector")
+    if isinstance(selector, str):
+        details.append(f"selected by {selector}")
+    semantic_role = rule.get("semantic_role")
+    if isinstance(semantic_role, str):
+        details.append(f"semantic role {semantic_role}")
+    variants = rule.get("variants")
+    if isinstance(variants, dict):
+        details.extend(
+            f"{context} => {value}"
+            for context, value in variants.items()
+        )
+    return details
+
+
+def primitive_layout(catalog: Catalog, primitive: dict[str, Any]) -> str:
     name = primitive["name"]
     if name == "bool":
-        return "bool false [tag 0x01] 1 byte; true [tag 0x02] 1 byte"
+        values = "; ".join(
+            f"{value} [tag {tag}] {byte_count(primitive['encoded_size'])}"
+            for value, tag in primitive["encodings"].items()
+        )
+        return f"{name} {values}"
     tag = primitive["tag"]
     if "payload_bytes" in primitive:
+        payload_bytes = primitive["payload_bytes"]
         return (
-            f"{name} [tag {tag}: 1 byte] [payload: {primitive['payload_bytes']} bytes] "
-            f"total {primitive['encoded_size']} bytes"
+            f"{name} [tag {tag}: 1 byte] [payload: {byte_count(payload_bytes)}] "
+            f"total {byte_count(primitive['encoded_size'])}"
         )
-    payload = "UTF-8 NFC payload" if name == "text" else "payload"
+    length_bytes = catalog.scalar_by_name[primitive["length_type"]]["encoded_size"]
+    payload_properties = [primitive.get("encoding"), primitive.get("wire_normalization")]
+    payload = " ".join(value for value in payload_properties if isinstance(value, str))
+    payload = f"{payload} payload" if payload else "payload"
     return (
-        f"{name} [tag {tag}: 1 byte] [length: 4 bytes] [{payload}: variable] "
-        f"total {primitive['header_bytes']} + payload bytes"
+        f"{name} [tag {tag}: 1 byte] [length: {byte_count(length_bytes)}] "
+        f"[{payload}: variable] total {primitive['header_bytes']} + payload bytes"
     )
 
 
-def container_layout(container: dict[str, Any]) -> str:
+def container_layout(catalog: Catalog, container: dict[str, Any]) -> str:
     name = container["name"]
     tag = container["tag"]
-    if name == "list":
-        return "list [tag 0x30: 1 byte] [count: 4 bytes] [encoded items: variable]"
-    if name == "tuple":
-        return "tuple [tag 0x31: 1 byte] [count: 2 bytes] [encoded items: variable]"
+    if name in {"list", "tuple"}:
+        count_bytes = catalog.scalar_by_name[container["count_type"]]["encoded_size"]
+        return (
+            f"{name} [tag {tag}: 1 byte] [count: {byte_count(count_bytes)}] "
+            "[encoded items: variable]"
+        )
+    schema_id_bytes = catalog.scalar_by_name[container["schema_id_type"]]["encoded_size"]
+    schema_version_bytes = catalog.scalar_by_name[
+        container["schema_version_type"]
+    ]["encoded_size"]
+    field_count_bytes = catalog.scalar_by_name[
+        container["field_count_type"]
+    ]["encoded_size"]
     return (
-        f"struct [tag {tag}: 1 byte] [schema ID: 2 bytes] "
-        "[schema version: 2 bytes] [field count: 2 bytes] "
-        "[field ID: 2 bytes, encoded value] repeated"
+        f"{name} [tag {tag}: 1 byte] [schema ID: {byte_count(schema_id_bytes)}] "
+        f"[schema version: {byte_count(schema_version_bytes)}] "
+        f"[field count: {byte_count(field_count_bytes)}] "
+        f"[field ID: {byte_count(container['field_header_bytes'])}, encoded value] repeated"
     )
 
 
 def schema_packet_layout(catalog: Catalog, schema: dict[str, Any]) -> list[str]:
     struct = catalog.container_by_name["struct"]
+    schema_id_bytes = catalog.scalar_by_name[struct["schema_id_type"]]["encoded_size"]
+    schema_version_bytes = catalog.scalar_by_name[
+        struct["schema_version_type"]
+    ]["encoded_size"]
+    field_count_bytes = catalog.scalar_by_name[
+        struct["field_count_type"]
+    ]["encoded_size"]
     rows = [[
-        "tag 0x40\n1 byte",
-        f"schema_id {schema['id']}\n2 bytes",
-        f"schema_version {schema['version']}\n2 bytes",
-        f"field_count {len(schema['fields'])}\n2 bytes",
+        f"tag {struct['tag']}\n1 byte",
+        f"schema_id {schema['id']}\n{byte_count(schema_id_bytes)}",
+        f"schema_version {schema['version']}\n{byte_count(schema_version_bytes)}",
+        f"field_count {len(schema['fields'])}\n{byte_count(field_count_bytes)}",
     ]]
     output = ascii_table(rows, [14, 18, 22, 20])
     for field in schema["fields"]:
-        value_size = catalog._field_formula(schema, field)
-        if isinstance(value_size, int):
+        expression = parse_type(field["type"])
+        if expression.name == "value":
+            value_size = catalog._value_max_size(field, None, ())
+        else:
+            value_size = catalog._field_max_size(field, expression, ())
+        if value_size is not None:
             size = (
                 f"value {value_size} bytes; field total "
                 f"{struct['field_header_bytes'] + value_size} bytes"
             )
+        elif expression.name in {"bytes", "text"}:
+            header = catalog.primitive_by_name[expression.name]["header_bytes"]
+            size = f"variable value; {header}-byte value header plus payload"
+        elif expression.name == "list":
+            size = "variable-length list value"
+        elif expression.name == "value":
+            size = "context-selected encoded value"
         else:
-            size = (
-                f"value {value_size}; field total "
-                f"{struct['field_header_bytes']} + {value_size}"
-            )
+            size = "variable-length nested value"
+        if expression.name == "value":
+            size = "\n".join((size, *context_value_details(catalog, field)))
         field_rows = [[
             f"field_id {field['id']}\n{struct['field_header_bytes']} bytes",
             f"{field['name']}: {field['type']}\n{size}",
@@ -852,34 +1170,49 @@ def schema_packet_layout(catalog: Catalog, schema: dict[str, Any]) -> list[str]:
 
 def render_report(catalog: Catalog) -> str:
     output = io.StringIO()
-    output.write("Boomerang canonical wire catalog report\n")
-    output.write("Generated by scripts/generate_wire_catalog.py\n\n")
+    output.write("Boomerang wire catalog\n")
+    output.write(
+        "Generated from spec/wire_catalog.json by scripts/generate_wire_catalog.py.\n"
+        "Do not edit by hand.\n\n"
+    )
     with redirect_stdout(output):
         print_main_results(catalog)
 
     output.write("\nPrimitive wire layouts\n")
+    output.write("Primitive totals include their canonical type tag.\n")
     for primitive in catalog.primitives:
-        output.write(f"{primitive_layout(primitive)}\n")
+        output.write(f"{readable_wrap(primitive_layout(catalog, primitive))}\n")
 
     output.write("\nContainer wire layouts\n")
+    output.write("Container headers precede their recursively encoded contents.\n")
     for container in catalog.containers:
-        output.write(f"{container_layout(container)}\n")
+        output.write(f"{readable_wrap(container_layout(catalog, container))}\n")
 
     output.write("\nSchema packet layouts\n")
     output.write(
         "Frames show exact wire order and byte counts; display widths are not proportional.\n"
-        "Every field begins with its two-byte field ID. Field totals include that ID.\n"
+        "Every field begins with its field ID. Field totals include that ID.\n"
     )
     for schema in catalog.schemas:
         depth = catalog.schema_depth(schema)
+        maximum = catalog.schema_max_size(schema)
         output.write(
             f"\nSchema {schema['name']}  ID {schema['id']}  version {schema['version']}\n"
         )
         output.write("\n".join(schema_packet_layout(catalog, schema)))
-        output.write(f"\nMaximum size formula {catalog.schema_formula(schema)}\n")
-        output.write(
-            f"Known nesting {depth.depth} containers  {' -> '.join(depth.path)}\n"
-        )
+        output.write("\n")
+        if maximum is not None:
+            size_line = f"Exact encoded size  {maximum} bytes"
+            output.write(readable_wrap(size_line))
+            output.write("\n")
+        if depth.unresolved_contexts:
+            depth_label = "Known nesting lower bound"
+        else:
+            depth_label = "Deepest structural path"
+        output.write(readable_wrap(
+            f"{depth_label}  {depth.depth} containers  {' -> '.join(depth.path)}"
+        ))
+        output.write("\n")
         if depth.unresolved_contexts:
             output.write(
                 "Unresolved contexts "
@@ -898,20 +1231,20 @@ def write_or_check_report(path: Path, content: str, check: bool) -> str:
             raise CatalogError(
                 f"generated report is stale: run {Path(__file__).name}"
             )
-        return f"Verified {display_path(path)}"
+        return f"Generated report is current: {display_path(path)}"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
     except OSError as error:
         raise CatalogError(f"cannot write generated report {path}: {error}") from error
-    return f"Wrote {display_path(path)}"
+    return f"Generated {display_path(path)}"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Validate the wire catalog and generate formulas, nesting paths, "
-            "unresolved limits, and ASCII packet layouts."
+            "Generate structural summaries and ASCII packet layouts from the "
+            "wire catalog JSON."
         )
     )
     parser.add_argument(
@@ -946,7 +1279,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.stdout:
             print(report, end="")
     except CatalogError as error:
-        print(f"Catalog validation failed\n{error}", file=sys.stderr)
+        print(f"Catalog generation failed\n{error}", file=sys.stderr)
         return 1
     return 0
 

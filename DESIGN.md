@@ -8,6 +8,8 @@ This document is the technical companion to the
 argument, boundaries, and status. The
 [protocol specification](spec/SPEC.md) is normative for exact behavior and
 controls wherever the two differ.
+The generated [wire catalog](spec/wire_catalog.txt) provides the corresponding
+ASCII packet layouts, field IDs, and size formulas.
 
 ## Contents
 

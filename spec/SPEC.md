@@ -172,6 +172,9 @@ The following symbolic parameters are part of the implementation profile:
 | `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum permitted lag of an included peer Ping relative to the current local Niso height for counter advancement | Non-negative integer |
 | `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` catch-up per valid Pong round | Positive integer |
 
+Canonical size-limit requirements are defined in Section 8.3. Numeric limits
+must be added there before the v1 profile is complete.
+
 Each participant MUST run a binary or implementation profile whose behavior is
 identified by `PROTOCOL_VERSION`. Every signature digest, envelope context,
 setup identifier hash, and checkpoint hash MUST include `protocol_version` as
@@ -297,6 +300,12 @@ encodings. `utf8(text)` returns the NFC-normalized UTF-8 bytes of `text`.
 
 ### 8.2 Canonical encoding
 
+The machine-readable wire registry is [`wire_catalog.json`](wire_catalog.json).
+The generated [`wire_catalog.txt`](wire_catalog.txt) gives every schema's field
+IDs, byte layout, size formula, and nesting path. The JSON registry controls
+mechanical wire assignments; this specification controls protocol semantics
+and requirements.
+
 `canonical_encode(value)` is recursive and deterministic:
 
 ```text
@@ -319,6 +328,46 @@ struct:  0x40 || uint16_be(schema_id) || uint16_be(schema_version)
               || uint16_be(field_count)
               || uint16_be(field_id_0) || canonical_encode(value_0)
               || ...
+```
+
+The reusable packet layouts are:
+
+```text
+boolean
++--------------------------+
+| false 0x01 or true 0x02  |
+| 1 byte                   |
++--------------------------+
+
+fixed-width integer or byte string
++----------+----------------------------+
+| type tag | payload                    |
+| 1 byte   | width fixed by the type    |
++----------+----------------------------+
+
+variable bytes or text
++----------+----------------------+------------------+
+| type tag | payload length       | payload          |
+| 1 byte   | 4 bytes, big-endian  | declared length  |
++----------+----------------------+------------------+
+
+list
++----------+----------------------+----------------+-----+
+| tag 0x30 | item count           | encoded item 0 | ... |
+| 1 byte   | 4 bytes, big-endian  | variable       |     |
++----------+----------------------+----------------+-----+
+
+tuple
++----------+----------------------+----------------+-----+
+| tag 0x31 | item count           | encoded item 0 | ... |
+| 1 byte   | 2 bytes, big-endian  | variable       |     |
++----------+----------------------+----------------+-----+
+
+struct
++----------+-----------+----------------+-------------+----------+---------------+-----+
+| tag 0x40 | schema ID | schema version | field count | field ID | encoded value | ... |
+| 1 byte   | 2 bytes   | 2 bytes        | 2 bytes     | 2 bytes  | variable      |     |
++----------+-----------+----------------+-------------+----------+---------------+-----+
 ```
 
 The `0x00` null tag is reserved in this protocol version. Optional fields are
@@ -361,8 +410,8 @@ depth `1`, and primitives add no depth. The schema limit is its deepest valid
 path, and the global limit is no lower than the catalog's deepest valid path.
 A decoder MUST reject before descending past either limit.
 
-For each `PROTOCOL_VERSION`, the catalog MUST set finite payload-byte limits for
-variable `bytes` and `text`; item-count and encoded-size limits for lists; and
+Before v1 release, Section 8.3 MUST set finite payload-byte limits for variable
+`bytes` and `text`; item-count and encoded-size limits for lists; and
 encoded-size limits for schemas and top-level objects. Tuple counts are exact.
 Before allocation, copying, or iteration, decoders MUST use overflow-safe
 arithmetic to check lengths and counts against local and enclosing limits and
@@ -374,7 +423,32 @@ concatenation.
 
 Transport framing MAY add a length prefix or QR encoding, but signatures, hashes, CMACs, and identifiers operate on the canonical object bytes defined here.
 
-### 8.3 Key encoding
+### 8.3 Canonical size-limit requirements
+
+The finalized v1 profile MUST define inclusive limits for every variable-width
+field, collection, schema, contextual wrapper, and permitted top-level
+canonical object. It MUST also define the exact nesting limit for each schema
+and context and a protocol-wide nesting cap. Each limit applies before
+transport framing and is identified by `PROTOCOL_VERSION`.
+
+Every limit MUST be justified by the accepted syntax or external format,
+protocol semantics, and the tightest supported component. Limits that apply to
+the same syntax MAY share a value, but every affected field remains explicitly
+covered. Context-selected values and encrypted envelopes MUST have limits for
+each permitted context.
+
+The final registry MUST give each limit as a positive integer, name every
+permitted top-level context, and contain no unresolved entry. Conformance tests
+MUST accept a value at each limit and reject the first value above it. Encoded
+schema and object maxima MUST be independently recalculated from the canonical
+wire layouts in [`wire_catalog.txt`](wire_catalog.txt).
+
+The numeric registry is not yet finalized. No implementation can claim v1
+conformance until the approved values and their boundary evidence are added to
+this section. PSBT and Bitcoin transaction limits remain with the PSBT handling
+requirements in Section 15.12 and the conformance requirements in Section 21.
+
+### 8.4 Key encoding
 
 - secp256k1 ECDH public keys are 33-byte compressed SEC1 encodings;
 - BIP340 signing public keys are the corresponding 32-byte x-only encodings;
@@ -385,7 +459,7 @@ Transport framing MAY add a length prefix or QR encoding, but signatures, hashes
 
 Invalid points, infinity, non-curve points, invalid scalars, and non-canonical encodings MUST be rejected.
 
-### 8.4 Ordering
+### 8.5 Ordering
 
 Peer setup records and identity public keys are ordered lexicographically by encoded 33-byte Boomlet identity public-key bytes. Duplicate identity keys or duplicate ordering keys MUST be rejected.
 
@@ -693,6 +767,9 @@ are assigned by the order in this section, starting at `1`. Field IDs are
 assigned by field order inside each schema, starting at `1`; field ID `0` is
 reserved and is never assigned. All listed fields are required for schema
 version `1`.
+
+The generated [`wire_catalog.txt`](wire_catalog.txt) shows the complete ASCII
+packet layout and encoded-size expression for each schema below.
 
 Schema names use `UpperCamelCase`. Values and fields use `snake_case`. A
 peer-indexed value uses `i` as the index placeholder, so `peer_i_id` denotes
