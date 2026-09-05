@@ -1,0 +1,77 @@
+@startuml wt_common_switch
+title Common WT switch exchange
+hide footbox
+autonumber
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 75
+actor "User i" as U
+participant "ST i" as ST
+participant "Niso i" as N
+participant "Boomlet i" as B
+participant "Other four Boomlets" as P
+participant "Candidate WT" as C
+participant "Bound SAR i" as S
+
+legend left
+Logical authenticated paths may be relayed by Nisos.
+Each of the other four peers performs its own review and local service checks.
+endlegend
+
+group Review and freeze
+  N -> B: Propose a different setup-roster candidate
+  B -> B: Build manifest and resume-package commitment
+  B -> ST: Authenticated nonce-bound review commitment
+  ST -> U: Display setup, scope, both WTs and recovery policy
+  U -> ST: Approve
+  ST -> B: Signed nonce-bound review
+  B -> B: Verify review against unchanged local state
+  B -> B: Persist exact intent and freeze ordinary advancement
+  B -> P: Signed intent, manifest and committed package evidence
+  P -> B: Four signed intents and committed evidence
+  B -> B: Verify all five, own exact intent and compatible scope
+  B -> B: Derive common wt_switch_id and recovery mode
+end
+
+group Candidate preparation
+  N -> C: Five intents, setup agreement and reconstruction evidence
+  C -> C: Verify roster membership, signatures, packages and phase gates
+  C -> N: Registration and payment requirements
+  N -> C: Required registration and payment evidence
+  C -> B: Candidate setup receipt through Niso
+  B -> C: Bound SAR identity and authenticated switch probe
+  C -> S: Forward probe to the exact SAR
+  S -> C: Signed probe response encrypted to Boomlet i
+  C -> B: Forward exact response
+  B -> B: Verify own receipt, payment and fresh SAR response
+  note over P,C
+    The other four peers independently finish their local prerequisites.
+    Candidate retains the five committed reconstruction packages.
+  end note
+  C -> B: Signed deterministic ready commitment
+  C -> P: Same signed readiness content
+  B -> B: Verify candidate readiness and derive activation digest
+end
+
+group Ballot zero
+  B -> B: Persist PREPARE(ACTIVATE)
+  B -> P: PREPARE
+  P -> B: Four matching PREPARE votes
+  B -> B: Verify and durably retain five-vote PreparedCertificate
+  B -> B: Persist COMMIT for the same ballot and value
+  B -> P: COMMIT
+  P -> P: Each verifies five PREPARE votes, retains their certificate,\nand persists matching COMMIT before export
+  P -> B: Four matching COMMIT votes
+  B -> B: Verify final five-vote DecisionCertificate
+  B -> P: Relay complete DecisionCertificate
+  B -> C: Complete ACTIVATE DecisionCertificate
+  B -> B: Atomically install new head and candidate index
+  P -> P: Each peer installs after verifying the final certificate
+  C -> C: Begin coordination under the certified head
+end
+
+note over B,C
+  Continue the retained phase only after local certificate installation.
+  A timeout or cancellation enters 07_decision_recovery.puml.
+  Ordinary withdrawal state remains frozen until a final decision.
+end note
+@enduml

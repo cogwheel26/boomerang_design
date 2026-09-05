@@ -1,0 +1,86 @@
+@startuml wt_digging_failover
+title WT failover during DIGGING
+hide footbox
+autonumber
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 75
+participant "Boomlet A" as A
+participant "Boomlet B" as B
+participant "Other three Boomlets" as P
+participant "STs" as ST
+participant "Old WT" as Old
+participant "Candidate WT" as C
+participant "Bound SARs" as S
+
+opt Partial delivery of an old Pong round
+  Old -> A: Valid old-head Pong and own exact SAR acknowledgment
+  A -> A: Apply ordinary counter and bounded height rules
+  Old -x B: Pong unavailable
+  B -> B: Retain outstanding Ping and previous counter
+end
+
+ref over A,C
+  02_common_switch.puml
+  Five reviewed snapshots preserve DIGGING and report predecessor heights.
+  Install the candidate only after a final ACTIVATE certificate.
+end ref
+
+alt Final ABORT
+  A -> A: Retain original head, accepted increment and obligations
+  B -> B: Retain original head and outstanding Ping
+else Final ACTIVATE
+  group Resolve retained obligations
+    C -> S: Replay each exact unresolved placeholder
+    S -> C: Encrypted acknowledgment of each exact placeholder
+    C -> A: Own acknowledgment where outstanding
+    C -> B: Own acknowledgment where outstanding
+    C -> P: Each peer's own acknowledgment where outstanding
+    A -> A: Verify exact bytes and retire only acknowledged obligation
+    B -> B: Verify exact bytes and retire only acknowledged obligation
+    note over A,ST
+      Every peer finishes its own pending duress challenge when required.
+      A illustrates that exchange below.
+    end note
+    opt A duress challenge was already required by an accepted Pong
+      A -> ST: Retained nonce-bound challenge
+      ST -> A: User response
+      A -> A: Finish pending challenge before creating a placeholder
+    end
+  end
+
+  group One recovery Ping per installed head
+    A -> A: Persist next signed padded Ping with fresh placeholder IV
+    B -> B: Persist next signed padded Ping with fresh placeholder IV
+    A -> C: Recovery Ping with next sequence and retained reached flag
+    B -> C: Recovery Ping with next sequence and retained reached flag
+    P -> C: Three corresponding fresh recovery Pings
+    note over A,P
+      Recovery creation leaves counters and heights unchanged.
+      Crash retries send identical retained Ping bytes.
+    end note
+    C -> S: Forward every new exact placeholder
+    S -> C: Each encrypted exact SAR acknowledgment
+  end
+
+  alt All five fresh Pings have reached flags
+    C -> A: Current-head reached collection
+    C -> B: Current-head reached collection
+    C -> P: Current-head reached collection
+    A -> A: Verify five reached Pings before signing eligibility
+    B -> B: Verify five reached Pings before signing eligibility
+  else At least one peer is still digging
+    C -> C: Respect maximum inherited predecessor height plus spacing
+    C -> A: Head-scoped Pong with four peer Pings and own SAR acknowledgment
+    C -> B: Head-scoped Pong with four peer Pings and own SAR acknowledgment
+    C -> P: Recipient-specific Pongs and own acknowledgments
+    A -> A: Verify strict sequences, heights, scope, spacing and exact acknowledgment
+    B -> B: Verify strict sequences, heights, scope, spacing and exact acknowledgment
+    A -> A: Apply ordinary counter predicate and bounded catch-up
+    B -> B: Apply ordinary counter predicate and bounded catch-up
+    ref over A,ST
+      Each peer performs its ordinary per-round duress draw,
+      completes any selected challenge, and creates its next ordinary Ping.
+    end ref
+  end
+end
+@enduml

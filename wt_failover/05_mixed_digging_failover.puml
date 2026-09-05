@@ -1,0 +1,51 @@
+@startuml wt_mixed_digging_failover
+title WT failover across DIGGING entry
+hide footbox
+autonumber
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 75
+participant "Initialized Boomlet A" as A
+participant "Lagging Boomlet B" as B
+participant "Other three Boomlets" as P
+participant "Candidate WT" as C
+participant "Bound SARs" as S
+
+note over A,B
+  A has initialized its mystery.
+  B has accepted the same approvals and produced its exact commit,
+  but has not accepted the complete commit collection.
+end note
+
+ref over A,C
+  02_common_switch.puml
+  Five reviewed frozen manifests select PRESERVE_WITHDRAWAL.
+  Candidate validates the committed reconstruction evidence.
+end ref
+
+alt Final ABORT
+  A -> A: Retain initialized delay and pending obligations
+  B -> B: Retain local commit and original phase
+else Final ACTIVATE
+  A -> A: Install head; retain mystery, counter, IDs, heights and sequences
+  B -> B: Install head; retain accepted approvals and own exact commit
+  C -> C: Reconstruct five exact signed padded commits
+  C -> S: Route exact committed placeholders to their bound SARs
+  S -> C: Encrypted acknowledgments of exact placeholders
+  C -> B: Complete COMMIT_SET, own SAR acknowledgment,\nand fresh head-scoped WT commit response
+  B -> B: Verify own prior gates, all five commits, exact acknowledgment,\nIDs, activation certificate, chain and milestone conditions
+  alt Every local DIGGING entry guard holds
+    B -> B: Sample mystery once; initialize counter, height and sequence
+    A -> A: Resolve own outstanding placeholder and duress obligations
+    A -> C: Fresh recovery Ping with retained reached state
+    B -> C: Normal initial Ping for the preserved approved withdrawal
+    P -> P: Each peer resolves its own outstanding obligations
+    P -> C: Initial or recovery Pings according to each peer's state
+    ref over A,S
+      06_digging_failover.puml
+      Continue from the current-Ping collection into ordinary Pong validation.
+    end ref
+  else Missing evidence or invalid local prerequisite
+    B -> B: Stall entry while retaining its current state
+  end
+end
+@enduml
