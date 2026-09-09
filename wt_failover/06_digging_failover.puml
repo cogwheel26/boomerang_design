@@ -19,9 +19,16 @@ opt Partial delivery of an old Pong round
   B -> B: Retain outstanding Ping and previous counter
 end
 
+opt A duress challenge was required by an accepted Pong
+  A -> ST: Retained nonce-bound challenge before freeze
+  ST -> A: User response
+  A -> A: Bind answer to exact next ordinary placeholder before freeze
+end
+
 ref over A,C
   02_common_switch.puml
   Five reviewed snapshots preserve DIGGING and report predecessor heights.
+  Discharge every frozen placeholder before initial PREPARE.
   Install the candidate only after a final ACTIVATE certificate.
 end ref
 
@@ -29,24 +36,10 @@ alt Final ABORT
   A -> A: Retain original head, accepted increment and obligations
   B -> B: Retain original head and outstanding Ping
 else Final ACTIVATE
-  group Resolve retained obligations
-    C -> S: Replay each exact unresolved placeholder
-    S -> C: Encrypted acknowledgment of each exact placeholder
-    C -> A: Own acknowledgment where outstanding
-    C -> B: Own acknowledgment where outstanding
-    C -> P: Each peer's own acknowledgment where outstanding
-    A -> A: Verify exact bytes and retire only acknowledged obligation
-    B -> B: Verify exact bytes and retire only acknowledged obligation
-    note over A,ST
-      Every peer finishes its own pending duress challenge when required.
-      A illustrates that exchange below.
-    end note
-    opt A duress challenge was already required by an accepted Pong
-      A -> ST: Retained nonce-bound challenge
-      ST -> A: User response
-      A -> A: Finish pending challenge before creating a placeholder
-    end
-  end
+  note over A,P
+    Frozen obligations were discharged before PREPARE.
+    Installation preserves those discharges and all private delay state.
+  end note
 
   group One recovery Ping per installed head
     A -> A: Persist next signed padded Ping with fresh placeholder IV
@@ -63,11 +56,11 @@ else Final ACTIVATE
   end
 
   alt All five fresh Pings have reached flags
-    C -> A: Current-head reached collection
-    C -> B: Current-head reached collection
-    C -> P: Current-head reached collection
-    A -> A: Verify five reached Pings before signing eligibility
-    B -> B: Verify five reached Pings before signing eligibility
+    C -> A: Current-head reached collection and own exact SAR acknowledgment
+    C -> B: Current-head reached collection and own exact SAR acknowledgment
+    C -> P: Current-head reached collection and each own exact SAR acknowledgment
+    A -> A: Verify five reached Pings and own exact acknowledgment before signing
+    B -> B: Verify five reached Pings and own exact acknowledgment before signing
   else At least one peer is still digging
     C -> C: Respect maximum inherited predecessor height plus spacing
     C -> A: Head-scoped Pong with four peer Pings and own SAR acknowledgment

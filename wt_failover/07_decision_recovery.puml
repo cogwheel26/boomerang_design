@@ -11,7 +11,7 @@ participant "Candidate WT" as C
 note over A,P
   The five reviewed intents identify one frozen switch.
   A may have emitted PREPARE or COMMIT.
-  A timeout or cancellation request starts recovery.
+  Trusted bounded admission permits recovery after timeout or cancellation.
 end note
 
 alt A complete final decision certificate is available
@@ -19,6 +19,7 @@ alt A complete final decision certificate is available
   A -> A: Verify and learn completed decision, even below current promise
   A -> P: Relay final certificate for convergence
 else No final certificate is available
+  A -> A: Admit next successor within trusted allowance
   A -> A: Atomically persist higher ballot and exact highest-certificate report
   A -> P: RECOVER(target ballot, prepared certificate or NONE)
   P -> P: Each peer persists its higher promise and exact report
@@ -67,7 +68,8 @@ end
 
 note over A,C
   Recovery requires five cooperating peers and retained evidence.
-  Finishing a prepared decision requires no new candidate or SAR response.
+  Prepared activation proves every honest signer discharged its frozen duty.
+  Finishing the decision requires no new candidate or SAR response.
   A superseded recovery ballot retries at a higher ballot.
 end note
 @enduml

@@ -19,9 +19,11 @@ endlegend
 
 group Review and freeze
   N -> B: Propose a different setup-roster candidate
-  B -> B: Build manifest and resume-package commitment
+  B -> B: Finish required challenge and resolve live signing nonce
+  B -> B: Reserve storage and bounded trusted recovery allowance
+  B -> B: Build manifest, exact obligation and resume-package commitment
   B -> ST: Authenticated nonce-bound review commitment
-  ST -> U: Display setup, scope, both WTs and recovery policy
+  ST -> U: Display setup, scope, both WTs, recovery policy,\nand exact abandonment scope when applicable
   U -> ST: Approve
   ST -> B: Signed nonce-bound review
   B -> B: Verify review against unchanged local state
@@ -38,22 +40,38 @@ group Candidate preparation
   C -> N: Registration and payment requirements
   N -> C: Required registration and payment evidence
   C -> B: Candidate setup receipt through Niso
-  B -> C: Bound SAR identity and authenticated switch probe
-  C -> S: Forward probe to the exact SAR
-  S -> C: Signed probe response encrypted to Boomlet i
-  C -> B: Forward exact response
-  B -> B: Verify own receipt, payment and fresh SAR response
+  B -> B: Verify own registration and payment evidence
+  opt Local SAR finalization is incomplete
+    B -> C: Existing end-to-end SAR setup request
+    C -> S: Forward request to fixed SAR
+    S -> C: Inner signed finalization response encrypted to Boomlet i
+    C -> B: Forward response in candidate-scoped transport
+    B -> B: Verify and retain own SAR finalization receipt
+  end
+  opt Frozen placeholder remains unacknowledged
+    C -> C: Verify committed padded object and original authorization gates
+    C -> S: Route exact retained placeholder to fixed SAR
+    S -> C: Ordinary exact-envelope acknowledgment encrypted to Boomlet i
+    C -> B: Forward response in candidate transport
+    B -> B: Verify exact acknowledgment and durably discharge own duty
+  end
+  B -> B: Require discharged duty or frozen NO_PLACEHOLDER
+  note over B,S
+    Duplicate acknowledgment changes no phase, height or counter.
+    Missing gate evidence, bytes or acknowledgment blocks PREPARE.
+  end note
   note over P,C
     The other four peers independently finish their local prerequisites.
     Candidate retains the five committed reconstruction packages.
   end note
   C -> B: Signed deterministic ready commitment
   C -> P: Same signed readiness content
-  B -> B: Verify candidate readiness and derive activation digest
+  B -> B: Verify readiness binds mode, exact closure scope and obligation vector
+  B -> B: Derive single activation digest
 end
 
 group Ballot zero
-  B -> B: Persist PREPARE(ACTIVATE)
+  B -> B: Persist PREPARE(ACTIVATE), attesting own obligation discharge
   B -> P: PREPARE
   P -> B: Four matching PREPARE votes
   B -> B: Verify and durably retain five-vote PreparedCertificate

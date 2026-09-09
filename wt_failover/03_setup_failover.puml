@@ -10,7 +10,7 @@ participant "Other four peers" as P
 participant "Old WT" as Old
 participant "Candidate WT" as C
 participant "Bound SAR i" as S
-participant "Iso and inactive backup" as Backup
+participant "Iso and designated Boomletwo" as Backup
 
 N -> Old: Pending WT-dependent setup request
 ... Silence threshold or explicit user decision ...
@@ -25,7 +25,7 @@ end
 ref over B,C
   02_common_switch.puml
   Five reviews and frozen snapshots, candidate registration,
-  bound SAR preparation and fresh probes, PREPARE and COMMIT.
+  required SAR finalization and obligation discharge, PREPARE and COMMIT.
   07_decision_recovery.puml handles an interrupted decision.
 end ref
 
@@ -40,16 +40,15 @@ else Final ACTIVATE
     B -> P: Signed WT-ready checkpoint
     P -> B: Complete matching checkpoint collection
   else WT_READY
-    B -> C: Bound SAR identity and pending encrypted finalization request
-    C -> S: Forward exact request
-    S -> C: Encrypted signed finalization evidence
-    C -> B: Authenticated finalization evidence
-    B -> B: Verify own SAR-ready prerequisite
+    B -> B: Verify retained SAR finalization receipt from candidate preparation
+    B -> B: Complete own SAR-ready prerequisite
     B -> P: Signed SAR-ready checkpoint
     P -> B: Complete matching checkpoint collection
   else SAR_READY
-    B -> Backup: Target-bound backup with active head and replay state
-    Backup -> B: Signed backup receipt
+    ref over B,Backup
+      Finish base authorized encrypted Boomletwo backup.
+      Preserve normal-key authorization, Iso checks and BackupDone.
+    end ref
     B -> B: Verify local backup-ready prerequisite
     B -> P: Signed backup-ready checkpoint
     P -> B: Complete matching checkpoint collection

@@ -19,7 +19,10 @@ end note
 ref over U,C
   02_common_switch.puml
   Each reviewed intent commits its local phase and initialized flag.
-  The five frozen manifests determine restart or preservation.
+  The five frozen manifests determine closure or preservation.
+  Before initial PREPARE, discharge every exact committed placeholder.
+  Closure requires all five initialized flags false and reviewed abandonment IDs.
+  PREPARE itself is each peer's signed discharge attestation.
 end ref
 
 alt Final ABORT
@@ -39,13 +42,15 @@ else Final ACTIVATE and all five establish DIGGING never initialized
   C -> B: Ordered complete approval set
   B -> B: Verify all approvals and derive approved_withdrawal_id
   B -> C: Four non-initiator approval-set attestations
-  B -> U: Initial duress challenges
+  B -> U: Initiator initial duress challenge
   U -> B: Nonce-bound responses
   B -> C: Initiator signed padded TxCommit
   C -> C: Verify four-attestation gate
   C -> S: Initiator exact placeholder
   S -> C: Encrypted exact acknowledgment
   C -> B: Head-scoped initiator commit acknowledgment
+  B -> U: Non-initiator challenges after verifying acknowledgment
+  U -> B: Nonce-bound non-initiator responses
   B -> C: Non-initiator signed padded commits after acknowledgment checks
   C -> S: Each exact non-initiator placeholder
   S -> C: Encrypted exact acknowledgments
@@ -59,7 +64,7 @@ else Final ACTIVATE and at least one peer initialized DIGGING
 end
 
 note over B,S
-  An old placeholder may still trigger irreversible rescue activation.
+  Completed SAR rescue activation survives both ACTIVATE and ABORT.
   Switch approval is separate from transaction approval.
 end note
 @enduml

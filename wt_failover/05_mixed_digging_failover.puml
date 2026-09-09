@@ -19,7 +19,8 @@ end note
 ref over A,C
   02_common_switch.puml
   Five reviewed frozen manifests select PRESERVE_WITHDRAWAL.
-  Candidate validates the committed reconstruction evidence.
+  Candidate validates committed reconstruction and original gates.
+  Every peer verifies its exact outstanding SAR acknowledgment before PREPARE.
 end ref
 
 alt Final ABORT
@@ -29,16 +30,14 @@ else Final ACTIVATE
   A -> A: Install head; retain mystery, counter, IDs, heights and sequences
   B -> B: Install head; retain accepted approvals and own exact commit
   C -> C: Reconstruct five exact signed padded commits
-  C -> S: Route exact committed placeholders to their bound SARs
-  S -> C: Encrypted acknowledgments of exact placeholders
   C -> B: Complete COMMIT_SET, own SAR acknowledgment,\nand fresh head-scoped WT commit response
-  B -> B: Verify own prior gates, all five commits, exact acknowledgment,\nIDs, activation certificate, chain and milestone conditions
+  B -> B: Verify own prior gates, all five commits, exact acknowledgment,\nIDs, activation certificate, chain and milestone conditions;\nonly exact historical commit and gate ages receive an exception
   alt Every local DIGGING entry guard holds
     B -> B: Sample mystery once; initialize counter, height and sequence
-    A -> A: Resolve own outstanding placeholder and duress obligations
+    A -> A: Retain discharge and completed pre-freeze challenge
     A -> C: Fresh recovery Ping with retained reached state
     B -> C: Normal initial Ping for the preserved approved withdrawal
-    P -> P: Each peer resolves its own outstanding obligations
+    P -> P: Each peer retains its verified frozen discharge
     P -> C: Initial or recovery Pings according to each peer's state
     ref over A,S
       06_digging_failover.puml

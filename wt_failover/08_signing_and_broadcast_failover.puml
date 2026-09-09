@@ -54,12 +54,20 @@ else Coordination is needed for signing or fragment collection
     B -> N: Retained signed fragment and Boomlet-authenticated new-head envelope
     N -> N: Persist fragment and required recovery evidence
     N -> C: Forward Boomlet-authenticated fragment envelope
+    C -> C: Verify and durably retain exact fragment
+    C -> B: Head-bound FragmentReceipt over origin, approved ID and digest
+    B -> B: Record dissemination; retain own exact fragment
     P -> C: Four retained signed fragments through authenticated paths
     C -> C: Verify all five, descriptor, final transaction and approved tx_id
     C -> Chain: Broadcast exact approved transaction
-    C -> N: Head-scoped fragment or completion evidence
+    C -> N: Complete signed transaction and head-bound CompletionReceipt
+    N -> B: Exact complete transaction and receipt
+    B -> B: Verify complete transaction, all five fragments and own SAR duty
+    B -> B: Atomically mark COMPLETED_RETAINED; retain own fragment and closed IDs
+    B -> B: Erase completed private delay state and consumed session secrets
     note over N,C
-      Durable receipt and retention rules gate evidence erasure.
+      An untrusted holder receipt cannot authorize fragment erasure.
+      Archive erasure requires permanent setup-identity retirement.
       Consumed secret nonces are never used for another signing attempt.
     end note
   end
