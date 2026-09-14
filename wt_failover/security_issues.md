@@ -24,19 +24,7 @@ authorization and setup export boundaries are inherited. Protocol and device imp
 
 ## Review boundaries
 
-The rescue controls require each signer to discharge its own frozen placeholder
-before PREPARE. Activation votes bind the common obligation vector, and ABORT
-preserves completed discharges. Initialized withdrawals and exported fragments
-remain recoverable until their normal completion guards hold.
-
-The [checkpoint candidate](boomlet_rollover.md) uses the designated offline
-backup and has no continuously online ST dependency. Its encrypted snapshot
-provides authenticated state at one point, not proof of latest state or source
-exclusion. Independent redraw and stale-state counterexamples remain explicit.
-The delay floors do not complete activation or repair missing rescue duties.
-
-All-five cooperation, fixed resource ceilings, SAR and chain availability, and
-device integrity limit availability. The [verification report](security_verification.md)
-contains the security argument, model results, and remaining blockers. The
-[integration requirements](security_requirements.md) define the assumptions and
-audit work required for adoption.
+The [verification report](security_verification.md) contains the security argument
+and remaining blockers. The [integration requirements](security_requirements.md)
+define assumptions and audit work. Availability still depends on all five peers,
+profile limits, required services, safe chain evidence and device integrity.

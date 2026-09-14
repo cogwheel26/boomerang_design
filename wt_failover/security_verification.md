@@ -1,10 +1,8 @@
 # Security verification
 
-The current [Boomletwo candidate](boomlet_rollover.md) uses self-contained Ping
-checkpoints and an offline backup, without a continuously online ST. Numerical
-checks establish conservative threshold bounds in valid progress units and
-expose unsafe independent redraws. They do not solve latest-state recovery or
-old-source exclusion. WT decision and lifecycle experiments remain separate.
+The [Boomletwo candidate](boomlet_rollover.md) and WT decision profile are checked
+against the findings below. The models do not establish implementation safety,
+latest-state recovery, source exclusion or real chain progress.
 
 ## Findings
 
@@ -19,30 +17,12 @@ old-source exclusion. WT decision and lifecycle experiments remain separate.
 
 ## Checkpoint security review
 
-The base permits a designated encrypted setup backup and leaves activation open
-in [SPEC Section 18.5](../spec/SPEC.md#185-boomletwo). The candidate keeps that
-backup offline and uses source-signed, target-encrypted Ping checkpoints as
-recovery evidence. It introduces no trusted recorder. Mutable checkpoint export
-is limited to that target and cannot change immutable setup policy.
-
-A new mystery applied to a restored counter is unsafe. In the explicit 1–100
-example at counter 80, 80 of 100 independent draws would already be reached.
-Using max(original mystery, new independent draw) preserves the original floor.
-Using the setup upper bound plus the independent draw avoids carrying the original
-mystery, with additional delay that must fit the fallback schedule.
-
-These are bounds on valid counter progress. They do not permit counting old
-Pongs, Ping sequence numbers or offline elapsed time as new progress. Stale
-counters can withhold progress safely, but stale negative facts about duties
-and votes can erase security obligations. The same authentic checkpoint can
-precede no further activity, a concealed duress duty, a hidden COMMIT, or an
-isolated source that remains usable. Peer replies cannot distinguish these
-histories when every surviving peer is dishonest.
-
-The [finite checks](boomlet_rollover_model.md) enumerate conservative threshold
-bounds, the immediate-completion attack and a concurrent-draw example where a
-finish probability of 1/4 becomes 7/16. Exclusion and complete-state recovery
-remain required before backup signing or WT voting is enabled.
+The candidate stays within SPEC Section 18.5's designated backup boundary. The
+[finite checks](boomlet_rollover_model.md) verify both conservative threshold
+policies and reproduce the unsafe raw redraw. They also show that one authentic
+checkpoint fits histories with a later duty, hidden COMMIT or usable source.
+Historical Pongs, Ping counts and offline time earn no progress. Exclusion and
+complete-state recovery remain prerequisites for signing or WT voting.
 
 ## WT security argument
 

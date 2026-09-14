@@ -5,24 +5,31 @@ DIGGING checkpoint. Boomletwo can remain offline while peers, WT and Niso retain
 the packet. ST participates in its ordinary user interactions and an eventual
 recovery review, with no continuous recording duty.
 
-This is a useful transport and DIGGING-state mechanism. A complete activation
-protocol must additionally prevent concurrent source authority and account for
-security events later than the supplied checkpoint. The rules below distinguish
-what the packet proves from those unresolved requirements. Activation assumes
-the original Boomlet is unavailable; it never requests its cooperation.
+This proposal extends [SPEC.md](../spec/SPEC.md) and the [WT failover
+profile](README.md). Their requirements apply unless explicitly changed below.
+Source exclusion and later-state recovery remain unresolved, so the checkpoint
+does not authorize activation. Recovery assumes no source cooperation.
+
+## High-level flow
+
+1. Encrypt a bounded recovery checkpoint to the designated Boomletwo and bind it
+   into an ordinary signed Ping.
+2. Have Niso, WT and peers retain the Ping bundle while normal DIGGING continues.
+3. After source loss, verify the checkpoint, setup binding, SAR duty and recorded WT head.
+4. Establish source exclusion and account for later security state before enabling recovery.
+5. Restore progress under a conservative threshold and resume ordinary protocol gates;
+   remain inactive if the activation safeguards are incomplete.
 
 ## 1. Packet and setup binding
 
-Keep the one designated Boomletwo authorized by the base setup backup, its
-normal-key authorization, Iso checks and `BackupDone`. Pin that target's
-bootstrap identity and the immutable setup policy. Recovery cannot select an
-arbitrary target or change ST, SAR, normal key, consent set or descriptor.
+The SPEC Section 13.10 backup fixes the only eligible Boomletwo and immutable
+setup policy. Recovery cannot select another target or change that policy.
 
 A recovery-capable Ping bundle contains:
 
 - the ordinary Ping header and exact encrypted SAR placeholder;
 - a bounded checkpoint encrypted and authenticated directly to the designated
-  Boomletwo, using the existing ECDH and CBC-CMAC construction;
+  Boomletwo under the SPEC cryptographic profile;
 - a commitment to that ciphertext inside the Ping's existing signed content.
 
 The ciphertext is a detached part of the same bundle. The commitment lets peers
@@ -30,10 +37,10 @@ forward the signed Ping without copying a large private checkpoint into every
 collection. The bundle itself includes the bytes, not only a URL or hash. Any
 holder can supply it, but no holder gains recovery authority.
 
-Bind the encryption to the profile, setup, designated target, approved withdrawal
-ID, Ping sequence and checkpoint format. The signed header, checkpoint and exact
-placeholder must agree on those bindings. Use fresh IVs; exact retries preserve
-the original bytes. Authenticate the exact retained ciphertext before decryption.
+Bind the encryption to the profile, setup, target, approved withdrawal ID, Ping
+sequence and checkpoint format. The header, checkpoint and placeholder must
+agree. Apply SPEC IV and retry rules, and authenticate retained ciphertext before
+decryption.
 
 The checkpoint contains the actual counter, initialized status, original mystery
 if the selected delay policy uses it, reached flag, height and spacing floors,
@@ -51,10 +58,8 @@ placeholder bytes provide the binding without a recursive hash definition.
 Store only bounded state and references to supplied evidence, not nested earlier
 checkpoint packets. Exact field layout and size limits remain conformance work.
 
-The existing Ping signature covers the added commitment; a second source
-signature solely for the checkpoint is unnecessary. Its WT-neutral recovery
-context survives a WT change. Current WT authority still uses the ordinary
-head-bound WT signature and channel checks.
+The Ping signature covers the added commitment. Its WT-neutral recovery context
+survives a WT change; current authority still requires the head-bound WT checks.
 
 ## 2. Including the recipient's own Ping in Pong
 
@@ -67,16 +72,12 @@ recipient-specific four-Ping collections.
 Require exactly one Ping from each setup peer in canonical peer order, including
 the recipient in its own slot. Missing, repeated or substituted identities fail.
 
-During ordinary operation, Boomlet requires its returned Ping to match the exact
-one it retained. That comparison can avoid an additional self-signature check.
-During recovery, Boomletwo verifies the original Boomlet signature and checkpoint
-binding instead. It still verifies the other four signatures and their ordinary
-sequence, reached-state and freshness conditions.
+Boomlet compares its own returned Ping with retained bytes. Boomletwo instead
+verifies the source signature and checkpoint binding. SPEC validation applies to
+the other four Pings.
 
-Counter advancement continues to test the other four peers. Adding the own Ping
-to that freshness predicate would change the lagging-peer catch-up behavior.
-An old self Ping and its historical Pong are evidence, not a newly received Pong
-that earns another counter increment. Exact SAR discharge remains mandatory.
+Counter advancement still tests only the other four peers. An old self Ping and
+historical Pong earn no new increment. Exact SAR discharge remains mandatory.
 
 The change saves common WT signing work but adds an own-Ping header to each
 recipient's collection. Detached checkpoints avoid multiplying private-state
@@ -127,11 +128,8 @@ signing by itself. A new delay must not silently regress an already published
 reached flag in the same Ping stream; any such policy needs explicit incarnation
 semantics. The formulas above apply to an unreached checkpoint.
 
-Starting an entirely new counter at zero with a full fresh draw is a different
-policy. Under the base uniform draw, with the source truly gone, it can be slower
-in distribution than the remaining old game. It does not establish exclusive
-authority, preserve the exact realized delay, or recover pending obligations.
-Neither that policy nor the two thresholds above completes activation by itself.
+Starting a fresh counter at zero neither preserves the realized delay nor solves
+authority or obligation recovery. No threshold policy completes activation.
 
 ## 4. What a saved Ping proves
 
@@ -144,10 +142,8 @@ Neither that policy nor the two thresholds above completes activation by itself.
 | No later duress challenge, placeholder, vote or signing output exists | No |
 | The source is destroyed or unable to continue | No |
 
-A stale counter is a lower bound and can conservatively withhold progress.
-Missing rescue duties, replay tombstones and hidden WT votes cannot be treated
-as harmless lost progress. A complete signed packet authenticates a snapshot,
-not a negative claim about everything that happened afterward.
+A signed packet authenticates one snapshot. It cannot turn missing duties,
+tombstones or votes into harmless lost progress.
 
 For example, the host may retain a safe checkpoint, suppress a later Ping with
 an undelivered duress placeholder, and present the safe checkpoint at recovery.
@@ -155,10 +151,8 @@ The source could also have emitted a WT COMMIT after its last Ping; four peers
 can conceal that vote and its final certificate. Recovering “no pending vote”
 from the old packet could then create a conflicting decision.
 
-Covering more fields inside the Ping does not cover events between Pings.
-Checkpointing every security output improves recoverable evidence, but untrusted
-holders can still conceal the newest checkpoint. A chain proves ancestry, not
-that no signed successor exists.
+More checkpoint fields do not cover later events, and an untrusted holder can
+conceal the newest checkpoint.
 
 ## 5. Peer WT discovery
 
@@ -187,17 +181,10 @@ source vote or establish exclusive activation.
 
 ## 6. Activation requirements beyond the Ping
 
-The source-loss declaration must be safe even when an attacker has isolated,
-rather than destroyed, the original Boomlet. Merely naming a new incarnation
-or asking peers to ignore the old one is insufficient when those peers collude.
-Both devices otherwise retain the same logical signing authority.
-
-Independent redraws make that risk concrete. If two independent remaining-delay
-samples each finish within a period with probability `p`, allowing either result
-to win gives probability `1 - (1 - p)^2`. At `p = 1/4`, that is `7/16` instead
-of `1/4`. Conditional redraws do not remove the benefit of concurrent trials.
-Preserving the original threshold as a floor addresses threshold reduction;
-it does not prove global exclusion or prevent conflicting WT histories.
+Source-loss handling must remain safe when the original is isolated rather than
+destroyed. A new incarnation or peer promise cannot fence it. The threshold
+floor prevents delay reduction but not concurrent authority or conflicting WT
+histories.
 
 Before enabling signing or WT voting on Boomletwo, a complete design must supply:
 
@@ -205,8 +192,7 @@ Before enabling signing or WT voting on Boomletwo, a complete design must supply
 - a rule for later or concealed rescue duties, decisions and replay state;
 - authenticated reconstruction of the selected transaction and required evidence;
 - one-time activation, replay protection and fresh local signing nonces;
-- unchanged ordinary review, SAR and DIGGING gates, plus the inherited chain
-  observation assumptions and a conservative recovery progress floor.
+- all inherited protocol gates, chain assumptions and a conservative progress floor.
 
 Historical Pongs cannot be replayed to earn fresh progress. Recovery must not
 convert offline elapsed time, Ping count, checkpoint selection or speculative
@@ -214,11 +200,8 @@ height catch-up into extra counter increments. The exact fresh-progress and
 incarnation rules require specification before using the numerical delay bound
 as a claim about elapsed time. The base authenticated-chain issue remains open.
 
-The self-contained-Ping mechanism does not require a continuously online ST or
-backup. It also does not currently provide the first two guarantees above under
-the one-honest-peer model. They remain explicit design requirements, not an
-assumption that the source kindly stops. No activation command is authorized
-solely by the checkpoint or peer reports.
+The first two guarantees remain unsolved under the one-honest-peer model. No
+activation command is authorized solely by a checkpoint or peer reports.
 
 ## 7. Cost and verification
 
@@ -229,11 +212,9 @@ exact retained-byte comparison; recovery performs source verification and one
 checkpoint decryption. ST has no recurring recording role, and Boomletwo has no
 normal-operation power or connectivity requirement.
 
-These savings concern transport and DIGGING recovery only. The snapshot format,
-byte limits, holder availability, incarnation rules and complete activation
-mechanism are not finalized. State must stay confidential, valid safe and duress
-bundles must have the same padded shape, and no decoder may import arbitrary
-private policy or restore secret signing nonces.
+The snapshot format, limits, retention, incarnation rules and activation
+mechanism remain unfinished. Checkpoints cannot alter private policy or restore
+secret signing nonces; SPEC confidentiality and duress-shape rules apply.
 
 The [bounded checks](boomlet_rollover_model.md) demonstrate threshold bounds,
 redraw counterexamples and stale-checkpoint indistinguishability. They do not

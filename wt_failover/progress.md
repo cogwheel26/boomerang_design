@@ -43,6 +43,3 @@ checkpoint fields or a five-Ping Pong format.
   from any additional recovery delay.
 - [ ] Compose the complete mechanism with WT recovery, duress and signing;
   verify cryptographic encodings, device lifecycle and measured resource costs.
-
-Only proposal artifacts in this directory are changed. No base implementation
-or base specification is modified.

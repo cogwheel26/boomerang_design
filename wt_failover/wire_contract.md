@@ -217,20 +217,9 @@ for deployment until those conformance and device requirements are satisfied.
 
 ## Self-contained Ping candidate
 
-[Boomletwo recovery](boomlet_rollover.md) proposes a checkpoint encrypted to the
-designated setup backup, with its digest covered by the existing Ping signature.
-A detached ciphertext accompanies the recovery bundle. It is never host-readable
-private state. A candidate common Pong carries all five signed Ping headers;
-recipient encryption and the exact own SAR acknowledgment remain separate.
-
-The supplemental catalog still describes the WT-only wire draft. It does not
-allocate these checkpoint fields, a five-Ping Pong schema or an activation
-handler. Exact field inventory, fixed padding, bounds, incarnation rules and
-full version-selected dispatch must be specified before adoption. A receiver
-cannot heuristically accept either four or five Pings in the same selected
-format. Normal counter freshness continues to apply to the other four peers.
-
-Recovery verifies the source signature, exact checkpoint commitment and target
-context. A saved Ping, historical Pong or peer assertion cannot authorize a new
-counter increment, source revocation or backup activation. ST and Boomletwo have
-no continuous recording role in this candidate.
+The [Boomletwo candidate](boomlet_rollover.md) requires target-encrypted checkpoint
+fields, a detached ciphertext, a five-Ping Pong schema and an activation handler.
+The current catalog defines none of them. Adoption requires fixed fields, padding,
+bounds, incarnation rules and version-selected dispatch; one profile cannot
+accept both four-Ping and five-Ping shapes. Counter freshness still uses the
+other four peers. Checkpoint evidence alone grants no progress or authority.

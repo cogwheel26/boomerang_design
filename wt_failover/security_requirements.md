@@ -13,55 +13,21 @@ resource exhaustion. Other identifiers refer to the base security model.
 ## Architecture
 
 
-[WT_FAILOVER_V1](README.md) selects a fresh setup and wire version.
-Exactly one roster WT has authority at a certified head. Candidate transport
-carries preparation evidence; it acquires live coordination authority only after
-a five-COMMIT decision is installed. Peer relays remain untrusted. Each Boomlet
-checks its own snapshot, obligation, votes, current head and phase locally.
+[WT_FAILOVER_V1](README.md) is a fresh profile over the base SPEC. One certified
+head grants WT authority; candidate transport does not. Each Boomlet locally
+checks its frozen state, SAR duty, votes, head and phase. Activation needs five
+COMMIT votes, while ABORT preserves completed SAR discharges.
 
-The original Boomlet is initially the only active authority for its identity.
-The designated Boomletwo retains the base authenticated setup backup with its
-peer keys inactive. The setup export exception stays closed after completion.
-Both devices require non-rollbackable lifecycle state. A host MAC, public archive,
-peer vote or WT certificate cannot recover an unseen source vote. Safe activation
-after source loss and resistance to forced fallback remain adoption requirements.
-
-Frozen placeholder discharge uses the existing end-to-end SAR channel and exact
-ordinary acknowledgment. All honest signers finish that duty before preparing
-activation, including withdrawal closure. ABORT preserves completed discharges.
-The chosen SAR and its processing assumptions stay fixed. Five reached Pings
-are accompanied by the recipient's exact acknowledgment before signing.
-
-Niso and WT store public reconstruction packages and fragments. Boomlet retains
-its own fragment through completion until permanent setup retirement. Full
-transaction verification and own completed duties close the active ceremony;
-a holder's storage receipt alone cannot authorize erasure. Bounded journal,
-archive and parsing reservations limit load and can reduce availability.
-
-Fresh WTs receive peer identities, setup parameters, approved transaction
-artifacts and public progress only when needed for the selected scope. Repeated
-switches expose service relationships and correlated timing. They cannot prove
-provider independence or future SAR availability. Mystery, counter, consent
-answers and placeholder plaintext remain inside the established trusted devices.
+The originating Boomlet retains its fragment until permanent setup retirement.
+External storage receipts authorize no cleanup. Profile limits bound load but can
+reduce availability, and repeated switches expose service and timing metadata.
 
 ### Self-contained Ping recovery
 
-[Boomletwo recovery](boomlet_rollover.md) retains the original designated
-backup offline. Encrypted mutable-state checkpoints bind only that device and
-the existing setup policy. No long-lived key is reexported, no target can be
-reenrolled, and ST has no continuous recording role.
-
-An authentic checkpoint can provide conservative progress and a WT head at that
-point. It cannot prove latest state, absence of later rescue duties or votes,
-or exclusion of the old source. Those remain activation requirements. The same
-counter cannot be applied unmodified against a fresh lower mystery. The proposed
-floors are max(original mystery, independent draw), or upper bound plus independent
-draw when the original mystery is not retained. Neither policy provides fencing.
-
-All ordinary review, duress, exact SAR discharge, chain, replay and signing gates
-still apply. An old reached flag alone cannot establish that later duties are
-complete. Delay inequalities count valid progress units; they do not justify
-historical-Pong replay or unverified elapsed-height credit.
+The [Boomletwo candidate](boomlet_rollover.md) keeps the designated backup
+offline. Its checkpoint proves state at one Ping, not current state or source
+exclusion. Recovery cannot lower the remaining progress floor, replay historical
+Pongs or bypass inherited protocol gates.
 
 ### Chain observation and recovery limits
 
