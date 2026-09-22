@@ -2,31 +2,59 @@
 
 | Item | Value |
 | --- | --- |
-| Status | Draft, not adopted |
+| Status | Adopted into the design specification, 2026-09-18; deployment evidence pending |
 | Phase 1 priority | 1 |
-| Normative baseline | [`SPEC.md`](../spec/SPEC.md) at `8ad77efabe03385d60733827fe55b3f988519c65` |
+| Proposal baseline | [`SPEC.md`](../spec/SPEC.md) at `8ad77efabe03385d60733827fe55b3f988519c65` |
 | Related gaps | DG-11, DG-40 |
+| Normative integration | Current [`SPEC.md`](../spec/SPEC.md) |
+
+## Integration change map
+
+Recorded 2026-09-18 before applying the integration. The user requested adoption
+of this proposal, a running changelog, and an incremental Phase 1 report.
+
+| File | Places to change | Intended result |
+| --- | --- | --- |
+| `spec/SPEC.md` | Sections 7.5, 8.3, 9.4, 9.6, 10, 13.1, 16.4, 18.1–18.4, 19.4, 19.9, 20–22 | Account credential and profile state; device KDF; authenticated append; exact receipts; bounded opaque payloads; registration, replacement, retry, recovery, and complete-history rescue access. |
+| `spec/wire_catalog.json`, `spec/wire_catalog.txt` | Schema registry, signature domains, encryption contexts, registration tuple, generated layouts | Reserve ID 11; assign IDs 30 and 31; register exact types and regenerate the text catalog. |
+| `spec/dynamic_rescue_vectors.json`, `scripts/check_dynamic_rescue.py` | New focused vectors and executable checks | Reproducible cryptographic bytes and lifecycle scenarios, with evidence boundaries recorded. |
+| `setup/setup_development_contracts.md`, `setup/setup_no_prose_guards.md`, `setup/README.md` | SAR registration, stored objects, receipt verification, retry | Protected account registration and signed first-upload receipt. |
+| `no_prose_crypto_contracts.md`, `setup/*.puml`, `withdrawal/*.puml`, `duress_protection/*.puml` | SAR upload and rescue-data retrieval fragments | Device-key encryption and asynchronous access to all retained uploads; source edits only. |
+| `DESIGN.md`, `GLOSSARY.md`, `withdrawal/README.md`, `duress_protection/README.md` | Rescue data, registration, replacement, activation | Terminology and explanatory behavior consistent with the specification. |
+| `security_models/security_model_update_note.md` | DG-11, DG-40, T-DATA-02, related risks and assumptions | Hand off affected security-model entries for independent reassessment. |
+| `outside/Cannon_roadmap.md`, `outside/Cannon_phase_1_report.md`, `CHANGELOG.md` | Dynamic-data milestone, progress, decisions, evidence, chronological entries | Adopt history retention and record progress and remaining gates as work proceeds. |
+| This proposal | Status, current-status baseline, roadmap divergence, object limits, integration checklist | Record adoption and exact implementation choices without claiming unrun deployment tests. |
+
+The independent review should also revisit the rescue-data attack-tree branch
+and SAR data-flow labels. The [security review note](../security_models/security_model_update_note.md)
+lists the affected entries.
+
+The catalog integration also updates `scripts/generate_wire_catalog.py` to
+validate reserved schema IDs and report the registered dynamic exchange types.
 
 ## Current status
 
-`SPEC.md` currently defines `DynamicDoxingData` with `schema_id`, `captured_at`,
-and `payload`. Phone encrypts it with a fresh IV under the
-`"sar_dynamic_data"` context. SAR stores it under `doxing_data_identifier` and
-acknowledges synchronization.
+The specification defines authenticated append, account and device history
+identity, exact signed receipts, protected first registration, replacement,
+non-erasure, retry, conflict rejection, and recovery requirements. Schema ID 11
+is reserved; `DynamicRescueUpload` and `DynamicRescueReceipt` use IDs 30 and 31.
 
-The specification does not define upload identity, durable append, retry,
-deletion, rollback, or conflict rules. It also does not define expiry or how an
-update becomes current. DG-40 remains open.
+The [changelog](../CHANGELOG.md) records integration and validation. The
+[Phase 1 report](../outside/Cannon_phase_1_report.md) records evidence and open
+gates. The existing DG-40 entry awaits independent reassessment. Protected
+provisioning, real storage restoration, capacity, and duress-observability
+validation remain open.
 
 ## Roadmap goal
 
-> Define version ordering, expiry, clock-skew handling, rollback rejection, and
-> conflict handling such that SAR can identify the current rescue-data update
-> and accept a correction without allowing an older valid update to replace it.
+Define authenticated append, complete-history retention, exact retries,
+conflict rejection, and detection of incomplete SAR restoration. Corrections
+append without suppressing accepted evidence. Payload meaning and freshness
+belong to the rescue application.
 
 ## Reason for divergence
 
-The roadmap assumes one current record. Dynamic payloads may instead be a
+The baseline milestone assumed one current record. Dynamic payloads can be a
 stream, independent observations, or another collection in which late and
 conflicting entries remain useful. Selecting one current record would add
 payload semantics and let a malicious Phone make earlier evidence obsolete.
@@ -46,12 +74,12 @@ protocol remains independent of payload meaning while satisfying the
 milestone's non-replacement, correction, rollback, duplicate, and conflict
 goals.
 
-Acceptance requires updating the roadmap from current-record selection to
-authenticated append, complete-history retention, and rollback detection.
+The adopted roadmap uses authenticated append, complete-history retention,
+and rollback detection. Deployment evidence remains a completion gate.
 
-## Proposed changes
+## Adopted changes
 
-| Area | Proposed behavior |
+| Area | Adopted behavior |
 | --- | --- |
 | Payload | Bounded bytes interpreted by SAR's rescue application |
 | Storage | Retain every accepted encrypted upload |
@@ -129,7 +157,15 @@ DynamicRescueReceipt {
 
 Receipts use the existing `SignedMessage` wrapper with content type
 `DynamicRescueReceipt`. All objects follow SPEC Sections 8.2 and 8.3 for
-canonical encoding, fixed-width types, and encoded-size limits.
+canonical encoding, fixed-width types, and encoded-size limits. SPEC Section
+8.3.1 fixes the payload ceiling at 65,536 bytes; maximum encoded sizes are
+65,608 bytes for its envelope, 65,741 for an upload, and 65,777 for the
+registration tuple. A receipt is 147 bytes and its signed wrapper is 301 bytes.
+Both new schemas use version 1 and field IDs starting at 1 in declared order.
+
+The bound limits per-upload work on Phone and SAR; deployment capacity and
+throughput evidence remain open. Capacity rejection cannot evict accepted
+history or block exact authenticated receipt retrieval.
 
 ## Cryptographic definitions
 
@@ -187,7 +223,9 @@ authenticator = aes256_cmac(
 
 Use the full 16-byte result and constant-time verification. The separate upload
 key lets SAR authenticate submissions before duress releases the data key.
-It authorizes upload and receipt retrieval only.
+It authorizes upload and receipt retrieval only. SAR cannot verify the inner
+data-key tag before duress release; accepted undecryptable entries remain
+retained, and their failures cannot hide other entries from rescue processing.
 
 ### Receipt
 
@@ -241,8 +279,11 @@ account or replace its credential. The root `doxing_key_for_sar` is not sent
 to SAR during registration.
 
 The confidentiality and account-authentication guarantees of SAR setup are
-prerequisites for this exchange. Its integration must retain those guarantees
-without introducing a separate Phone identity or a second registration service.
+prerequisites for this exchange. SPEC Section 13.1.1 requires a binding among
+selected SarId, registration profile, invoice, and provisioned account; public
+identifier knowledge or payment-metadata replay cannot authorize enrollment.
+The deployment must document and test its transport and provisioning mechanism.
+No separate Phone identity or second registration service is introduced.
 
 ### Later uploads and replacement Phones
 
@@ -330,43 +371,59 @@ already described in the main specification.
 | Duress behavior | Registration and upload changes preserve SPEC Sections 16.4–16.6 and Boomlet's existing key-release behavior. |
 | Compatibility | Where earlier ciphertext exists, its original profile and decoding rules remain identifiable and usable. |
 
-## Integration todo list
+## Integration checklist
 
-### Required
+### Completed design integration
 
-- [ ] Adopt the history-retention objective in the roadmap and align DG-11,
-  DG-40, and their assumptions with the proposal's guarantees.
-- [ ] Update SPEC Section 7.5 with the account upload credential, registration
-  profile version, device-indexed uploads, and signed receipts as logical state.
-- [ ] Assign unused schema IDs to the upload and receipt, schema version 1,
-  and field IDs starting at 1 in declared order. Reserve retired schema ID 11.
-  Map `sar_dynamic_data` to plaintext type `bytes`; register the registration
-  tuple and `Boomerang/setup/sar_dynamic_receipt` content type in
-  `spec/wire_catalog.json`, then regenerate `spec/wire_catalog.txt`.
-- [ ] Add the exact key derivations, stored-data context, upload CMAC, and
-  receipt rules to SPEC Sections 8–10. Set their encoded-size limits under
-  Section 8.3 and publish shared vectors.
-- [ ] Extend SPEC Section 13.1 and the setup contracts with first-device
-  registration after account provisioning. Specify the protected setup
-  transport's binding to `SarId` and the provisioned account. Replace the
-  dynamic synchronization acknowledgment with the first signed upload receipt.
-  Preserve static-data verification and Section 13.9 SAR finalization.
-- [ ] Integrate retry and SAR crash recovery guarantees into the existing failure
-  and recovery requirements, and complete-history access into Section 16. Keep
-  the placeholder format, timing, and Boomlet key release unchanged.
-- [ ] Consolidate the conformance requirements in SPEC Section 21 and extend
-  the wire vectors and protocol scenarios for registration, retries, conflicts,
-  device separation, SAR crash recovery, and duress observability.
-- [ ] Update `no_prose_crypto_contracts.md` and the affected setup, withdrawal,
-  and duress PlantUML sources. Reuse `C-SAR-STORE-SEAL` and `C-SAR-STORE-OPEN`
-  with `device_data_key`. Do not render diagrams or regenerate SVG files.
-- [ ] Align `DESIGN.md`, `GLOSSARY.md`, setup and withdrawal documentation,
-  the security model, and ADR 0005. Record the decision and compatibility
-  impact in a new ADR.
+- [x] Adopt history retention in the roadmap and record DG-11 and DG-40 for
+  independent security review.
+- [x] Add SAR credential, immutable registration profile, device histories,
+  receipts, and recovery state to SPEC Section 7.5.
+- [x] Reserve retired schema ID 11; allocate upload/receipt IDs 30/31, version 1,
+  sequential field IDs; register plaintext `bytes`, registration tuple, and
+  receipt domain; regenerate the wire catalog.
+- [x] Add exact keys, context, CMAC, receipt rules, and dynamic-context numeric
+  limits to SPEC Sections 8–10; publish focused shared vectors.
+- [x] Integrate protected first registration, account binding, receipt checks,
+  replacement, and retries in SPEC Section 13.1 and setup contracts, preserving
+  static verification and Section 13.9 finalization.
+- [x] Integrate retry, crash-recovery requirements, and complete-history rescue
+  access with the existing placeholder and fixed acknowledgment contract.
+- [x] Consolidate conformance requirements in SPEC Section 21; add focused
+  vector and bounded acceptance-model checks.
+- [x] Update crypto notation and affected setup, withdrawal, and duress source
+  diagrams, including `C-SAR-STORE-SEAL` and `C-SAR-STORE-OPEN` with device keys.
+- [x] Align DESIGN, GLOSSARY, and supporting documentation; record adoption and
+  compatibility here. Prepare the security review handoff.
+- [x] Map dynamic failures to SPEC Section 18.1 classes.
+
+### Evidence still required
+
+- [ ] Independently reassess the security model using the
+  [review note](../security_models/security_model_update_note.md).
+- [ ] Validate the protected transport and provisioned-account binding with a
+  real implementation, including identifier-only and payment-replay attacks.
+- [ ] Pin the production `PROTOCOL_VERSION` value and canonical type, then
+  independently reproduce vectors with the implementation revision recorded.
+  Focused vectors explicitly use the test profile `u16(1)`.
+- [ ] Validate capacity, independent deletion authority after setup retirement,
+  storage fault injection, recovery witnesses, and detection of incomplete
+  restoration under documented deployment failure conditions.
+- [ ] Run parallel service acceptance and real safe/duress timing and
+  observability tests with large, unavailable, and partly undecryptable histories.
+- [ ] Verify retained legacy profiles and decoding with actual historical data.
 
 ### Optional
 
-- [ ] Map upload conflicts and registration failures to the existing SPEC
-  Section 18.1 failure classes, using the existing error mechanism.
-- [ ] Define cross-version account migration if that capability is required,
-  preserving original credentials and decoding rules for retained history.
+- [ ] Define cross-version account migration if required, preserving original
+  credentials and decoding rules for retained history.
+
+### Reproduction
+
+Run `python3 scripts/generate_wire_catalog.py --check` and
+`python3 scripts/check_dynamic_rescue.py` from the repository root. The latter
+requires Python's `cryptography` package and compares
+[`dynamic_rescue_vectors.json`](../spec/dynamic_rescue_vectors.json) with
+recomputed exact bytes. Its SQLite acceptance model checks interruption,
+restart, conflict serializations, and an externally supplied restoration witness.
+It does not establish deployment durability or duress timing.
