@@ -47,8 +47,7 @@ This document defines the Boomerang protocol profile: actors, data model, crypto
 
 Boomerang is research-stage. This specification describes the intended protocol
 and its current security boundaries; it does not assert production readiness,
-hardware certification, or complete operational procedures. This document is
-not an Internet Standards Track specification.
+hardware certification, or complete operational procedures. 
 
 The key words `MUST`, `MUST NOT`, `REQUIRED`, `SHOULD`, `SHOULD NOT`, and
 `MAY` in this document are to be interpreted as described in BCP 14
@@ -151,6 +150,8 @@ The current security argument assumes:
   `normal_pubkey`;
 - cryptographic primitives are correctly implemented;
 - WT and SAR remain available during ceremonies;
+- SAR deployments preserve accepted rescue uploads and original receipts across
+  their supported storage failures;
 - users start rollover or recovery before fallback timelocks make coercion predictably useful.
 
 Compromise or substitution of Iso during setup is outside the threat model.
@@ -268,7 +269,11 @@ WT stores:
 SAR stores:
 
 - `doxing_data_identifier`;
-- AES-CBC/CMAC envelopes containing static and dynamic rescue data;
+- the static rescue-data AES-CBC/CMAC envelope;
+- the account's `PROTOCOL_VERSION` and `dynamic_update_auth_key`;
+- append-only histories indexed by `(doxing_data_identifier, device_id)`,
+  containing each accepted `DynamicRescueUpload` and its original signed
+  `DynamicRescueReceipt`, uniquely keyed by `upload_id`;
 - payment or registration status;
 - replay tuples for duress placeholders:
   `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}`;
@@ -534,7 +539,7 @@ labels, not locale collation or host-supplied strings.
    have the same entity name, orders them by canonical public-key bytes;
 5. performs scalar multiplication;
 6. takes the 32-byte big-endian x-coordinate as `shared_secret`;
-7. derives the channel key schedule:
+7. derives the 128-byte channel key schedule:
 
 ```text
 key_bytes =
@@ -568,7 +573,8 @@ type plus the narrow replay scope needed for that message.
 
 `aes256_cmac(key, bytes)` is NIST SP 800-38B AES-CMAC with a 256-bit AES key and the full 16-byte output. Java Card implementations may use `Signature.ALG_AES_CMAC_128`; `128` identifies the AES block and output length, while requiring a 256-bit key. Devices without a native CMAC API MAY implement SP 800-38B using their AES engine.
 
-`kdf_counter_cmac_aes256(key, label, context, output_length)` is NIST SP 800-108 counter mode:
+`kdf_counter_cmac_aes256(key, label, context, output_length_bytes)` is NIST
+SP 800-108 counter mode:
 
 ```text
 block_i =
@@ -578,15 +584,16 @@ block_i =
       || utf8(label)
       || 0x00
       || context
-      || uint32_be(output_length * 8)
+      || uint32_be(output_length_bytes * 8)
   )
 ```
 
-Blocks start at `i = 1`, are concatenated, and are truncated to `output_length`.
+Blocks start at `i = 1`, are concatenated, and are truncated to
+`output_length_bytes`.
 
 `derive_cbc_cmac_keys(key_material, context)` is used for non-channel key
-material, such as stored SAR data. It computes and returns the transient
-internal record:
+material, such as stored SAR data. It derives 64 bytes and returns the
+transient internal record:
 
 ```text
 key_bytes =
@@ -607,6 +614,31 @@ CbcCmacKeys {
 wire schema ID. The two keys MUST remain distinct. Boomlet MAY cache them only
 in transient memory for the active exchange and SHOULD erase them when that
 exchange completes, stalls, or is explicitly aborted.
+
+Phone derives two 32-byte keys for dynamic rescue data:
+
+```text
+device_data_key = kdf_counter_cmac_aes256(
+  doxing_key_for_sar,
+  "Boomerang/sar_dynamic_device_data_key/v1",
+  canonical_encode(device_id),
+  32
+)
+dynamic_update_auth_key = kdf_counter_cmac_aes256(
+  doxing_key_for_sar,
+  "Boomerang/sar_dynamic_update_auth_key/v1",
+  canonical_encode(PROTOCOL_VERSION, doxing_data_identifier),
+  32
+)
+```
+
+Dynamic rescue-data encryption uses
+`derive_cbc_cmac_keys(device_data_key, "Boomerang/sar_stored_data")`. SAR derives `device_data_key` after a duress signal, independently.
+Static rescue-data encryption uses `doxing_key_for_sar` as its key material.
+During registration, SAR receives `dynamic_update_auth_key` but MUST NOT receive
+`doxing_key_for_sar`. Phone uses `dynamic_update_auth_key` to compute each
+upload's CMAC. SAR verifies it before accepting a new upload or returning the
+original signed receipt when the same upload is retried.
 
 ### 9.5 AES-CBC/CMAC envelope
 
@@ -696,16 +728,28 @@ identity, target Boomletwo identity, endpoint roles, direction, and protocol
 version. Boomletwo MUST accept this import only while empty and MUST include the
 imported ID in signed `BackupDone`.
 
-SAR stored-data context, which exists before setup agreement, is:
+Static rescue-data envelopes use this context:
 
 ```text
-{
-  protocol = "Boomerang",
-  protocol_version,
-  message_type = "sar_static_data" or "sar_dynamic_data",
+canonical_encode(
+  "Boomerang", PROTOCOL_VERSION, "sar_static_data",
   doxing_data_identifier
-}
+)
 ```
+
+Dynamic rescue-data envelopes use this context:
+
+```text
+canonical_encode(
+  "Boomerang", PROTOCOL_VERSION, "sar_dynamic_data",
+  doxing_data_identifier, device_id, upload_id
+)
+```
+
+Phone passes the opaque dynamic rescue payload as `bytes` to
+`cbc_cmac_encrypt`.
+Every new upload uses a fresh IV; retries preserves the complete original
+encrypted envelope.
 
 ### 9.7 Bitcoin keys and MuSig2
 
@@ -763,7 +807,7 @@ Payment execution is outside Boomlet and does not alter the cryptographic requir
 ## 10. Protocol objects
 
 The following schemas define semantic field order and canonical IDs. Schema IDs
-are assigned by the order in this section, starting at `1`. Field IDs are
+are assigned by the registry below. Field IDs are
 assigned by field order inside each schema, starting at `1`; field ID `0` is
 reserved and is never assigned. All listed fields are required for schema
 version `1`.
@@ -799,7 +843,7 @@ Schema ID registry:
 | 8 | `WtId` |
 | 9 | `SarId` |
 | 10 | `StaticDoxingData` |
-| 11 | `DynamicDoxingData` |
+| 11 | `DynamicRescueUpload` |
 | 12 | `ServicePaymentReceipt` |
 | 13 | `PeerId` |
 | 14 | `PeerSetupRecord` |
@@ -818,6 +862,7 @@ Schema ID registry:
 | 27 | `Ping` |
 | 28 | `Pong` |
 | 29 | `DuressSignalIndex` |
+| 30 | `DynamicRescueReceipt` |
 
 ```text
 CbcCmacEnvelope {
@@ -882,12 +927,6 @@ StaticDoxingData {
   trusted_person_name: text,
   trusted_person_address: text,
   trusted_person_phone_number: text
-}
-
-DynamicDoxingData {
-  schema_id: u32,
-  captured_at: u64,
-  payload: bytes
 }
 
 ServicePaymentReceipt {
@@ -1040,8 +1079,54 @@ defined in Section 16.4.
 values.
 `milestone_blocks` is always a `MilestoneBlocks` struct.
 
-`DynamicDoxingData.schema_id` identifies the canonical payload schema and
-`captured_at` records its source timestamp. A service payment proof is opaque
+Dynamic rescue objects have schema version 1 and field IDs in declared order:
+
+```text
+DynamicRescueUpload {
+  doxing_data_identifier: bytes32,
+  device_id: bytes32,
+  upload_id: bytes32,
+  encrypted_payload: CbcCmacEnvelope,
+  authenticator: bytes16
+}
+
+DynamicRescueReceipt {
+  doxing_data_identifier: bytes32,
+  device_id: bytes32,
+  upload_id: bytes32,
+  encrypted_payload_hash: bytes32
+}
+```
+
+The initial dynamic rescue data submission encodes two items in order:
+`dynamic_update_auth_key` (`bytes32`) and the first `DynamicRescueUpload`.
+Upload authentication is:
+
+```text
+authenticator = aes256_cmac(
+  dynamic_update_auth_key,
+  canonical_encode(
+    "Boomerang/sar_dynamic_upload/v1", PROTOCOL_VERSION,
+    doxing_data_identifier, device_id, upload_id, encrypted_payload
+  )
+)
+upload_receipt = DynamicRescueReceipt {
+  doxing_data_identifier,
+  device_id,
+  upload_id,
+  encrypted_payload_hash = sha256(canonical_encode(encrypted_payload))
+}
+signed_upload_receipt = sign_message(
+  sar_private_key, "Boomerang/setup/sar_dynamic_receipt", upload_receipt
+)
+```
+
+The complete 16-byte upload CMAC MUST be verified in constant time. Phone MUST
+verify `signed_upload_receipt` using the selected SAR public key, exact
+domain, and registration profile; all three identifiers and the envelope hash
+MUST match its submitted upload. Receipts attest acceptance of encrypted bytes.
+
+A service payment proof is opaque
 to the protocol, but the receiving service MUST verify that it pays the
 expected invoice, amount, service identity, and deadline.
 
@@ -1171,9 +1256,9 @@ doxing_data_identifier =
 
 3. Phone registers the identifier and receives payment information.
 4. After payment, Phone derives stored-data keys with `derive_cbc_cmac_keys(doxing_key_for_sar, "Boomerang/sar_stored_data")`.
-5. Phone sends the payment receipt, identifier, static-data envelope, and dynamic-data envelope. Dynamic updates use the Phone-held dynamic rescue data captured at send time.
-6. SAR verifies payment, stores the envelopes under the identifier, and acknowledges synchronization.
-7. Dynamic updates use fresh IVs and the `"sar_dynamic_data"` context.
+5. Phone sends the payment receipt, identifier, and static-data envelope.
+6. SAR verifies payment and its binding to the selected SAR, invoice, and
+   pending account, then stores the static envelope under that identifier.
 
 The identifier is a lookup value, not a secret. Rescue data confidentiality depends on the entropy of `doxing_password`.
 

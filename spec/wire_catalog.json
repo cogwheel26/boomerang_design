@@ -163,6 +163,7 @@
         "Boomerang/setup/sar_id": "tuple<bytes32, SarId>",
         "Boomerang/setup/sar_response": "SarSetupResponse",
         "Boomerang/setup/wt_sar_response": "WtSarSetupResponse",
+        "Boomerang/setup/sar_dynamic_receipt": "DynamicRescueReceipt",
         "Boomerang/setup/backup_request": "BoomletBackupRequest",
         "Boomerang/setup/backup_done": "BackupDone",
         "Boomerang/withdrawal/tx_review_approval": "MessageWithNonce<bytes32>",
@@ -209,6 +210,15 @@
       "authenticated_as_received": true,
       "context_wrong_value": "reject"
     },
+    "dynamic_rescue_exchange": {
+      "selector": "phone_sar_message_type",
+      "variants": {
+        "sar_dynamic_registration": "tuple<bytes32, DynamicRescueUpload>",
+        "sar_dynamic_upload": "DynamicRescueUpload",
+        "sar_dynamic_receipt": "SignedMessage<DynamicRescueReceipt>"
+      },
+      "context_wrong_value": "reject"
+    },
     "boomlet_backup_replay_state": {
       "selector": "active_protocol_state",
       "require_exact_schema_or_primitive_tuple": true,
@@ -224,7 +234,7 @@
       "duress_response": { "type": "MessageWithNonce<DuressSignalIndex>" },
       "params_review": { "type": "MessageWithNonce<bytes32>" },
       "params_review_approval": { "type": "SignedMessage<MessageWithNonce<bytes32>>", "signature_domain": "Boomerang/setup/params_review_approval" },
-      "sar_dynamic_data": { "type": "DynamicDoxingData" },
+      "sar_dynamic_data": { "type": "bytes" },
       "sar_id": { "type": "SignedMessage<tuple<bytes32, SarId>>", "signature_domain": "Boomerang/setup/sar_id" },
       "sar_identifier": { "type": "tuple<bytes32, bytes32>" },
       "sar_response": { "type": "SignedMessage<SarSetupResponse>", "signature_domain": "Boomerang/setup/sar_response" },
@@ -349,12 +359,15 @@
     },
     {
       "id": 11,
-      "name": "DynamicDoxingData",
+      "name": "DynamicRescueUpload",
       "version": 1,
       "fields": [
-        { "id": 1, "name": "schema_id", "type": "u32", "required": true },
-        { "id": 2, "name": "captured_at", "type": "u64", "required": true },
-        { "id": 3, "name": "payload", "type": "bytes", "required": true, "payload_schema_selector": "schema_id" }
+        { "id": 1, "name": "doxing_data_identifier", "type": "bytes32", "required": true },
+        { "id": 2, "name": "device_id", "type": "bytes32", "required": true },
+        { "id": 3, "name": "upload_id", "type": "bytes32", "required": true },
+        { "id": 4, "name": "upload_seq_num", "type": "u64", "required": true },
+        { "id": 5, "name": "encrypted_payload", "type": "CbcCmacEnvelope", "required": true },
+        { "id": 6, "name": "authenticator", "type": "bytes16", "required": true }
       ]
     },
     {
@@ -550,6 +563,18 @@
       "version": 1,
       "fields": [
         { "id": 1, "name": "indices", "type": "list<u16>", "required": true, "exact_items": { "constant": "duress_selection_count" } }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "DynamicRescueReceipt",
+      "version": 1,
+      "fields": [
+        { "id": 1, "name": "doxing_data_identifier", "type": "bytes32", "required": true },
+        { "id": 2, "name": "device_id", "type": "bytes32", "required": true },
+        { "id": 3, "name": "upload_id", "type": "bytes32", "required": true },
+        { "id": 4, "name": "upload_seq_num", "type": "u64", "required": true },
+        { "id": 5, "name": "encrypted_payload_hash", "type": "bytes32", "required": true }
       ]
     }
   ]

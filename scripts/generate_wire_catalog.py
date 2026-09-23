@@ -333,8 +333,13 @@ class Catalog:
         ids = [schema.get("id") for schema in self.schemas]
         for duplicate in duplicate_values(ids):
             self.errors.append(f"duplicate schema ID {duplicate}")
-        if ids != list(range(1, len(self.schemas) + 1)):
-            self.errors.append("schema IDs must be consecutive and ordered from 1")
+        if any(not self._is_positive_integer(value) or value > 65535 for value in ids):
+            self.errors.append("schema IDs must be positive u16 IDs")
+        elif ids != sorted(ids):
+            self.errors.append("schema IDs must be ordered")
+        valid_ids = [value for value in ids if self._is_positive_integer(value)]
+        if valid_ids and set(valid_ids) != set(range(1, max(valid_ids) + 1)):
+            self.errors.append("schema IDs must be contiguous")
 
         for schema in self.schemas:
             name = schema.get("name", "<unnamed>")
@@ -987,6 +992,12 @@ def print_main_results(catalog: Catalog) -> None:
         print(readable_wrap(
             f"{domain} => {expression}; {content_label}; {depth_label}"
         ))
+
+    print("\nRegistered dynamic rescue exchange types")
+    for context, expression in catalog.contexts.get(
+        "dynamic_rescue_exchange", {}
+    ).get("variants", {}).items():
+        print(readable_wrap(f"{context} => {expression}"))
 
     print("\nRegistered CBC-CMAC encryption-context metrics")
     print("The registry is complete for canonical CBC-CMAC context labels in the protocol.")

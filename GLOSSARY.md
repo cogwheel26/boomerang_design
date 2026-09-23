@@ -86,7 +86,10 @@ normative for exact protocol behavior.
 | **Freshly encrypted placeholder** | A new authenticated encryption envelope with a fresh IV. Every ping requires one even when no new challenge ran and its underlying plaintext is unchanged. |
 | **SAR acknowledgment** | SAR's encrypted signature over the exact placeholder envelope it received. Each SAR deployment uses a fixed acknowledgment delay. On receipt, SAR schedules release for the receipt time plus that delay and releases the acknowledgment exactly then for valid safe and duress placeholders. If processing misses that time, SAR exposes the same failure and sends no late acknowledgment. Before release, SAR durably records processing and, for new valid duress, durably activates response state. The acknowledgment proves exact delivery and activation—not timely, lawful, effective, correctly directed, or safe intervention. |
 | **Plausible deniability** | Indistinguishability only on the specified protocol-observability surface. Valid safe and duress handling share response shape, routing, the same receipt-relative acknowledgment delay, durable-write path, retry behavior, and externally visible failure behavior. It does not cover physical observation, compromised devices, learned consent responses, private SAR diagnostics, metadata outside that surface, or a responder revealing the signal. |
-| **Rescue information** | Setup-bound static and Phone-updated dynamic information encrypted for later SAR retrieval. Its accuracy and operational use are assumptions. |
+| **`DynamicRescueUpload`** | Account-authenticated encrypted observation. SAR retains each accepted upload. |
+| **`DynamicRescueReceipt`** | SAR's signed receipt for the exact accepted upload. |
+| **Account upload credential (`dynamic_update_auth_key`)** | Password-derived key authorizing dynamic uploads and exact receipt retrieval. |
+| **Rescue information** | Static data and retained dynamic uploads, available to SAR after duress. The rescue application interprets their relevance and freshness. |
 
 ## Security and failure
 

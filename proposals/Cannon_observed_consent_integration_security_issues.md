@@ -65,9 +65,9 @@ rejects this substitution.
 ### OCI-02 ST receives more authority than consent classification
 
 **Evidence.** Option 8 explicitly gives ST `doxing_key_for_sar` if the placeholder
-plaintext is retained. The applied [SPEC Section 9.4.1](../spec/SPEC.md) derives
+plaintext is retained. The applied [SPEC Section 9.4](../spec/SPEC.md) derives
 both device-data keys and `dynamic_update_auth_key` from that root. Section
-13.1.3 gives the account credential append authority under every device ID.
+13.1 gives the account credential append authority under every device ID.
 
 **Consequence.** A compromised ST holding this root can decrypt available retained
 ciphertext and derive the registered upload credential. It can authenticate
@@ -203,9 +203,9 @@ check, or profile is rejected without relaxing the base identity checks.
 
 **Evidence.** Option 1 can replace exposed keys through full setup replacement.
 [SPEC Section 13.1](../spec/SPEC.md) derives the SAR root and lookup identifier
-from the password and selected SAR key, without a setup ID. Section 9.4.1 derives
+from the password and selected SAR key, without a setup ID. Section 9.4 derives
 the upload credential using the registration profile and identifier; Section
-13.1.3 explicitly retains old holders' append authority. A fresh device ID
+13.1 explicitly retains old holders' append authority. A fresh device ID
 separates history but does not revoke an account credential.
 
 **Failure sequence.** After compromise of a Phone, a root-bearing ST under Option
@@ -273,7 +273,7 @@ from pathlib import Path
 import json
 import sys
 sys.path.insert(0, str(Path('scripts').resolve()))
-from check_dynamic_rescue import auth_key, make_upload, validate_upload, decrypt_payload, tagged
+from check_dynamic_rescue import VECTOR_PATH, auth_key, make_upload, validate_upload, decrypt_payload, tagged
 
 old = {'withdrawal': 'W', 'epoch': 7, 'nonce': 'N1', 'phase': 'initial'}
 next_check = {'withdrawal': 'W', 'epoch': 7, 'nonce': 'N2', 'phase': 'repeated'}
@@ -281,7 +281,7 @@ assert all(old[k] == next_check[k] for k in ('withdrawal', 'epoch'))
 assert not all(old[k] == next_check[k] for k in next_check)
 print('W1: ceremony-only acceptance cannot distinguish these checks')
 
-vectors = json.loads(Path('spec/dynamic_rescue_vectors.json').read_text())
+vectors = json.loads(VECTOR_PATH.read_text())
 root = bytes.fromhex(vectors['inputs']['doxing_key_for_sar'])
 account = tagged('Boomerang/doxing_data_identifier', root)
 upload, _ = make_upload(root, account, b'\x91'*32, b'\x92'*32,
