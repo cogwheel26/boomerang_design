@@ -71,10 +71,6 @@ The profile specified here has:
 
 Changing the peer count, primary threshold, fallback tree, cryptographic profile, or setup checkpoint sequence creates a different protocol profile.
 
-This document is an applicability statement for the profile above. At the moment, it is not a
-generic framework for arbitrary peer counts, threshold policies, rescue-service
-topologies, or cryptographic suites.
-
 ## 3. Goals and non-goals
 
 ### 3.1 Goals
@@ -173,8 +169,7 @@ The following symbolic parameters are part of the implementation profile:
 | `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum permitted lag of an included peer Ping relative to the current local Niso height for counter advancement | Non-negative integer |
 | `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` catch-up per valid Pong round | Positive integer |
 
-Canonical size-limit requirements are defined in Section 8.3. Numeric limits
-must be added there before the v1 profile is complete.
+Canonical size-limit requirements are defined in Section 8.3.
 
 Each participant MUST run a binary or implementation profile whose behavior is
 identified by `PROTOCOL_VERSION`. Every signature digest, envelope context,
@@ -270,10 +265,11 @@ SAR stores:
 
 - `doxing_data_identifier`;
 - the static rescue-data AES-CBC/CMAC envelope;
-- the account's `PROTOCOL_VERSION` and `dynamic_update_auth_key`;
+- `PROTOCOL_VERSION` and `dynamic_update_auth_key` associated with that
+  identifier;
 - append-only histories indexed by `(doxing_data_identifier, device_id)`,
   containing each accepted `DynamicRescueUpload` and its original signed
-  `DynamicRescueReceipt`, uniquely keyed by `upload_id`;
+  `DynamicRescueReceipt`, uniquely keyed by `upload_id` within each history;
 - payment or registration status;
 - replay tuples for duress placeholders:
   `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}`;
@@ -524,10 +520,9 @@ MUST NOT be accepted.
 
 `entity_name` arguments to `channel_keys` are hardcoded protocol enum values,
 not untrusted host-provided strings. The valid setup-channel values are
-`"boomlet"`, `"st"`, `"wt"`, `"sar"`, and `"boomletwo"` unless a later profile
-adds more entities.
+`"boomlet"`, `"st"`, `"wt"`, `"sar"`, and `"boomletwo"`.
 Distinct names are compared by bytewise ASCII order of the fixed lowercase enum
-labels, not locale collation or host-supplied strings.
+labels.
 
 `channel_keys(local_private_key, local_entity_name, peer_public_key, peer_entity_name, sender_public_key, receiver_public_key)`:
 
@@ -713,12 +708,12 @@ After setup agreement, non-nonce setup contexts bind `setup_instance_id`. During
 withdrawal approval, contexts bind `withdrawal_id` once it exists; after
 unanimous approval, contexts bind `approved_withdrawal_id`.
 `approved_withdrawal_id` transitively binds `setup_instance_id` through
-`withdrawal_id`, so post-approval contexts MUST NOT repeat `setup_instance_id`
-unless a later profile changes the ID derivation. ST preview messages before
-`withdrawal_id` exists rely on the message type, directional channel keys, and
-the nonce-bound preview object. Boomlet-ST duress challenge and response
-envelopes also omit withdrawal IDs: they rely on the message type, directional
-channel keys, and Boomlet's exact outstanding `duress_check_nonce`.
+`withdrawal_id`, so post-approval contexts MUST NOT repeat `setup_instance_id`.
+ST preview messages before `withdrawal_id` exists rely on the message type,
+directional channel keys, and the nonce-bound preview object. Boomlet-ST duress
+challenge and response envelopes omit withdrawal IDs and rely on the message
+type, directional channel keys, and Boomlet's exact outstanding
+`duress_check_nonce`.
 
 The first backup-state import into an empty Boomletwo uses
 `canonical_encode("backup_state")`. Boomletwo does not know the authoritative
@@ -742,14 +737,12 @@ Dynamic rescue-data envelopes use this context:
 ```text
 canonical_encode(
   "Boomerang", PROTOCOL_VERSION, "sar_dynamic_data",
-  doxing_data_identifier, device_id, upload_id
+  doxing_data_identifier, device_id, upload_id, upload_seq_num
 )
 ```
 
 Phone passes the opaque dynamic rescue payload as `bytes` to
 `cbc_cmac_encrypt`.
-Every new upload uses a fresh IV; retries preserves the complete original
-encrypted envelope.
 
 ### 9.7 Bitcoin keys and MuSig2
 
@@ -766,10 +759,10 @@ m / 52102' / coin_type' / account' / 0 / key_index
 
 `52102` is `0xcb86`, the first two bytes of `sha256("boomerang")`
 interpreted as a big-endian integer. This purpose value is
-Boomerang-profile-specific and does not claim BIP registration.
+Boomerang-profile-specific.
 
 `coin_type` is `0` for Bitcoin mainnet and `1` for testnet, signet, and
-regtest unless a later profile assigns separate test-network coin types.
+regtest.
 `account` is a user- or implementation-profile-selected account number and
 defaults to `0`. `key_index` is the non-hardened Boomerang setup key index
 under external chain `0` and defaults to `0`.
@@ -801,8 +794,6 @@ The sequence notation uses these exact operation names:
 - `verify_payment(payment_receipt)` performs the service's payment verification and returns a boolean.
 - `min(values...)` returns the smallest integer argument.
 - `sha256(bytes)`, `tagged_sha256(tag, bytes)`, `canonical_encode(fields)`, `random_bytes(length)`, `random_integer(min, max)`, `random_permutation(values)`, `channel_keys(...)`, `derive_cbc_cmac_keys(...)`, `cbc_cmac_encrypt(...)`, `cbc_cmac_decrypt(...)`, `sign_message(...)`, and `verify_signature(...)` have the definitions given above.
-
-Payment execution is outside Boomlet and does not alter the cryptographic requirements for the surrounding protocol messages.
 
 ## 10. Protocol objects
 
@@ -1086,6 +1077,7 @@ DynamicRescueUpload {
   doxing_data_identifier: bytes32,
   device_id: bytes32,
   upload_id: bytes32,
+  upload_seq_num: u64,
   encrypted_payload: CbcCmacEnvelope,
   authenticator: bytes16
 }
@@ -1094,12 +1086,15 @@ DynamicRescueReceipt {
   doxing_data_identifier: bytes32,
   device_id: bytes32,
   upload_id: bytes32,
+  upload_seq_num: u64,
   encrypted_payload_hash: bytes32
 }
 ```
 
-The initial dynamic rescue data submission encodes two items in order:
-`dynamic_update_auth_key` (`bytes32`) and the first `DynamicRescueUpload`.
+The dynamic rescue data component of `SetupPhoneSarMessage2` encodes two items
+in order: `dynamic_update_auth_key` (`bytes32`) and the first
+`DynamicRescueUpload`. The message also carries payment receipts,
+`doxing_data_identifier`, and the static-data envelope.
 Upload authentication is:
 
 ```text
@@ -1107,13 +1102,15 @@ authenticator = aes256_cmac(
   dynamic_update_auth_key,
   canonical_encode(
     "Boomerang/sar_dynamic_upload/v1", PROTOCOL_VERSION,
-    doxing_data_identifier, device_id, upload_id, encrypted_payload
+    doxing_data_identifier, device_id, upload_id, upload_seq_num,
+    encrypted_payload
   )
 )
 upload_receipt = DynamicRescueReceipt {
   doxing_data_identifier,
   device_id,
   upload_id,
+  upload_seq_num,
   encrypted_payload_hash = sha256(canonical_encode(encrypted_payload))
 }
 signed_upload_receipt = sign_message(
@@ -1123,8 +1120,9 @@ signed_upload_receipt = sign_message(
 
 The complete 16-byte upload CMAC MUST be verified in constant time. Phone MUST
 verify `signed_upload_receipt` using the selected SAR public key, exact
-domain, and registration profile; all three identifiers and the envelope hash
-MUST match its submitted upload. Receipts attest acceptance of encrypted bytes.
+domain, and registration profile; `doxing_data_identifier`, device ID, upload ID,
+sequence number, and envelope hash MUST match its submitted upload. Receipts
+attest acceptance of encrypted bytes.
 
 A service payment proof is opaque
 to the protocol, but the receiving service MUST verify that it pays the
@@ -1226,7 +1224,7 @@ Transition prerequisites:
 
 ### 13.1 SAR registration
 
-1. User gives Phone `doxing_password`, one selected `SarId`, and static rescue data. Dynamic rescue data is Phone-held captured state.
+1. User gives Phone `doxing_password`, one selected `SarId`, and static rescue data.
 2. For that `SarId`, Phone computes:
 
 ```text
@@ -1254,9 +1252,10 @@ doxing_data_identifier =
   )
 ```
 
-3. Phone registers the identifier and receives payment information.
+3. Phone registers `doxing_data_identifier` and receives payment information.
 4. After payment, Phone derives stored-data keys with `derive_cbc_cmac_keys(doxing_key_for_sar, "Boomerang/sar_stored_data")`.
-5. Phone sends the payment receipt, identifier, and static-data envelope.
+5. Phone sends the payment receipt, `doxing_data_identifier`, and static-data
+   envelope.
 6. SAR verifies payment and its binding to the selected SAR, invoice, and
    pending account, then stores the static envelope under that identifier.
 
@@ -1410,7 +1409,7 @@ or setup nonces produce a different identifier.
 
 ### 13.6 User setup review
 
-1. Boomlet constructs
+1. Boomlet verifies the peer-record signatures and constructs
    `BoomerangParamsSeed{ordered_peer_setup_records, wt_ids, milestone_blocks}`
    from the setup inputs accepted from Niso. `BoomerangParamsSeed` MUST NOT
    carry `setup_instance_id` or a nested setup parameter structure.
@@ -1425,8 +1424,7 @@ or setup nonces produce a different identifier.
 5. ST constructs `BoomerangParamsSeed` from the ordered seed fields supplied
    beside the encrypted commitment. ST MUST reject malformed encodings,
    duplicate or non-increasing Boomlet identity-key order, and non-canonical
-   seed fields before display. Boomlet remains responsible for full peer-record
-   signature verification before constructing the commitment.
+   seed fields before display.
 6. ST computes `setup_instance_id` using `PROTOCOL_VERSION` in the hash
    context. It MUST require the recomputed value to equal the decrypted
    nonce-bound setup ID and the authenticated outer `setup_instance_id`.
@@ -1810,8 +1808,7 @@ exactly one valid `approval_set_attestation_fingerprint_signed_by_boomlet_i`
 from each non-initiator Boomlet. Each signed content value MUST equal the
 recomputed fingerprint. Its sole meaning is that the signer received and
 verified the complete WT-supplied approval set and WT approval and computed the
-same `approved_withdrawal_id`; it is not an authorization, commitment, or
-attestation of duress state.
+same `approved_withdrawal_id`.
 
 Together with the matching `approved_withdrawal_id` in the staged initiator
 commit, the four attestations confirm to WT that all five Boomlets received the
@@ -2265,9 +2262,6 @@ delivery under an existing valid safe or duress tuple is idempotent for SAR
 activation and still returns the same externally indistinguishable
 acknowledgment behavior. A mismatched context or unauthenticated placeholder
 envelope MUST be rejected.
-The same IV value under a different `approved_withdrawal_id` is a different
-replay tuple; cross-session replay is rejected by CBC-CMAC context
-authentication before this tuple check.
 
 ## 17. Replay resistance and binding
 
@@ -2292,23 +2286,51 @@ The protocol uses the narrowest replay mechanism appropriate to each scope:
 
 Implementations expose only these protocol-level classes:
 
-- `INVALID_ENCODING`;
-- `AUTHENTICATION_FAILED`;
-- `CONTEXT_MISMATCH`;
-- `REPLAY_OR_STALE`;
-- `INVALID_STATE`;
-- `PARAMETER_MISMATCH`;
-- `CHAIN_VIEW_UNSAFE`;
-- `USER_ABORT`;
-- `SERVICE_UNAVAILABLE`.
+- `INVALID_ENCODING`
 
-Detailed cryptographic reasons MUST NOT be exposed across an attacker-observable interface.
+  Input violates canonical encoding rules or size, count, or nesting limits.
+
+- `AUTHENTICATION_FAILED`
+
+  Credential, signature, or MAC verification failed.
+
+- `CONTEXT_MISMATCH`
+
+  An authenticated object has the wrong message type, actor binding, or
+  session scope.
+
+- `REPLAY_OR_STALE`
+
+  Replay or freshness rules are violated, or authenticated content conflicts
+  with an accepted object under the same identity.
+
+- `INVALID_STATE`
+
+  The current state or authorization does not permit the requested operation.
+
+- `PARAMETER_MISMATCH`
+
+  Protocol versions or shared parameter values do not match.
+
+- `CHAIN_VIEW_UNSAFE`
+
+  A chain height decreases or observed chain views disagree materially.
+
+- `USER_ABORT`
+
+  The user or operator explicitly abandons the active attempt.
+
+- `SERVICE_UNAVAILABLE`
+
+  A required service or resource is unavailable or exhausted.
+
+Detailed cryptographic reasons MUST NOT be exposed across an attacker-observable
+interface.
 
 ### 18.2 Fail closed
 
-On failure, the active Boomerang ceremony stops advancing and returns one of the
-Section 18.1 failure classes. Fail-closed behavior does not automatically
-authorize a fallback spend.
+A failure in an active setup or withdrawal ceremony stops that ceremony and
+returns one of the Section 18.1 failure classes.
 
 `stalled` means the active setup attempt or withdrawal ceremony remains bound to
 its current setup IDs, withdrawal IDs, transcript, and replay state. It MUST NOT
@@ -2331,12 +2353,6 @@ A retry MAY retransmit an identical authenticated object. It MUST NOT:
 - create a new setup attempt without a fresh `peer_setup_nonce`;
 - restart signing with reused MuSig2 nonce material.
 
-For SAR placeholder acknowledgments, WT and SAR retries MUST be determined
-only by the authenticated placeholder instance. Retry timing, retry count,
-queue placement, operator-visible status, and final externally visible failure
-class MUST NOT depend on whether SAR classified the valid placeholder as safe
-or duress.
-
 ### 18.4 Service failure
 
 WT or SAR unavailability returns `SERVICE_UNAVAILABLE` and stalls the Boomerang
@@ -2344,10 +2360,6 @@ path. Implementations MAY abort only after explicit user or operator
 abandonment. A later ceremony under the same setup still uses the setup-bound
 SAR. Changing SAR requires a fresh setup and corresponding fund rollover;
 implementations MUST NOT substitute another SAR within the existing setup.
-
-`OPEN ISSUE`: multi-WT failover, operator response to prolonged SAR
-unavailability, blame assignment, and interoperable timeout schedules are not
-yet defined.
 
 ### 18.5 Boomletwo
 
@@ -2371,7 +2383,10 @@ Unauthenticated CBC is forbidden. CMAC verification precedes decryption and padd
 
 ### 19.4 Password entropy
 
-`doxing_key` is a tagged SHA-256 derivation from a user-chosen `doxing_password`, not a memory-hard password KDF. Low-entropy or reused passwords permit offline guessing if rescue ciphertext leaks. The protocol does not require a fixed entropy threshold or another 12-word secret.
+`doxing_key` is a tagged SHA-256 derivation from a user-chosen `doxing_password`.
+If rescue ciphertext or SAR's stored `dynamic_update_auth_key` leaks, an
+attacker can test password guesses offline. Low entropy makes guessing
+practical.
 
 ### 19.5 Hardware
 
@@ -2394,7 +2409,10 @@ WT can censor, delay, equivocate, or leak metadata. Signed peer objects prevent 
 
 ### 19.9 SAR
 
-SAR sees registration metadata and may eventually receive the decryption key. Legal authority, operational competence, jurisdiction, insider risk, and data retention are outside cryptographic guarantees.
+SAR sees registration metadata and stores encrypted rescue data and
+`dynamic_update_auth_key`. After a valid duress signal, SAR receives
+`doxing_key_for_sar` and can decrypt the rescue data. A malicious SAR can
+discard accepted uploads or refuse to perform rescue.
 
 ### 19.10 Metadata
 
@@ -2410,7 +2428,8 @@ after completion, stall, or abort.
 
 - WT should learn only peer pseudonyms, ceremony state, and data needed for coordination.
 - SAR should store rescue ciphertext under pseudonymous identifiers.
-- Phone should encrypt dynamic data before transmission.
+- Phone MUST encrypt dynamic payloads and authenticate uploads before transmission.
+- SAR MUST keep `dynamic_update_auth_key` out of logs and public metadata.
 - Payment mechanisms should avoid unnecessary identity linkage.
 - Logs must exclude private keys, plaintext rescue data, consent sets, challenge answers, and decrypted PSBT secrets.
 - Safe and duress traffic must remain externally indistinguishable in type, size class, routing, and acknowledgment behavior.
@@ -2487,23 +2506,13 @@ Full byte-level canonical encoding vectors MUST be produced after those limits
 are fixed. Java Card implementations SHOULD use streaming parsers and MUST
 reject over-limit objects before allocation.
 
-
 ## 22. Open issues
 
-The following work remains:
-
-- select production mystery, freshness, and duress cadence parameters;
-- define reorg and divergent-chain-view recovery;
-- publish complete wire schema IDs and interoperability vectors;
-- define ST prompt encoding and display-grid conformance requirements;
-- define multi-WT failover and operator response to prolonged SAR
-  unavailability;
-- define Boomletwo activation, deactivation, revocation, and anti-clone behavior;
-- define operational timeout and blame procedures;
-- validate Java Card performance, endurance, and side-channel behavior across target cards;
-- validate the full protocol with simulation, formal models, and independent cryptographic review.
-
-These issues limit production deployment and must be resolved before a production profile is declared.
+- A fixed canonical type and value for `PROTOCOL_VERSION`, and production
+  values for the timing and freshness parameters in Section 6.
+- Numeric canonical size and nesting limits under Section 8.3.
+- Reorg and divergent-chain-view recovery rules.
+- Boomletwo activation, deactivation, revocation, and single-active-device rules.
 
 ## 23. Normative references
 
