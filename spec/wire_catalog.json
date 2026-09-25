@@ -211,7 +211,7 @@
       "context_wrong_value": "reject"
     },
     "dynamic_rescue_exchange": {
-      "selector": "phone_sar_message_type",
+      "selector": "phone_sar_payload_type",
       "variants": {
         "sar_dynamic_registration": "tuple<bytes32, DynamicRescueUpload>",
         "sar_dynamic_upload": "DynamicRescueUpload",

@@ -5,7 +5,7 @@ Do not edit by hand.
 Summary
 Catalog status structural_contexts_incomplete
 Schemas 30
-Fields 112
+Fields 114
 
 Structural profile constants
 peer_count 5
@@ -87,7 +87,7 @@ TxCommit exactly 49 bytes
 Ping exactly 63 bytes
 Pong exactly 884 bytes
 DuressSignalIndex exactly 29 bytes
-DynamicRescueReceipt exactly 123 bytes
+DynamicRescueReceipt exactly 158 bytes
 
 Registered signature-domain metrics
 All signatures are fixed 64-byte Schnorr signatures encoded as bytes64 (65 bytes).
@@ -101,7 +101,7 @@ Boomerang/setup/phase_checkpoint => bytes32; content 33 bytes, signed 184 bytes;
 Boomerang/setup/sar_id => tuple<bytes32, SarId>; size OPEN; depth 3
 Boomerang/setup/sar_response => SarSetupResponse; content 131 bytes, signed 278 bytes; depth 2
 Boomerang/setup/wt_sar_response => WtSarSetupResponse; size OPEN; depth 3
-Boomerang/setup/sar_dynamic_receipt => DynamicRescueReceipt; content 123 bytes, signed 277
+Boomerang/setup/sar_dynamic_receipt => DynamicRescueReceipt; content 158 bytes, signed 312
   bytes; depth 2
 Boomerang/setup/backup_request => BoomletBackupRequest; content 78 bytes, signed 227 bytes;
   depth 2
@@ -124,7 +124,7 @@ Boomerang/withdrawal/ping_envelope => PaddedMessage<SignedMessage<Ping>,
   CbcCmacEnvelope<bytes32>>; content 322 bytes, signed 475 bytes; depth 4
 Boomerang/withdrawal/pong => Pong; content 884 bytes, signed 1028 bytes; depth 5
 
-Registered dynamic rescue exchange types
+Registered dynamic rescue payload types
 sar_dynamic_registration => tuple<bytes32, DynamicRescueUpload>
 sar_dynamic_upload => DynamicRescueUpload
 sar_dynamic_receipt => SignedMessage<DynamicRescueReceipt>
@@ -449,7 +449,7 @@ Deepest structural path  1 containers  StaticDoxingData
 
 Schema DynamicRescueUpload  ID 11  version 1
 +----------------+--------------------+------------------------+----------------------+
-| tag 0x40       | schema_id 11       | schema_version 1       | field_count 5        |
+| tag 0x40       | schema_id 11       | schema_version 1       | field_count 6        |
 | 1 byte         | 2 bytes            | 2 bytes                | 2 bytes              |
 +----------------+--------------------+------------------------+----------------------+
 | field_id 1       | doxing_data_identifier: bytes32                                  |
@@ -458,13 +458,16 @@ Schema DynamicRescueUpload  ID 11  version 1
 | field_id 2       | device_id: bytes32                                               |
 | 2 bytes          | value 33 bytes; field total 35 bytes                             |
 +------------------+------------------------------------------------------------------+
-| field_id 3       | upload_seq_num: u64                                              |
+| field_id 3       | upload_id: bytes32                                               |
+| 2 bytes          | value 33 bytes; field total 35 bytes                             |
++------------------+------------------------------------------------------------------+
+| field_id 4       | upload_seq_num: u64                                              |
 | 2 bytes          | value 9 bytes; field total 11 bytes                              |
 +------------------+------------------------------------------------------------------+
-| field_id 4       | encrypted_payload: CbcCmacEnvelope                               |
+| field_id 5       | encrypted_payload: CbcCmacEnvelope                               |
 | 2 bytes          | variable-length nested value                                     |
 +------------------+------------------------------------------------------------------+
-| field_id 5       | authenticator: bytes16                                           |
+| field_id 6       | authenticator: bytes16                                           |
 | 2 bytes          | value 17 bytes; field total 19 bytes                             |
 +------------------+------------------------------------------------------------------+
 Deepest structural path  2 containers  DynamicRescueUpload -> encrypted_payload:CbcCmacEnvelope
@@ -827,7 +830,7 @@ Deepest structural path  2 containers  DuressSignalIndex -> indices:list<u16>
 
 Schema DynamicRescueReceipt  ID 30  version 1
 +----------------+--------------------+------------------------+----------------------+
-| tag 0x40       | schema_id 30       | schema_version 1       | field_count 4        |
+| tag 0x40       | schema_id 30       | schema_version 1       | field_count 5        |
 | 1 byte         | 2 bytes            | 2 bytes                | 2 bytes              |
 +----------------+--------------------+------------------------+----------------------+
 | field_id 1       | doxing_data_identifier: bytes32                                  |
@@ -836,11 +839,14 @@ Schema DynamicRescueReceipt  ID 30  version 1
 | field_id 2       | device_id: bytes32                                               |
 | 2 bytes          | value 33 bytes; field total 35 bytes                             |
 +------------------+------------------------------------------------------------------+
-| field_id 3       | upload_seq_num: u64                                              |
-| 2 bytes          | value 9 bytes; field total 11 bytes                              |
-+------------------+------------------------------------------------------------------+
-| field_id 4       | encrypted_payload_hash: bytes32                                  |
+| field_id 3       | upload_id: bytes32                                               |
 | 2 bytes          | value 33 bytes; field total 35 bytes                             |
 +------------------+------------------------------------------------------------------+
-Exact encoded size  123 bytes
+| field_id 4       | upload_seq_num: u64                                              |
+| 2 bytes          | value 9 bytes; field total 11 bytes                              |
++------------------+------------------------------------------------------------------+
+| field_id 5       | encrypted_payload_hash: bytes32                                  |
+| 2 bytes          | value 33 bytes; field total 35 bytes                             |
++------------------+------------------------------------------------------------------+
+Exact encoded size  158 bytes
 Deepest structural path  1 containers  DynamicRescueReceipt

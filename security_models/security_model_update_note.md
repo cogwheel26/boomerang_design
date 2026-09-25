@@ -13,6 +13,11 @@ current dynamic update in several places.
   upload credential, authenticated append, exact signed receipts, idempotent
   retries, and rejection of conflicting bytes under one upload identity.
   Accepted uploads remain in history; Phone has no erasure authority.
+- `SetupPhoneSarMessage2` carries payment receipts, identifier, static envelope,
+  and the key and first-upload tuple together; `SetupSarPhoneMessage2` returns
+  the signed upload receipt. Reassess registration binding, partial failures,
+  and complete-request retries against the atomic commit of the static
+  envelope, profile, key, first upload, and receipt.
 - Each accepted upload remains in history. Reassess the old-update replacement
   branch of T-DATA-02 in light of that rule. Receipt signatures prove acceptance
   of individual encrypted uploads, not complete retention or truthful payloads.

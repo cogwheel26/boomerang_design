@@ -993,7 +993,7 @@ def print_main_results(catalog: Catalog) -> None:
             f"{domain} => {expression}; {content_label}; {depth_label}"
         ))
 
-    print("\nRegistered dynamic rescue exchange types")
+    print("\nRegistered dynamic rescue payload types")
     for context, expression in catalog.contexts.get(
         "dynamic_rescue_exchange", {}
     ).get("variants", {}).items():
