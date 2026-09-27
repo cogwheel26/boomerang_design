@@ -1,7 +1,6 @@
 # Setup no-prose guards
 
-Calls beginning with `GS-` in the setup no-prose diagram expand to the exact
-conditions below.
+The following setup guard abbreviations expand to the conditions below.
 
 ## Duress input
 
@@ -65,3 +64,15 @@ receipt.content.boomerang_params_fingerprint == fingerprint
 payload.setup_instance_id == setup_id
 payload.doxing_data_identifier == identifier
 ```
+
+## SAR registration
+
+`GS-SAR-REGISTRATION(payment_receipts, identifier, static_envelope, protocol_version, dynamic_update_auth_key, first_dynamic_doxing_data_upload)`
+applies the SAR acceptance and atomic commit conditions of
+`G-SAR-REGISTRATION` in `setup_development_contracts.md` and SPEC Section 13.1
+to the combined `SetupPhoneSarMessage2`.
+
+`GS-DYNAMIC-RECEIPT(receipt, upload)` applies the Phone verification in SPEC
+Section 10: selected SAR signer, receipt domain, registered `PROTOCOL_VERSION`,
+`doxing_data_identifier`, device ID, upload ID, sequence number, and encrypted
+payload hash must match the submitted upload.

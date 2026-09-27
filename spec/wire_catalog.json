@@ -366,8 +366,8 @@
         { "id": 2, "name": "device_id", "type": "bytes32", "required": true },
         { "id": 3, "name": "upload_id", "type": "bytes32", "required": true },
         { "id": 4, "name": "upload_seq_num", "type": "u64", "required": true },
-        { "id": 5, "name": "encrypted_payload", "type": "CbcCmacEnvelope", "required": true },
-        { "id": 6, "name": "authenticator", "type": "bytes16", "required": true }
+        { "id": 5, "name": "dynamic_doxing_data_encrypted_by_device_data_key", "type": "CbcCmacEnvelope", "required": true },
+        { "id": 6, "name": "dynamic_upload_cmac", "type": "bytes16", "required": true }
       ]
     },
     {
@@ -574,7 +574,7 @@
         { "id": 2, "name": "device_id", "type": "bytes32", "required": true },
         { "id": 3, "name": "upload_id", "type": "bytes32", "required": true },
         { "id": 4, "name": "upload_seq_num", "type": "u64", "required": true },
-        { "id": 5, "name": "encrypted_payload_hash", "type": "bytes32", "required": true }
+        { "id": 5, "name": "hash_of_dynamic_doxing_data_encrypted_by_device_data_key", "type": "bytes32", "required": true }
       ]
     }
   ]

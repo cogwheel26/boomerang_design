@@ -44,7 +44,8 @@ DuressCheckSpace  2  DuressCheckSpace -> space:list<u16>
 WtId  1  WtId
 SarId  1  SarId
 StaticDoxingData  1  StaticDoxingData
-DynamicRescueUpload  2  DynamicRescueUpload -> encrypted_payload:CbcCmacEnvelope
+DynamicRescueUpload  2  DynamicRescueUpload ->
+  dynamic_doxing_data_encrypted_by_device_data_key:CbcCmacEnvelope
 ServicePaymentReceipt  1  ServicePaymentReceipt
 PeerId  1  PeerId
 PeerSetupRecord  2  PeerSetupRecord -> peer_id:PeerId
@@ -462,13 +463,15 @@ Schema DynamicRescueUpload  ID 11  version 1
 | field_id 4       | upload_seq_num: u64                                              |
 | 2 bytes          | value 9 bytes; field total 11 bytes                              |
 +------------------+------------------------------------------------------------------+
-| field_id 5       | encrypted_payload: CbcCmacEnvelope                               |
-| 2 bytes          | variable-length nested value                                     |
+| field_id 5       | dynamic_doxing_data_encrypted_by_device_data_key:                |
+| 2 bytes          | CbcCmacEnvelope                                                  |
+|                  | variable-length nested value                                     |
 +------------------+------------------------------------------------------------------+
-| field_id 6       | authenticator: bytes16                                           |
+| field_id 6       | dynamic_upload_cmac: bytes16                                     |
 | 2 bytes          | value 17 bytes; field total 19 bytes                             |
 +------------------+------------------------------------------------------------------+
-Deepest structural path  2 containers  DynamicRescueUpload -> encrypted_payload:CbcCmacEnvelope
+Deepest structural path  2 containers  DynamicRescueUpload ->
+  dynamic_doxing_data_encrypted_by_device_data_key:CbcCmacEnvelope
 
 Schema ServicePaymentReceipt  ID 12  version 1
 +----------------+--------------------+------------------------+----------------------+
@@ -843,8 +846,9 @@ Schema DynamicRescueReceipt  ID 30  version 1
 | field_id 4       | upload_seq_num: u64                                              |
 | 2 bytes          | value 9 bytes; field total 11 bytes                              |
 +------------------+------------------------------------------------------------------+
-| field_id 5       | encrypted_payload_hash: bytes32                                  |
-| 2 bytes          | value 33 bytes; field total 35 bytes                             |
+| field_id 5       | hash_of_dynamic_doxing_data_encrypted_by_device_data_key:        |
+| 2 bytes          | bytes32                                                          |
+|                  | value 33 bytes; field total 35 bytes                             |
 +------------------+------------------------------------------------------------------+
 Exact encoded size  158 bytes
 Deepest structural path  1 containers  DynamicRescueReceipt

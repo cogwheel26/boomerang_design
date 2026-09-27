@@ -121,14 +121,15 @@ the original receipt. No accepted upload replaces another.
 
 ### DRD-SR-04 Device IDs and Phone replacement
 
-Phone generates `device_id = random_bytes(32)` once for its history and a fresh
-random `upload_id` for each new upload using SPEC Section 9.2. It numbers first
-submissions consecutively from `upload_seq_num = 0` within that history.
+Phone generates `device_id = random_bytes(32)` once per device upload stream
+and a fresh random `upload_id` for each new upload using SPEC Section 9.2.
+It numbers new submissions consecutively from `upload_seq_num = 0` for each
+`device_id`.
 Retries retain both values and the complete original upload.
-If Phone cannot continue a history without reusing a number, it starts a new
-device history. SAR does not reject a valid upload solely for arriving out of
-sequence or repeating a sequence number under a different upload ID. A gap
-alone does not prove that an upload was sent or lost.
+If Phone cannot continue a device upload stream without reusing a number, it
+chooses a new `device_id`. SAR does not reject a valid upload solely for
+arriving out of sequence or repeating a sequence number under a different
+upload ID. A gap alone does not prove that an upload was sent or lost.
 
 A replacement Phone reconstructs `dynamic_update_auth_key` from the doxing
 password, selected SAR, and registration protocol version, then chooses a
@@ -149,8 +150,8 @@ DynamicRescueUpload {
   device_id: bytes32,
   upload_id: bytes32,
   upload_seq_num: u64,
-  encrypted_payload: CbcCmacEnvelope,
-  authenticator: bytes16
+  dynamic_doxing_data_encrypted_by_device_data_key: CbcCmacEnvelope,
+  dynamic_upload_cmac: bytes16
 }
 
 DynamicRescueReceipt {
@@ -158,7 +159,7 @@ DynamicRescueReceipt {
   device_id: bytes32,
   upload_id: bytes32,
   upload_seq_num: u64,
-  encrypted_payload_hash: bytes32
+  hash_of_dynamic_doxing_data_encrypted_by_device_data_key: bytes32
 }
 ```
 
@@ -195,7 +196,7 @@ dynamic_update_auth_key = kdf_counter_cmac_aes256(
 )
 ```
 
-### Encrypted payload
+### Encrypted dynamic doxing data
 
 Encrypt one canonical variable-length `bytes` value with `cbc_cmac_encrypt`
 and the following keys and context:
@@ -217,18 +218,19 @@ stored data require no setup or withdrawal identifier.
 ### Upload authentication
 
 ```text
-authenticator = aes256_cmac(
+dynamic_upload_cmac = aes256_cmac(
   dynamic_update_auth_key,
   canonical_encode(
     "Boomerang/sar_dynamic_upload/v1", PROTOCOL_VERSION,
     doxing_data_identifier, device_id, upload_id, upload_seq_num,
-    encrypted_payload
+    dynamic_doxing_data_encrypted_by_device_data_key
   )
 )
 ```
 
-Use the full 16-byte result and constant-time verification. The separate upload
-key lets SAR authenticate submissions before duress releases the data key.
+`dynamic_upload_cmac` is the full 16-byte AES-CMAC result and is verified in
+constant time. The separate upload key lets SAR authenticate submissions
+before duress releases the data key.
 It authorizes upload and receipt retrieval only. SAR cannot verify the inner
 data-key tag before duress release; accepted undecryptable entries remain
 retained, and their failures cannot hide other entries from rescue processing.
@@ -236,18 +238,19 @@ retained, and their failures cannot hide other entries from rescue processing.
 ### Receipt
 
 ```text
-upload_receipt = DynamicRescueReceipt {
+dynamic_doxing_data_upload_receipt = DynamicRescueReceipt {
   doxing_data_identifier,
   device_id,
   upload_id,
   upload_seq_num,
-  encrypted_payload_hash = sha256(canonical_encode(encrypted_payload))
+  hash_of_dynamic_doxing_data_encrypted_by_device_data_key =
+    sha256(canonical_encode(dynamic_doxing_data_encrypted_by_device_data_key))
 }
 
-signed_upload_receipt = sign_message(
+dynamic_doxing_data_upload_receipt_signed_by_sar = sign_message(
   sar_private_key,
   "Boomerang/setup/sar_dynamic_receipt",
-  upload_receipt
+  dynamic_doxing_data_upload_receipt
 )
 ```
 
@@ -264,26 +267,29 @@ Phone includes the initial dynamic rescue data submission in the SAR
 registration exchange of SPEC Section 13.1. The exchange provides
 confidentiality and authenticates SAR as the selected `SarId`.
 
-1. Phone derives `dynamic_update_auth_key` and constructs `first_upload`, a
-   `DynamicRescueUpload` authenticated with that key.
+1. Phone derives `dynamic_update_auth_key` and constructs
+   `first_dynamic_doxing_data_upload`, a `DynamicRescueUpload` authenticated
+   with that key.
 2. Phone sends `SetupPhoneSarMessage2` containing payment receipts,
-   `doxing_data_identifier`, the static envelope, and
-   `canonical_encode(dynamic_update_auth_key, first_upload)`.
+   `doxing_data_identifier`, the static envelope, and the canonical encoding
+   of `dynamic_update_auth_key` followed by
+   `first_dynamic_doxing_data_upload`.
 3. SAR verifies payment against its invoice associated with
    `doxing_data_identifier`, selected `SarId`, and `PROTOCOL_VERSION`. It
-   requires `first_upload.doxing_data_identifier == doxing_data_identifier`.
+   requires the `doxing_data_identifier` in
+   `first_dynamic_doxing_data_upload` to match the submitted identifier.
    If SAR already stores `dynamic_update_auth_key` under
    `doxing_data_identifier`, it compares the supplied and stored keys in
-   constant time and rejects a mismatch. An existing static envelope must
-   equal the supplied envelope byte-for-byte.
-4. SAR requires `first_upload.upload_seq_num == 0`, authenticates it using the
-   supplied key, and applies the ordinary upload rules. SAR commits the static
-   envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, first upload, and
-   `signed_upload_receipt` together durably before returning the receipt in
-   `SetupSarPhoneMessage2`. A rejected registration cannot establish or replace
-   these records.
-5. Phone verifies `signed_upload_receipt` before reporting successful SAR
-   registration.
+   constant time and rejects a mismatch.
+4. SAR requires `upload_seq_num = 0` in `first_dynamic_doxing_data_upload`,
+   authenticates it using the supplied key, and applies the ordinary upload
+   rules. SAR commits the static envelope, `PROTOCOL_VERSION`,
+   `dynamic_update_auth_key`, `first_dynamic_doxing_data_upload`, and
+   `dynamic_doxing_data_upload_receipt_signed_by_sar` together durably before
+   returning the receipt in `SetupSarPhoneMessage2`. A rejected registration
+   cannot establish or replace these records.
+5. Phone verifies `dynamic_doxing_data_upload_receipt_signed_by_sar` before
+   reporting successful SAR registration.
 
 A lost reply is retried with the complete original `SetupPhoneSarMessage2`.
 If the first upload was accepted, SAR returns its original receipt. SAR must
@@ -297,10 +303,11 @@ for invoice issuance and registration remains open; see the
 
 ### Later uploads and replacement Phones
 
-After initial registration, Phone sends `DynamicRescueUpload` directly using
-the stored `dynamic_update_auth_key`. A replacement Phone uses the same
-procedure with its newly generated device ID. Payment and static-data
-enrollment are not repeated for device replacement.
+After initial registration, Phone sends each new `DynamicRescueUpload` as
+`dynamic_doxing_data` arrives, using the stored `dynamic_update_auth_key`.
+A replacement Phone uses the same procedure with its newly generated device
+ID. Payment and static-data enrollment are not repeated for device
+replacement.
 
 The SAR registration remains bound to its `PROTOCOL_VERSION`. Replacement
 Phones and SAR use that version for authentication, receipt verification, and
@@ -311,7 +318,7 @@ or reinterpret stored uploads.
 ### Upload outcomes
 
 Upload identity is `(doxing_data_identifier, device_id, upload_id)`. SAR
-validates encoding and authentication before comparing the canonical bytes of
+validates authentication before comparing the canonical bytes of
 the complete upload. Transport framing is excluded from the comparison.
 
 | Upload | Result |
@@ -369,7 +376,7 @@ already described in the main specification.
 
 | Property | Required result |
 | --- | --- |
-| First registration | Payment receipts, `doxing_data_identifier`, static envelope, `dynamic_update_auth_key`, and `first_upload` share `SetupPhoneSarMessage2`. SAR checks the invoice associated with `doxing_data_identifier` and `PROTOCOL_VERSION`, then atomically commits the static envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_upload`, and `signed_upload_receipt` before replying in `SetupSarPhoneMessage2`. |
+| First registration | Payment receipts, `doxing_data_identifier`, static envelope, `dynamic_update_auth_key`, and `first_dynamic_doxing_data_upload` share `SetupPhoneSarMessage2`. SAR checks the invoice associated with `doxing_data_identifier` and `PROTOCOL_VERSION`, then atomically commits the static envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_dynamic_doxing_data_upload`, and `dynamic_doxing_data_upload_receipt_signed_by_sar` before replying in `SetupSarPhoneMessage2`. |
 | Registration retry | Phone retries the complete original request after a lost reply. SAR returns the original receipt and preserves the static envelope, `dynamic_update_auth_key`, `PROTOCOL_VERSION`, and accepted history. A different `dynamic_update_auth_key` or static envelope is rejected. |
 | Authentication | Wrong keys, changed authenticated fields, and context mismatches are rejected. |
 | Exact retry | Repeated delivery returns the original signed receipt without another append, including after SAR crash recovery and under concurrent delivery. |
@@ -423,4 +430,3 @@ already described in the main specification.
   failure conditions.
 - [ ] Test parallel acceptance and acknowledgment timing for safe and duress
   cases with large, unavailable, and partly undecryptable histories.
-

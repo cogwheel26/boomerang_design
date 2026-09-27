@@ -33,21 +33,19 @@ end note
 
 group SAR registration
 User -> Phone: S-SAR-1  doxing_password, selected SarId, rescue data
-note over Phone #Lavender
+note over Phone #LavenderBlush
   Derive SAR-specific doxing key and lookup identifier.
-  Encrypt static data once and dynamic updates independently.
+  Encrypt static data under the SAR root; dynamic bytes under device-derived keys.
 end note
 Phone -> SAR: S-SAR-2  doxing_data_identifier
-SAR --> Phone: S-SAR-3  payment info bound to identifier and selected SAR
+SAR --> Phone: S-SAR-3  payment info; SAR records doxing_data_identifier, PROTOCOL_VERSION, and invoice
 Phone --> User: S-SAR-4  payment info
 User -> Phone: S-SAR-5  payment receipt
-Phone -> SAR: S-SAR-6  receipt, identifier, encrypted static and dynamic data
-note over SAR #Pink: Accept under G-SAR-REGISTRATION; store by doxing_data_identifier
-SAR --> Phone: S-SAR-7  registration ready
+Phone -> SAR: S-SAR-6  payment receipts, doxing_data_identifier, static envelope, dynamic_update_auth_key, first_dynamic_doxing_data_upload
+note over SAR #Pink: G-SAR-REGISTRATION
+SAR --> Phone: S-SAR-7  signed DynamicRescueReceipt
+note over Phone #Pink: Verify signed receipt under SPEC 10
 Phone --> User: S-SAR-8  SAR registration confirmed
-note over Phone, SAR #LightYellow
-  Later dynamic updates retain the same identifier and use authenticated encrypted records.
-end note
 end
 
 group Boomlet installation and consent enrollment

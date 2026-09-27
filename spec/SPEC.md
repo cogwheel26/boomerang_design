@@ -1079,8 +1079,8 @@ DynamicRescueUpload {
   device_id: bytes32,
   upload_id: bytes32,
   upload_seq_num: u64,
-  encrypted_payload: CbcCmacEnvelope,
-  authenticator: bytes16
+  dynamic_doxing_data_encrypted_by_device_data_key: CbcCmacEnvelope,
+  dynamic_upload_cmac: bytes16
 }
 
 DynamicRescueReceipt {
@@ -1088,7 +1088,7 @@ DynamicRescueReceipt {
   device_id: bytes32,
   upload_id: bytes32,
   upload_seq_num: u64,
-  encrypted_payload_hash: bytes32
+  hash_of_dynamic_doxing_data_encrypted_by_device_data_key: bytes32
 }
 ```
 
@@ -1099,31 +1099,36 @@ in order: `dynamic_update_auth_key` (`bytes32`) and the first
 Upload authentication is:
 
 ```text
-authenticator = aes256_cmac(
+dynamic_upload_cmac = aes256_cmac(
   dynamic_update_auth_key,
   canonical_encode(
     "Boomerang/sar_dynamic_upload/v1", PROTOCOL_VERSION,
     doxing_data_identifier, device_id, upload_id, upload_seq_num,
-    encrypted_payload
+    dynamic_doxing_data_encrypted_by_device_data_key
   )
 )
-upload_receipt = DynamicRescueReceipt {
+dynamic_doxing_data_upload_receipt = DynamicRescueReceipt {
   doxing_data_identifier,
   device_id,
   upload_id,
   upload_seq_num,
-  encrypted_payload_hash = sha256(canonical_encode(encrypted_payload))
+  hash_of_dynamic_doxing_data_encrypted_by_device_data_key =
+    sha256(canonical_encode(dynamic_doxing_data_encrypted_by_device_data_key))
 }
-signed_upload_receipt = sign_message(
-  sar_private_key, "Boomerang/setup/sar_dynamic_receipt", upload_receipt
+dynamic_doxing_data_upload_receipt_signed_by_sar = sign_message(
+  sar_private_key,
+  "Boomerang/setup/sar_dynamic_receipt",
+  dynamic_doxing_data_upload_receipt
 )
 ```
 
-The complete 16-byte upload CMAC MUST be verified in constant time. Phone MUST
-verify `signed_upload_receipt` using the selected SAR public key, exact
-domain, and registered `PROTOCOL_VERSION`; `doxing_data_identifier`, device ID,
-upload ID, sequence number, and envelope hash MUST match its submitted upload. Receipts
-attest acceptance of encrypted bytes.
+`dynamic_upload_cmac` is the full 16-byte upload CMAC and MUST be verified in
+constant time. Phone MUST verify
+`dynamic_doxing_data_upload_receipt_signed_by_sar` using the selected SAR
+public key, exact domain, and registered `PROTOCOL_VERSION`;
+`doxing_data_identifier`, device ID, upload ID, sequence number, and envelope
+hash MUST match its submitted upload. Receipts attest acceptance of encrypted
+bytes.
 
 A service payment proof is opaque
 to the protocol, but the receiving service MUST verify that it pays the
@@ -1257,33 +1262,37 @@ doxing_data_identifier =
 4. SAR associates `doxing_data_identifier` and the exchange's
    `PROTOCOL_VERSION` with its invoice and returns payment information.
 5. After payment, Phone encrypts the static rescue data under Sections 9.4–9.6.
-6. Phone selects bounded opaque plaintext bytes for the first dynamic data upload. It
-   generates `device_id = random_bytes(32)` once for its history and
-   `upload_id = random_bytes(32)` for the first upload using Section 9.2, sets
-   `upload_seq_num = 0`, derives the keys in Section 9.4, and constructs
-   `first_upload`.
+6. Phone selects bounded opaque plaintext bytes for the first dynamic data
+   upload. It generates `device_id = random_bytes(32)` for this Phone's upload
+   stream and `upload_id = random_bytes(32)` for the first upload using Section
+   9.2, sets `upload_seq_num = 0`, derives the keys in Section 9.4, and
+   constructs `first_dynamic_doxing_data_upload`.
 7. Phone sends `SetupPhoneSarMessage2` containing the payment receipts,
-   `doxing_data_identifier`, the static-data envelope, and
-   `canonical_encode(dynamic_update_auth_key, first_upload)` over
-   a confidential exchange with SAR authenticated as the selected `SarId`.
+   `doxing_data_identifier`, the static-data envelope, and the canonical
+   encoding of `dynamic_update_auth_key` followed by
+   `first_dynamic_doxing_data_upload` over a confidential exchange with SAR
+   authenticated as the selected `SarId`.
 8. SAR verifies payment against the invoice issued for the submitted
    `doxing_data_identifier`, selected `SarId`, and `PROTOCOL_VERSION` in step 4.
-   It requires `first_upload.doxing_data_identifier == doxing_data_identifier`.
-9. SAR requires `first_upload.upload_seq_num == 0` and validates its encoding,
-   bounds, and authentication using the supplied `dynamic_update_auth_key`.
-   SAR MUST atomically and durably commit the static envelope,
-   `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_upload`, and
-   `signed_upload_receipt` before returning `signed_upload_receipt` in
-   `SetupSarPhoneMessage2`. A rejected registration MUST NOT
+   It requires the `doxing_data_identifier` in
+   `first_dynamic_doxing_data_upload` to equal the submitted identifier.
+9. SAR requires `upload_seq_num = 0` in `first_dynamic_doxing_data_upload`
+   and validates its authentication using the supplied
+   `dynamic_update_auth_key`. SAR MUST atomically and durably commit the static
+   envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`,
+   `first_dynamic_doxing_data_upload`, and
+   `dynamic_doxing_data_upload_receipt_signed_by_sar` before returning that
+   receipt in `SetupSarPhoneMessage2`. A rejected registration MUST NOT
    establish or replace these records.
-10. Phone verifies `signed_upload_receipt` under Section 10 before treating
-    SAR registration as complete.
+10. Phone verifies `dynamic_doxing_data_upload_receipt_signed_by_sar` under
+    Section 10 before treating SAR registration as complete.
 
-Later submissions contain `DynamicRescueUpload`, authenticated with the stored
+As new `dynamic_doxing_data` arrives after registration, Phone submits later
+`DynamicRescueUpload` values authenticated with the stored
 `dynamic_update_auth_key` and registered `PROTOCOL_VERSION`. Identity is the tuple
-`(doxing_data_identifier, device_id, upload_id)`. SAR MUST validate canonical
-encoding, bounds, and upload authentication before comparing the canonical
-bytes of the complete upload. Submission results MUST NOT depend on payload
+`(doxing_data_identifier, device_id, upload_id)`. SAR MUST validate upload
+authentication before comparing the canonical bytes of the complete upload.
+Submission results MUST NOT depend on payload
 meaning or duress state. The following rules also apply to the first upload.
 
 When a valid upload has a new identity, SAR MUST
@@ -2236,7 +2245,7 @@ using the replay tuple
 `(approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv)`.
 The durable-write path, record size class, queue, and commit policy MUST be
 identical for both classifications. For a new duress tuple, this write MUST
-commit rescue activation. Repeated tuples are handled as defined in Section
+activate duress response. Repeated tuples are handled as defined in Section
 16.6.
 
 For every valid safe or duress placeholder, SAR signs the exact encrypted

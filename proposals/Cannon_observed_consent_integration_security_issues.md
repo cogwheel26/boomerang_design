@@ -28,7 +28,7 @@ those acknowledgments as completed controls.
 | ID | Severity | Affected choice | Issue |
 | --- | --- | --- | --- |
 | OCI-01 | High | Options 8 and 9 | A ceremony-bound verdict can be replayed between checks in the same withdrawal. |
-| OCI-02 | High | Option 8 with the existing rescue root | Giving ST the rescue root also grants account-wide upload authority and historical decryption. |
+| OCI-02 | High | Option 8 with the existing rescue root | Giving ST the rescue root also grants upload authority under any device ID and historical decryption. |
 | OCI-03 | High | Option 1 and any quarantine rollover exception | Destination restriction alone does not preserve withdrawal gates or the destination's protection. |
 | OCI-04 | High | Fixed-set maintenance and full setup replacement | Quarantine lacks a defined atomic transition and a path for pending rescue obligations. |
 | OCI-05 | High | Variants 4C and 4D, and lifecycle integration | Existing backup schemas and one-time provisioning rules cannot safely express reenrollment or replacement as local flags. |
@@ -67,10 +67,10 @@ rejects this substitution.
 **Evidence.** Option 8 explicitly gives ST `doxing_key_for_sar` if the placeholder
 plaintext is retained. The applied [SPEC Section 9.4](../spec/SPEC.md) derives
 both device-data keys and `dynamic_update_auth_key` from that root. Section
-13.1 gives the account credential append authority under every device ID.
+13.1 gives `dynamic_update_auth_key` append authority under every device ID.
 
 **Consequence.** A compromised ST holding this root can decrypt available retained
-ciphertext and derive the registered upload credential. It can authenticate
+ciphertext and derive `dynamic_update_auth_key`. It can authenticate
 misleading uploads under existing or new device IDs. Append-only retention stops
 replacement of accepted entries, but does not attest which physical Phone sent
 an observation or establish its truth. False authenticated observations can
@@ -85,8 +85,8 @@ and rescue interpretation to account for ST's upload and decryption powers.
 Moving classification alone cannot be described as preserving the current key
 ownership boundary.
 
-**Evidence obtained.** Using the focused dynamic-data checker and synthetic inputs,
-a root holder generated an upload that passed account authentication and
+**Evidence obtained.** Using focused dynamic-data checks and synthetic inputs,
+a root holder generated an upload that passed SAR upload authentication and
 successfully decrypted an existing vector. No live SAR or user data was involved.
 
 ### OCI-03 Restricted rollover can become a maintenance spending path
@@ -204,27 +204,29 @@ check, or profile is rejected without relaxing the base identity checks.
 **Evidence.** Option 1 can replace exposed keys through full setup replacement.
 [SPEC Section 13.1](../spec/SPEC.md) derives the SAR root and lookup identifier
 from the password and selected SAR key, without a setup ID. Section 9.4 derives
-the upload credential using the registration profile and identifier; Section
+`dynamic_update_auth_key` using `PROTOCOL_VERSION` and the identifier; Section
 13.1 explicitly retains old holders' append authority. A fresh device ID
-separates history but does not revoke an account credential.
+separates history but does not revoke `dynamic_update_auth_key`.
 
 **Failure sequence.** After compromise of a Phone, a root-bearing ST under Option
 8, or another holder of the rescue root, rebuild the custody setup while reusing
-the same doxing password and SAR. Under the same registration profile, the
-rescue root, identifier, and upload credential remain the same. Retiring the
-custody devices does not stop the former root holder from authenticating uploads
-or decrypting newly obtainable ciphertext under that root.
+the same doxing password and SAR. Under the same `PROTOCOL_VERSION`, the
+rescue root, identifier, and `dynamic_update_auth_key` remain the same. Retiring
+the custody devices does not stop the former root holder from authenticating
+uploads or decrypting newly obtainable ciphertext under that root.
 
-**Required closure.** Distinguish consent-only exposure from root or credential
+**Required closure.** Distinguish consent-only exposure from root or upload-key
 compromise in the recovery procedure. If rescue authority was exposed, define
-its replacement and account transition, including retention and correct routing
-for still-active old setups. Do not silently replace the old account key or
-history, which the dynamic lifecycle forbids. A profile change alone is not a
-specified account-migration mechanism.
+its replacement and SAR registration transition, including retention and
+correct routing for still-active old setups. Do not silently replace the old
+`dynamic_update_auth_key` or history, which the dynamic lifecycle forbids. A
+`PROTOCOL_VERSION` change alone is not a specified SAR registration migration
+mechanism.
 
 **Acceptance case.** Rebuild with the same password and SAR and demonstrate that
-the old credential remains valid; then test the explicitly chosen replacement
-procedure. Receipt and history access for old obligations must remain intact.
+the old `dynamic_update_auth_key` remains valid; then test the explicitly chosen
+replacement procedure. Receipt and history access for old obligations must
+remain intact.
 Observation of a consent answer alone does not imply root compromise; this
 finding applies only when that additional secret was exposed.
 
@@ -258,7 +260,7 @@ combined into one passing checklist.
 ## Evidence and limits
 
 The review compared the consent options with the applied rescue-data KDFs,
-account authority, backup schema, current challenge rules, placeholder channel,
+upload authority, backup schema, current challenge rules, placeholder channel,
 withdrawal failure behavior, and the new lifecycle requirements. It did not
 modify those source documents or perform a general audit of every repository
 change.
@@ -322,6 +324,5 @@ proposal on 2026-09-22; their conclusions are unchanged.
 | `proposals/Cannon_boomletwo_lifecycle_proposal.md` | `4abd642e9d7cc649ac83487705b5ac32961fe3b7382e12a848cf88f7bfd7e367` |
 | `spec/SPEC.md` | `86f8baab945b5b6f72a20558f8029da2eec914e176bfe21b20c4ece9154c30e9` |
 | `spec/wire_catalog.json` | `122df5d7d1e33f6e71497cb8576b65d7b0f862949c909b21919e976c85b98dd1` |
-| `scripts/check_dynamic_rescue.py` | `a9c9d81b940dcf021d82f19ce6d01683764a25d98d39ffba409dd8be8170d176` |
 | `setup/setup_development_contracts.md` | `2720b7150fed2601b1ee1bfd57f3558e46d635a6919a8f4ff495daf8af0e7f14` |
 | `withdrawal/withdrawal_development_contracts.md` | `933cb43a36b25972a49464811145cfdb6762c4063dbfbb3f414846f2f58b4bef` |

@@ -199,7 +199,7 @@ flowchart TB
 
     subgraph RES["RESPONSE — proceeds asynchronously"]
         direction LR
-        R1["Duress answer<br/>durably activates response"] --> R2["Prepared responder<br/>assesses and acts"]
+        R1["Duress answer<br/>activates duress response"] --> R2["Prepared responder<br/>assesses and acts"]
     end
 
     A2 -. "forces" .-> B1
