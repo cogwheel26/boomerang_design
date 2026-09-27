@@ -310,7 +310,6 @@ sequenceDiagram
         SAR-->>WT: Acknowledgment required before pong use
         WT-->>B: Recipient-specific pong with current peer pings
         Note over B: A valid catch-up round need not increment the local counter
-        Note over SAR: If duress was entered, response proceeds asynchronously
     end
 
     WT-->>B: Signed reached collection for all five Boomlets
@@ -352,8 +351,9 @@ agreements, peer identity keys, SAR routing information, active ceremony
 identifiers, protocol objects, receipts, and replay state. It does not store the
 descriptor or the milestone schedule, and every PSBT it relays is encrypted for
 its recipient Boomlet ([SPEC §7.4, §13.8, §15.3](spec/SPEC.md)). SAR
-stores a pseudonymous `doxing_data_identifier`, encrypted rescue-data
-envelopes it cannot read, payment status, and `placeholder` replay tuples; it
+stores a pseudonymous `doxing_data_identifier`, `dynamic_update_auth_key`,
+encrypted rescue data and upload receipts, payment status, and `placeholder`
+replay tuples; it
 gains the ability to decrypt the rescue data only when a valid duress
 `placeholder` delivers `doxing_key_for_sar`
 ([SPEC §7.5, §16.3–16.4](spec/SPEC.md)). A SAR that learns identifying data
@@ -1027,9 +1027,8 @@ ceremony state, and `reached_pings_collection`
 **Device load and endurance.** Long ceremonies require sustained per-round
 signing, MAC, and KDF work plus persistent-write traffic on a card with limited
 transient memory and finite write endurance. Whether target cards can sustain
-the expected `ping` and `pong` cycle counts is unvalidated
-([SPEC §19.2, §22](spec/SPEC.md)). The current profile keeps one Boomlet and one
-ST per peer ([SPEC §2](spec/SPEC.md)).
+the expected `ping` and `pong` cycle counts is unvalidated. The current profile
+keeps one Boomlet and one ST per peer ([SPEC §2](spec/SPEC.md)).
 
 The design has the following costs.
 
@@ -1194,11 +1193,11 @@ The recommended review order follows.
    [non-initiator withdrawal](withdrawal/non_initiator_withdrawal_diagram_without_states.svg)
    diagrams. They are explanatory; the specification remains normative.
 
-A serious verification effort must include adversarial protocol review,
-canonical test vectors, state-machine and replay tests, hardware evaluation,
-failure injection, usability work under stress, and jurisdiction-specific
-response exercises. None of the qualitative argument above substitutes for
-that evidence.
+A serious verification effort must include timing simulation, formal
+state-machine and replay analysis, independent cryptographic review, published
+interoperability vectors, hardware evaluation, failure injection, usability
+work under stress, and jurisdiction-specific response exercises. None of the
+qualitative argument above substitutes for that evidence.
 
 Dynamic simulation of ceremony timing is planned. Network delay, irregular
 block intervals, and human response latency interact with the profile's

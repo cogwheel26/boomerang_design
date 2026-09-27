@@ -15,10 +15,10 @@ of this proposal, a running changelog, and an incremental Phase 1 report.
 
 | File | Places to change | Intended result |
 | --- | --- | --- |
-| `spec/SPEC.md` | Sections 7.5, 8.3, 9.4, 9.6, 10, 13.1, 16.4, 18.1–18.4, 19.4, 19.9, 20–22 | Account credential and profile state; device KDF; authenticated append; exact receipts; bounded opaque payloads; registration, replacement, retry, and complete-history rescue access. |
+| `spec/SPEC.md` | Sections 7.5, 8.3, 9.4, 9.6, 10, 13.1, 16.4, 18.1–18.4, 19.4, 19.9, 20–22 | `dynamic_update_auth_key` and `PROTOCOL_VERSION` state; device KDF; authenticated append; exact receipts; bounded opaque payloads; registration, replacement, retry, and complete-history rescue access. |
 | `spec/wire_catalog.json`, `spec/wire_catalog.txt` | Schema registry, signature domains, encryption contexts, registration tuple, generated layouts | Assign IDs 11 and 30 to upload and receipt; register exact types and regenerate the text catalog. |
-| `outside/test_vectors/`, `scripts/check_dynamic_rescue.py` | New focused vectors and executable checks | Reproducible cryptographic bytes and lifecycle scenarios, with evidence boundaries recorded. |
-| `setup/setup_development_contracts.md`, `setup/setup_no_prose_guards.md`, `setup/README.md` | SAR registration, stored objects, receipt verification, retry | Protected account registration and signed first-upload receipt. |
+| `outside/test_vectors/` | Focused vectors | Cryptographic bytes and lifecycle evidence with explicit boundaries. |
+| `setup/setup_development_contracts.md`, `setup/setup_no_prose_guards.md`, `setup/README.md` | SAR registration, stored objects, receipt verification, retry | Protected SAR registration and signed first-upload receipt. |
 | `no_prose_crypto_contracts.md`, `setup/*.puml`, `withdrawal/*.puml`, `duress_protection/*.puml` | SAR upload and rescue-data retrieval fragments | Device-key encryption and asynchronous access to all retained uploads; source edits only. |
 | `DESIGN.md`, `GLOSSARY.md`, `withdrawal/README.md`, `duress_protection/README.md` | Rescue data, registration, replacement, activation | Terminology and explanatory behavior consistent with the specification. |
 | `security_models/security_model_update_note.md` | DG-11, DG-40, T-DATA-02, related risks and assumptions | Hand off affected security-model entries for independent reassessment. |
@@ -29,20 +29,21 @@ The independent review should also revisit the rescue-data attack-tree branch
 and SAR data-flow labels. The [security review note](../security_models/security_model_update_note.md)
 lists the affected entries.
 
-The catalog integration also updates `scripts/generate_wire_catalog.py` to
-validate the schema registry and report the registered dynamic exchange types.
+The catalog validation covers the schema registry and registered dynamic
+exchange types.
 
 ## Current status
 
-The specification defines authenticated append, account and device history
-identity, exact signed receipts, protected first registration, replacement,
-non-erasure, retry, and conflict rejection. `DynamicRescueUpload` uses schema ID
+The specification defines authenticated append, uploads keyed by
+`doxing_data_identifier`, device ID, and upload ID, exact signed receipts,
+protected first registration, replacement, non-erasure, retry, and conflict rejection.
+`DynamicRescueUpload` uses schema ID
 11; `DynamicRescueReceipt` uses ID 30.
 
 The [changelog](../CHANGELOG.md) records integration and validation. The
 [Phase 1 report](../outside/Cannon_phase_1_report.md) records evidence and open
 gates. The existing DG-40 entry awaits independent reassessment. Protected
-provisioning, real storage restoration, capacity, and duress-observability
+provisioning, real storage restoration, and duress-observability
 validation remain open.
 
 ## Roadmap goal
@@ -83,12 +84,12 @@ and rollback detection. Deployment evidence remains a completion gate.
 | --- | --- |
 | Payload | Bounded bytes interpreted by SAR's rescue application |
 | Storage | Retain every accepted encrypted upload |
-| Identity | Identify uploads by account, device ID, and random upload ID; use a per-device sequence number for ordering |
+| Identity | Identify uploads by `doxing_data_identifier`, device ID, and random upload ID; use a per-device sequence number for ordering |
 | Encryption | Derive a device-data key from `doxing_key_for_sar` |
-| Authentication | Authenticate uploads with a separate account upload key |
+| Authentication | Authenticate uploads with `dynamic_update_auth_key` |
 | Acknowledgment | Return a signed receipt for the exact encrypted envelope |
 | Registration | Extend the existing Phone and SAR setup exchange for the first device |
-| Replacement | Reconstruct account upload authority and choose a fresh device ID |
+| Replacement | Reconstruct `dynamic_update_auth_key` and choose a fresh device ID |
 
 The identifier derivation, static-data encryption, and Boomlet release of
 `doxing_key_for_sar` remain as specified. Dynamic uploads use the existing
@@ -101,7 +102,7 @@ cryptographic primitives and canonical encoding.
 No Phone message, credential, secret, or procedure for restoring Phone
 credentials can make SAR hide, delete, truncate, reset, or forget an accepted
 upload. Later uploads cannot revoke or supersede earlier uploads. SAR makes
-every retained upload and receipt available to its rescue application.
+every retained upload available to its rescue application.
 
 Retention continues while a related Boomerang setup may remain active. Later
 deletion requires independent SAR authority; Phone cannot authorize it.
@@ -129,17 +130,16 @@ device history. SAR does not reject a valid upload solely for arriving out of
 sequence or repeating a sequence number under a different upload ID. A gap
 alone does not prove that an upload was sent or lost.
 
-A replacement Phone reconstructs the account credential from the doxing
+A replacement Phone reconstructs `dynamic_update_auth_key` from the doxing
 password, selected SAR, and registration protocol version, then chooses a
 fresh device ID. Its first valid upload starts that device ID's history;
 no additional device enrollment exchange is required.
 
-Device IDs separate histories and encryption keys. Authorization belongs to
-the account: any holder of the upload credential can submit under any device
-ID, including an existing one. SAR does not attest which physical Phone sent
-an upload. An upload naming one device ID does not modify entries associated
-with another ID. Old Phones retain append authority, but cannot erase or
-replace accepted entries.
+Device IDs separate histories and encryption keys. Any holder of
+`dynamic_update_auth_key` can submit under any device ID, including an existing
+one. SAR does not attest which physical Phone sent an upload. An upload naming
+one device ID does not modify entries associated with another ID. Old Phones
+retain append authority, but cannot erase or replace accepted entries.
 
 ## Objects
 
@@ -169,16 +169,15 @@ canonical encoding, fixed-width types, and encoded-size limits. SPEC Section
 bound. Both new schemas use version 1 and field IDs starting at 1 in declared
 order.
 
-Final bounds must limit per-upload work on Phone and SAR; deployment capacity
-and throughput evidence remain open. Capacity rejection cannot evict accepted
-history or block exact authenticated receipt retrieval.
+Final bounds must limit per-upload work on Phone and SAR. SAR storage is modeled
+with unbounded capacity; finite-capacity behavior remains open.
 
 ## Cryptographic definitions
 
 ### Keys
 
 Use `kdf_counter_cmac_aes256` from SPEC Section 9.4; output lengths are in bytes.
-`PROTOCOL_VERSION` is the account's registration profile version.
+SAR stores `PROTOCOL_VERSION` with each `doxing_data_identifier` at registration.
 
 ```text
 device_data_key = kdf_counter_cmac_aes256(
@@ -253,7 +252,7 @@ signed_upload_receipt = sign_message(
 ```
 
 Phone calls `verify_signature` with the selected SAR public key and exact
-domain, then matches the account identifier, device ID, upload ID, sequence
+domain, then matches `doxing_data_identifier`, device ID, upload ID, sequence
 number, and envelope hash against its upload. The existing signature helper
 provides BIP340 signing and protocol-version binding.
 
@@ -270,14 +269,16 @@ confidentiality and authenticates SAR as the selected `SarId`.
 2. Phone sends `SetupPhoneSarMessage2` containing payment receipts,
    `doxing_data_identifier`, the static envelope, and
    `canonical_encode(dynamic_update_auth_key, first_upload)`.
-3. SAR verifies payment and its binding to the selected SAR, invoice, and
-   registered `doxing_data_identifier`. It requires
-   `first_upload.doxing_data_identifier` to match that identifier and the
-   exchange profile to match the registration profile. An existing `dynamic_update_auth_key`
-   must match in constant time; an existing static envelope must also match.
+3. SAR verifies payment against its invoice associated with
+   `doxing_data_identifier`, selected `SarId`, and `PROTOCOL_VERSION`. It
+   requires `first_upload.doxing_data_identifier == doxing_data_identifier`.
+   If SAR already stores `dynamic_update_auth_key` under
+   `doxing_data_identifier`, it compares the supplied and stored keys in
+   constant time and rejects a mismatch. An existing static envelope must
+   equal the supplied envelope byte-for-byte.
 4. SAR requires `first_upload.upload_seq_num == 0`, authenticates it using the
    supplied key, and applies the ordinary upload rules. SAR commits the static
-   envelope, profile, `dynamic_update_auth_key`, first upload, and
+   envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, first upload, and
    `signed_upload_receipt` together durably before returning the receipt in
    `SetupSarPhoneMessage2`. A rejected registration cannot establish or replace
    these records.
@@ -288,26 +289,24 @@ A lost reply is retried with the complete original `SetupPhoneSarMessage2`.
 If the first upload was accepted, SAR returns its original receipt. SAR must
 not receive `doxing_key_for_sar` during registration.
 
-The confidentiality and account-authentication guarantees of SAR setup are
-prerequisites for this exchange. SPEC Section 13.1 requires a binding among
-selected SarId, registration profile, invoice, and registered
-`doxing_data_identifier`; public identifier knowledge or payment-metadata replay
-cannot authorize enrollment.
-The deployment must document and test its transport and registration-binding
-mechanism.
+SPEC Section 13.1 binds the invoice to the selected `SarId`, `PROTOCOL_VERSION`,
+and recorded `doxing_data_identifier`. Its first-upload CMAC proves possession
+of the supplied `dynamic_update_auth_key`. The concrete authenticated channel
+for invoice issuance and registration remains open; see the
+[Phone–SAR transport proposal](Cannon_sar_registration_transport_proposal.md).
 
 ### Later uploads and replacement Phones
 
 After initial registration, Phone sends `DynamicRescueUpload` directly using
-the established account key. A replacement Phone uses the same procedure with
-its newly generated device ID. Payment and static-data enrollment are not
-repeated for device replacement.
+the stored `dynamic_update_auth_key`. A replacement Phone uses the same
+procedure with its newly generated device ID. Payment and static-data
+enrollment are not repeated for device replacement.
 
-The account remains bound to its registration protocol version. Replacement
-Phones and SAR use that profile for authentication, receipt verification, and
+The SAR registration remains bound to its `PROTOCOL_VERSION`. Replacement
+Phones and SAR use that version for authentication, receipt verification, and
 historical decoding. A software update must preserve access to accepted data;
-a different profile cannot silently replace the credential or reinterpret
-stored uploads.
+a different `PROTOCOL_VERSION` cannot silently replace `dynamic_update_auth_key`
+or reinterpret stored uploads.
 
 ### Upload outcomes
 
@@ -321,7 +320,7 @@ the complete upload. Transport framing is excluded from the comparison.
 | Accepted identity with identical canonical bytes | Return the original signed receipt without another append |
 | Accepted identity with different canonical bytes | Reject the conflict and preserve the accepted upload and receipt |
 | Same sequence number with a different upload ID | Retain both uploads; the claimed order is ambiguous |
-| Same upload ID under another account or device ID | Treat as a separate upload under that account's authentication rules |
+| Same upload ID under another `doxing_data_identifier` or device ID | Treat as a separate upload; authenticate with the `dynamic_update_auth_key` stored for the stated `doxing_data_identifier` |
 
 Phone retries the complete original upload after a missing reply. A missing
 reply alone does not establish whether acceptance occurred. Re-encrypting the
@@ -338,12 +337,12 @@ from acceptance, including when the reply is lost.
 The design assumes SAR deployments preserve accepted uploads and their
 original receipts through supported storage failures. Crash recovery and
 restore validation belong to the deployment. Phone replacement and
-reconstruction of its account credential are separate operations described
+reconstruction of `dynamic_update_auth_key` are separate operations described
 above.
 
 After valid duress activation, SAR uses the Boomlet-provided
 `doxing_key_for_sar` and each stored device ID to derive the required data keys.
-It makes every retained upload and receipt available to its rescue application.
+It makes every retained upload available to its rescue application.
 Retrieval, decryption, interpretation, and SAR crash recovery preserve the fixed
 acknowledgment and observability requirements of SPEC Sections 16.4–16.6.
 
@@ -355,7 +354,7 @@ device history, not actual send time or cross-device order. Duplicate numbers
 leave their relative order unresolved. The rescue application interprets the
 payloads. Signed receipts attest acceptance of encrypted bytes. Device IDs
 identify histories; they do not authenticate
-physical devices or restrict an account credential to one history.
+physical devices or restrict `dynamic_update_auth_key` to one history.
 
 Durability across SAR crashes relies on deployment storage and recovery
 procedures. A malicious SAR can discard accepted uploads or refuse to perform
@@ -370,13 +369,13 @@ already described in the main specification.
 
 | Property | Required result |
 | --- | --- |
-| First registration | Payment receipts, identifier, static envelope, and the key and first-upload tuple share `SetupPhoneSarMessage2`. SAR validates the registration binding and commits the static envelope, profile, key, upload, and signed receipt atomically before replying in `SetupSarPhoneMessage2`. |
-| Registration retry | Phone retries the complete original request after a lost reply. SAR returns the original receipt and preserves the static envelope, key, profile, and accepted history. A different key or static envelope is rejected. |
+| First registration | Payment receipts, `doxing_data_identifier`, static envelope, `dynamic_update_auth_key`, and `first_upload` share `SetupPhoneSarMessage2`. SAR checks the invoice associated with `doxing_data_identifier` and `PROTOCOL_VERSION`, then atomically commits the static envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_upload`, and `signed_upload_receipt` before replying in `SetupSarPhoneMessage2`. |
+| Registration retry | Phone retries the complete original request after a lost reply. SAR returns the original receipt and preserves the static envelope, `dynamic_update_auth_key`, `PROTOCOL_VERSION`, and accepted history. A different `dynamic_update_auth_key` or static envelope is rejected. |
 | Authentication | Wrong keys, changed authenticated fields, and context mismatches are rejected. |
 | Exact retry | Repeated delivery returns the original signed receipt without another append, including after SAR crash recovery and under concurrent delivery. |
 | Sequence order | New uploads use consecutive numbers from zero per device history; SAR retains valid delayed or duplicate-number uploads under distinct IDs without treating gaps as proof of loss. |
-| Conflict | Different bytes under the same account, device, and upload ID cannot both be accepted. Include changed-IV cases. |
-| Device separation | The same upload ID under different device IDs identifies separate entries. Replacement needs no new device enrollment. Account credentials remain valid across those IDs. |
+| Conflict | Different bytes under the same `doxing_data_identifier`, device ID, and upload ID cannot both be accepted. Include changed-IV cases. |
+| Device separation | The same upload ID under different device IDs identifies separate entries. Replacement needs no new device enrollment. `dynamic_update_auth_key` authenticates uploads under any device ID. |
 | Non-erasure | Later uploads, replacement, and registration retries preserve accepted entries and receipts. |
 | Payload handling | The encrypted plaintext is canonical `bytes`; payload meaning does not affect protocol processing. All retained entries remain available to rescue. |
 | Cryptographic encoding | Shared vectors agree on KDF inputs, envelope context, upload CMAC, envelope hash, and receipt signature. Wire-size boundaries follow SPEC Section 8.3. |
@@ -388,14 +387,14 @@ already described in the main specification.
 
 - [x] Adopt history retention in the roadmap and record DG-11 and DG-40 for
   independent security review.
-- [x] Add SAR credential, immutable registration profile, device histories,
+- [x] Add `dynamic_update_auth_key`, recorded `PROTOCOL_VERSION`, device histories,
   and receipts to SPEC Section 7.5.
 - [x] Allocate upload schema ID 11 and receipt schema ID 30, version 1,
   sequential field IDs; register plaintext `bytes`, registration tuple, and
   receipt domain; regenerate the wire catalog.
 - [x] Add exact keys, context, CMAC, receipt rules, and dynamic-context numeric
   limits to SPEC Sections 8–10; publish focused shared vectors.
-- [x] Integrate protected first registration, account binding, receipt checks,
+- [x] Integrate protected first registration, identifier binding, receipt checks,
   replacement, and retries in SPEC Section 13.1 and setup contracts, preserving
   static verification and Section 13.9 finalization.
 - [x] Integrate retry and complete-history rescue
@@ -412,23 +411,16 @@ already described in the main specification.
 
 - [ ] Independently reassess the security model using the
   [review note](../security_models/security_model_update_note.md).
-- [ ] Validate the protected transport and registration binding with a
-  real implementation, including identifier-only and payment-replay attacks.
+- [ ] Validate authenticated Phone–SAR transport for registration and later
+  uploads with a real implementation, including channel substitution,
+  endpoint failover, and payment-replay attacks.
 - [ ] Pin the production `PROTOCOL_VERSION` value and canonical type, then
   independently reproduce vectors with the implementation revision recorded.
   Focused vectors explicitly use the test profile `u16(1)`.
-- [ ] Validate capacity, independent deletion authority after setup retirement,
+- [ ] Define finite-capacity behavior and validate independent deletion authority
+  after setup retirement,
   and SAR storage and restoration assumptions under documented deployment
   failure conditions.
 - [ ] Test parallel acceptance and acknowledgment timing for safe and duress
   cases with large, unavailable, and partly undecryptable histories.
 
-### Reproduction
-
-Run `python3 scripts/generate_wire_catalog.py --check` and
-`python3 scripts/check_dynamic_rescue.py` from the repository root. The latter
-requires Python's `cryptography` package and compares the vectors in
-`outside/test_vectors/` with
-recomputed exact bytes. Its SQLite acceptance model checks interruption,
-restart, conflict serializations, and an externally supplied restoration witness.
-It does not establish deployment durability or duress timing.

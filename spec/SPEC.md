@@ -146,6 +146,7 @@ The current security argument assumes:
   `normal_pubkey`;
 - cryptographic primitives are correctly implemented;
 - WT and SAR remain available during ceremonies;
+- SAR has unbounded capacity for rescue-data histories;
 - SAR deployments preserve accepted rescue uploads and original receipts across
   their supported storage failures;
 - users start rollover or recovery before fallback timelocks make coercion predictably useful.
@@ -266,7 +267,7 @@ SAR stores:
 - `doxing_data_identifier`;
 - the static rescue-data AES-CBC/CMAC envelope;
 - `PROTOCOL_VERSION` and `dynamic_update_auth_key` associated with that
-  identifier;
+  `doxing_data_identifier`;
 - append-only histories indexed by `(doxing_data_identifier, device_id)`,
   containing each accepted `DynamicRescueUpload` and its original signed
   `DynamicRescueReceipt`, uniquely keyed by `upload_id` within each history;
@@ -1120,8 +1121,8 @@ signed_upload_receipt = sign_message(
 
 The complete 16-byte upload CMAC MUST be verified in constant time. Phone MUST
 verify `signed_upload_receipt` using the selected SAR public key, exact
-domain, and registration profile; `doxing_data_identifier`, device ID, upload ID,
-sequence number, and envelope hash MUST match its submitted upload. Receipts
+domain, and registered `PROTOCOL_VERSION`; `doxing_data_identifier`, device ID,
+upload ID, sequence number, and envelope hash MUST match its submitted upload. Receipts
 attest acceptance of encrypted bytes.
 
 A service payment proof is opaque
@@ -1252,14 +1253,74 @@ doxing_data_identifier =
   )
 ```
 
-3. Phone registers `doxing_data_identifier` and receives payment information.
-4. After payment, Phone derives stored-data keys with `derive_cbc_cmac_keys(doxing_key_for_sar, "Boomerang/sar_stored_data")`.
-5. Phone sends the payment receipt, `doxing_data_identifier`, and static-data
-   envelope.
-6. SAR verifies payment and its binding to the selected SAR, invoice, and
-   pending account, then stores the static envelope under that identifier.
+3. Phone sends `doxing_data_identifier`.
+4. SAR associates `doxing_data_identifier` and the exchange's
+   `PROTOCOL_VERSION` with its invoice and returns payment information.
+5. After payment, Phone encrypts the static rescue data under Sections 9.4–9.6.
+6. Phone selects bounded opaque plaintext bytes for the first dynamic data upload. It
+   generates `device_id = random_bytes(32)` once for its history and
+   `upload_id = random_bytes(32)` for the first upload using Section 9.2, sets
+   `upload_seq_num = 0`, derives the keys in Section 9.4, and constructs
+   `first_upload`.
+7. Phone sends `SetupPhoneSarMessage2` containing the payment receipts,
+   `doxing_data_identifier`, the static-data envelope, and
+   `canonical_encode(dynamic_update_auth_key, first_upload)` over
+   a confidential exchange with SAR authenticated as the selected `SarId`.
+8. SAR verifies payment against the invoice issued for the submitted
+   `doxing_data_identifier`, selected `SarId`, and `PROTOCOL_VERSION` in step 4.
+   It requires `first_upload.doxing_data_identifier == doxing_data_identifier`.
+9. SAR requires `first_upload.upload_seq_num == 0` and validates its encoding,
+   bounds, and authentication using the supplied `dynamic_update_auth_key`.
+   SAR MUST atomically and durably commit the static envelope,
+   `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_upload`, and
+   `signed_upload_receipt` before returning `signed_upload_receipt` in
+   `SetupSarPhoneMessage2`. A rejected registration MUST NOT
+   establish or replace these records.
+10. Phone verifies `signed_upload_receipt` under Section 10 before treating
+    SAR registration as complete.
 
-The identifier is a lookup value, not a secret. Rescue data confidentiality depends on the entropy of `doxing_password`.
+Later submissions contain `DynamicRescueUpload`, authenticated with the stored
+`dynamic_update_auth_key` and registered `PROTOCOL_VERSION`. Identity is the tuple
+`(doxing_data_identifier, device_id, upload_id)`. SAR MUST validate canonical
+encoding, bounds, and upload authentication before comparing the canonical
+bytes of the complete upload. Submission results MUST NOT depend on payload
+meaning or duress state. The following rules also apply to the first upload.
+
+When a valid upload has a new identity, SAR MUST
+atomically append the upload and its signed receipt before returning the receipt.
+For an accepted identity, SAR MUST return the original receipt if the canonical
+upload bytes match, including after restart. Otherwise, SAR MUST reject the
+conflict and preserve the accepted upload and receipt.
+
+Conflicting concurrent submissions MUST NOT both be accepted. After a missing
+reply, Phone MUST retain and retry the complete original `SetupPhoneSarMessage2`
+for the first upload or the complete original `DynamicRescueUpload` for a later
+upload. A correction uses a fresh `upload_id` and the next sequence number;
+the earlier upload remains.
+
+If a registration already exists under `doxing_data_identifier`, SAR MUST
+compare the supplied and stored `dynamic_update_auth_key` values in constant
+time and reject a mismatch.
+
+Within each device history, Phone MUST assign consecutive `upload_seq_num`
+values to new uploads in first-submission order, starting at zero, without
+reuse or wraparound. It MUST use a fresh random `upload_id` for each new upload.
+SAR MUST NOT reject a valid new upload solely because its sequence number is
+lower than an accepted one, leaves a gap, or matches that of a distinct upload
+ID. Duplicate numbers make the claimed order ambiguous; sequence numbers do
+not establish actual send time or cross-device order.
+
+SAR MUST NOT let Phone delete or hide accepted uploads or receipts. SAR MUST
+retain them while any related Boomerang setup may remain active.
+
+A replacement Phone reconstructs `doxing_key_for_sar` and
+`dynamic_update_auth_key` from the doxing password, selected SAR, and recorded
+`PROTOCOL_VERSION`. It uses a fresh `device_id` and the same append and retry
+rules without new enrollment, payment, or static-data submission. Any holder
+of `dynamic_update_auth_key` can append under any device ID.
+
+SAR and replacement Phones MUST retain the registered `PROTOCOL_VERSION` for
+authentication, receipt verification, and historical decoding.
 
 ### 13.2 Boomlet installation
 
@@ -2210,10 +2271,11 @@ duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_i =
 
 SAR MUST hold the constructed acknowledgment until
 `placeholder_ack_release_at` and release it exactly then for both
-classifications. Rescue-data retrieval and external response MUST begin
-asynchronously after release. If pre-acknowledgment processing misses the
-deadline, SAR MUST release no late acknowledgment and expose the same failure
-at that deadline for safe and duress cases. Each retry gets a new deadline.
+classifications. Rescue processing MUST NOT alter the acknowledgment's release,
+failure, retry, or other externally observable protocol behavior.
+If pre-acknowledgment processing misses the deadline, SAR MUST
+release no late acknowledgment and expose the same failure at that deadline
+for safe and duress cases. Each retry gets a new deadline.
 
 The acknowledgment MUST NOT contain a status, duress flag, placeholder
 plaintext, or plaintext hash in any WT-visible field. Valid safe and duress
@@ -2222,6 +2284,10 @@ failure behavior, and externally observable acknowledgment behavior. Boomlet
 decrypts its acknowledgment, verifies the SAR signature with domain
 `"Boomerang/withdrawal/sar_placeholder_response"`, and requires the signed
 content to equal byte-for-byte the `duress_placeholder` envelope it sent.
+
+Rescue processing uses the valid duress `doxing_key_for_sar` to
+decrypt static data and derive each retained device's data key under Section
+9.4. It MUST make every retained upload available to its rescue application.
 
 ### 16.5 Duress observability contract
 
@@ -2474,6 +2540,19 @@ A conforming implementation MUST provide tests for:
 - stale challenge nonce rejection;
 - setup replay rejection;
 - tx ID and setup ID mismatch rejection;
+- SAR registration and first dynamic rescue upload under Section 13.1,
+  including payment binding to the selected SAR, invoice, and recorded
+  `doxing_data_identifier`; matching registered `PROTOCOL_VERSION` and authenticated
+  first upload; atomic commit of the registration records and signed receipt
+  under injected interruption and restart;
+  Phone receipt verification; rejection of conflicting registration data; and
+  return of the original receipt on an exact `SetupPhoneSarMessage2` retry;
+- later dynamic rescue uploads under Section 13.1, including upload
+  authentication and original-receipt return on exact retries, Phone's
+  consecutive per-device sequence assignment, SAR acceptance of sequence gaps,
+  out-of-order arrivals, and distinct upload IDs sharing a sequence number,
+  append-only retention, rejection of changed canonical bytes for an accepted
+  upload identity, and uploads from a replacement Phone without new registration;
 - ping sequence and reached-flag monotonicity;
 - counter advancement requiring one signed Ping from every other active peer,
   including
@@ -2486,14 +2565,15 @@ A conforming implementation MUST provide tests for:
 - MuSig2 nonce non-reuse;
 - safe and duress placeholder flow equivalence, including the Section 16.4
   fixed deadline, durable-write path, response shape, retry schedule, and
-  failure behavior, including deadline overruns;
+  failure behavior under deadline overruns and delayed or failed rescue
+  processing;
 - safe and duress replay equivalence, including identical externally
   indistinguishable acknowledgment behavior for repeated valid placeholders;
 - malformed placeholder, missing identifier, context mismatch, authentication
   failure, SAR unavailability, and acknowledgment delivery failure mapping to
   the permitted externally observable failure behavior;
-- slow or failed SAR rescue-data lookup and external response workflow not
-  changing WT-visible acknowledgment behavior;
+- delivery to SAR's rescue application of every upload in a seeded
+  multi-device history after duress activation;
 - duress placeholder context binding, including rejection across a different
   `approved_withdrawal_id` or setup session and acceptance of the canonical
   context without ping sequence or commitment phase fields.

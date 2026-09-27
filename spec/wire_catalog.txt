@@ -1,6 +1,4 @@
 Boomerang wire catalog
-Generated from spec/wire_catalog.json by scripts/generate_wire_catalog.py.
-Do not edit by hand.
 
 Summary
 Catalog status structural_contexts_incomplete
