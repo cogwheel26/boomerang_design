@@ -297,9 +297,9 @@ not receive `doxing_key_for_sar` during registration.
 
 SPEC Section 13.1 binds the invoice to the selected `SarId`, `PROTOCOL_VERSION`,
 and recorded `doxing_data_identifier`. Its first-upload CMAC proves possession
-of the supplied `dynamic_update_auth_key`. The concrete authenticated channel
-for invoice issuance and registration remains open; see the
-[Phone–SAR transport proposal](Cannon_sar_registration_transport_proposal.md).
+of the supplied `dynamic_update_auth_key`. Phone reaches the selected SAR at
+the v3 onion address in `SarId` through Tor; it verifies SAR-signed receipts
+under the separate `sar_pubkey`.
 
 ### Later uploads and replacement Phones
 

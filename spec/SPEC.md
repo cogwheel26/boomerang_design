@@ -128,7 +128,7 @@ The protocol uses:
 
 - the Bitcoin network;
 - at least one Bitcoin RPC endpoint per Niso;
-- Tor for peer and WT communication;
+- Tor for peer and WT communication and Phone communication with SAR;
 - one active WT;
 - one SAR per peer.
 
@@ -1231,6 +1231,11 @@ Transition prerequisites:
 ### 13.1 SAR registration
 
 1. User gives Phone `doxing_password`, one selected `SarId`, and static rescue data.
+   Phone MUST use Tor and the selected `sar_tor_address` for invoice requests,
+   registration, uploads, and retries. It MUST validate the address as a v3
+   onion address and require Tor to authenticate that destination before
+   sending protocol data. Phone verifies SAR-signed receipts with the separate
+   `sar_pubkey`.
 2. For that `SarId`, Phone computes:
 
 ```text

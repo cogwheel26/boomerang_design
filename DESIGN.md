@@ -375,11 +375,11 @@ authorization continuity across those boundaries.
 
 ### Topology
 
-Peers and WT communicate over Tor onion services; each Niso keeps its own
-Bitcoin RPC chain view; the air-gapped ST exchanges encrypted messages with
-Boomlet over a host-relayed channel rather than a network connection; and
-Phone talks only to SAR. The security models contain the authoritative
-pictures. The
+Peers and WT communicate over Tor onion services. Phone talks only to its
+selected SAR, using the onion address in `SarId`. Each Niso keeps its own
+Bitcoin RPC chain view. The air-gapped ST exchanges encrypted messages with
+Boomlet over a host-relayed channel rather than a network connection. The
+security models contain the authoritative pictures. The
 [trust-boundary diagram](security_models/architecture.md#trust-boundaries-and-diagram)
 and the
 [data-flow diagram](security_models/architecture.md#architecture--data-flows)
