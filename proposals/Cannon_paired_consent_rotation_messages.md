@@ -66,7 +66,12 @@ source's management operations, never withdrawal or ST challenge generation.
 
 ## Trusted review and country input
 
-Host commands are untrusted requests, not peer messages. Selector 41 BEGIN_REVIEW
+Iso hosts the offline rotation ceremony, signs normal-key authorization, and
+relays device-encrypted envelopes unchanged. ST uses its existing air-gapped
+interface. Subsequent ordinary withdrawal traffic uses Niso.
+
+Iso's local commands request device operations; each device verifies the required
+authorization and state. Selector 41 BEGIN_REVIEW
 has empty tuple input and returns `(pair_certificate, scope, review_envelope)`;
 42 SUBMIT_REVIEW takes one review-approval envelope and returns the verified ST
 approval; 43 SUBMIT_AUTH takes the nested normal authorization; 44 REQUEST_CANCEL
@@ -286,7 +291,7 @@ perform identical bounded writes and response scheduling. Set
 Release valid replies exactly at that deadline; a missed deadline has the same
 failure at the deadline and no late reply. A durable decision is retained even
 when its reply misses the deadline. Reply timers and release gates must be
-trusted device functions, not relay-host promises. Actual delay values require
+trusted device functions, not host promises. Actual delay values require
 worst-case device measurements before deployment.
 
 ## Recovery and bounds

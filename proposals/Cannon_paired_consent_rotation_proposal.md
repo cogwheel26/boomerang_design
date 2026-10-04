@@ -65,8 +65,9 @@ successful rotations, another rotation is blocked by capacity exhaustion.
 
 ## Rotation ceremony
 
-1. **Authorize and hold.** Trusted Iso obtains normal-key authorization, and ST
-   identifies the setup and device pair. Authorization binds protocol version,
+1. **Authorize and hold.** Rotation runs offline in Iso, which signs normal-key
+   authorization and relays encrypted messages between the devices. ST retains
+   its air gap and identifies the setup and device pair. Authorization binds protocol version,
    operation, setup, logical peer, physical source and target, lifecycle
    generation, predecessor epoch and commit identifier, proposed epoch, and
    fresh 32-byte `rotation_id`. Both devices verify it against their stored
@@ -209,7 +210,7 @@ and still asks for the previous set.
 
 The message contract fixes typed payloads, domains, contexts, capacity, and retry
 limits. Adoption requires canonical vectors and measured timing constants with
-trusted device timers; relay-host timing cannot satisfy concealment.
+trusted device timers; host timing cannot satisfy concealment.
 Legacy devices capable of bypassing these gates must be excluded. Validate:
 
 - Every write and message boundary under crash, replay, loss, reordering,
