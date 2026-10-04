@@ -6,6 +6,7 @@
 | Phase 1 priority | 2 |
 | Normative baseline | [`SPEC.md`](../spec/SPEC.md) at `ed91233a4216be0c96f8f8d081276b7c94a39751` |
 | Related gaps | DG-38, AR-35, AR-79, FM-30, R-12, R-21 |
+| Security review | 2026-09-19; Boomletwo interactions rechecked 2026-09-22 |
 
 ## Problem and scope
 
@@ -20,11 +21,26 @@ extraction. It does not grant signing keys, suppress other peers' signals, or
 cancel rescue already triggered. Recovery protects later ceremonies; it cannot
 undo disclosure during a coerced interaction.
 
+## Decision map
+
+| Goal | Candidate | Decision gate |
+| --- | --- | --- |
+| Keep an enrolled backup ready | Option 3, 4A, 5, or 7 | Commit one current consent epoch across devices and recovery authority. |
+| Replace a stale backup before rotation | Variant 4D | Prove the old backup is excluded from every activation path. |
+| Protect later ceremonies after unnoticed observation | Option 6 or 10 | Validate one-time answers or private cues under active coercion. |
+| Add independent review | Option 11 | Define enforceable clearance and escalation. |
+
+Rejected: ~~Option 1~~ requires action from other peers; ~~Option 2~~ retains an
+exposed safe answer; ~~Variant 4B~~ requires two memorized sets; ~~Variant 4C~~
+contacts the unavailable Boomlet during activation. ~~Variant 4E~~ permits
+coerced enrollment at activation. ~~Options 8 and 9~~ permit coerced changes to
+the consent authority used by an offline backup. The remaining options are
+alternatives; none is adopted.
+
 ## Required properties
 
 For fixed-set recovery, success requires these properties. Quarantine begins on
-known or suspected disclosure; its enforcement on offline devices and any
-restricted rollover exception must be defined.
+known or suspected disclosure; its enforcement on offline devices must be defined.
 
 | ID | Property |
 | --- | --- |
@@ -52,8 +68,10 @@ Every option retains the signing-authority invariant.
   [R3]; the device cannot verify those environmental assumptions.
 - After rotation, an old but valid set must follow the ordinary duress path.
   A distinctive rejection or retry would disclose classification.
-- Offline backups need enforced retirement, updates, or fresh activation authority.
-  Signed old records do not prove freshness. Counter storage must resist rollback.
+- At Boomletwo activation, the original Boomlet is permanently offline and
+  unresponsive. Any backup option must prove source exclusion and current state
+  without contacting it; otherwise activation stays blocked. Signed old records
+  do not prove freshness. Counter storage must resist rollback.
 - Exclude known exposed sets using protected history. Lost history limits proof
   of lifetime non-reuse. Public hashes permit guessing; properly hiding
   commitments need not [R2]. Neither commitments nor equality proofs establish
@@ -61,45 +79,81 @@ Every option retains the signing-authority invariant.
 - Preserve pending rescue during maintenance. Bound retries and writes to limit
   denial of service. Protocol-controlled timing and errors must conceal
   classification, although human maintenance activity may reveal suspicion.
+- Quarantine must be an authenticated durable transition ordered against active
+  withdrawal, signing, and rescue duties. A stalled ceremony is still active;
+  blocking spending must not strand a pending placeholder or acknowledgment.
+- An external classifier must bind its result and SAR payload to the setup,
+  device, withdrawal, exact outstanding check nonce and phase, authority, and
+  consent epoch. One check consumes one result; exact delivery retries remain
+  idempotent. Restart and epoch cutover must preserve pending-check state.
 - Scheduled rotation limits unnoticed exposure only when later enrollment is
   private. Continuous disclosure of each replacement defeats fixed-set rotation.
 
-## Option 1. Full setup replacement
+Message sketches use `Active` for the current Boomlet and `Backup` for
+Boomletwo. Arrows show candidate order, not assigned wire types.
 
-Quarantine, enroll a fresh setup, move funds to its descriptor, and retire the old
+## ~~Option 1. Full setup replacement~~
+
+**Rejected.** Rollover requires action from other peers.
+
+~~Quarantine, enroll a fresh setup, move funds to its descriptor, and retire the old
 consent-bearing devices. Permit only a restricted rollover bound to the verified
-new descriptor and required peer approvals; arbitrary maintenance spending would
-create a withdrawal bypass.
+new descriptor. Destination matching and peer approval alone do not authorize
+signing. Transaction review, SAR acknowledgment, digging, and final signing
+gates remain required unless a replacement guarantee is specified. Validate all
+outputs, change, fees, replacement keys, milestones, and fallback paths.~~
 
-### Pros
+**~~Message sequence~~**
 
-- Avoids paired consent epochs and reuses setup enrollment.
-- Confirmed rollover removes transferred funds from old spending paths and can
-  replace other exposed keys.
+- ~~User -> Active (quarantine request)~~
+- ~~User -> Iso -> new Boomlet (fresh setup)~~
+- ~~User -> ST -> new Boomlet (fresh consent enrollment)~~
+- ~~Active -> WT -> peers (restricted rollover review and approvals)~~
+- ~~WT -> SAR -> WT (placeholder and exact acknowledgment)~~
+- ~~WT -> chain (signed rollover); chain -> User (confirmation)~~
+- ~~User -> old devices (retirement)~~
 
-### Cons
+### ~~Pros~~
 
-- Requires peers, fees, and confirmations while exposure persists. Competing
-  spends, outstanding signatures, reorganizations, and fallback constrain timing.
-- Still needs durable quarantine and device retirement. Fresh setup creation
-  alone cannot recover funds without existing spending authority.
-- Reusing exposed sets or compromised devices defeats recovery. Stop issuing old
-  deposit addresses and define handling of later deposits to them.
+- ~~Avoids paired consent epochs and reuses setup enrollment.~~
+- ~~Confirmed rollover removes transferred funds from old spending paths and can
+  replace other exposed keys.~~
 
-## Option 2. Immutable set with accepted exposure
+### ~~Cons~~
 
-Continue accepting the same set after disclosure; replacement remains voluntary.
+- ~~Requires peers, fees, and confirmations while exposure persists. Competing
+  spends, outstanding signatures, reorganizations, and fallback constrain timing.~~
+- ~~Still needs durable quarantine and device retirement. Fresh setup creation
+  alone cannot recover funds without existing spending authority.~~
+- ~~Reusing exposed sets or compromised devices defeats recovery. Stop issuing old
+  deposit addresses and define handling of later deposits to them.~~
+- ~~If the rescue root or upload key was exposed, a fresh custody setup using the
+  same password and SAR leaves that authority intact. Recovery needs a new
+  doxing password and registration, while preserving old setup rescue duties.~~
 
-### Pros
+## ~~Option 2. Immutable set with accepted exposure~~
 
-- Preserves availability without consent-update state or authority.
-- Retains signing checks, peer approvals, delays, and other peers' duress signals.
+**Rejected.** The exposed safe answer remains valid, so a coercer can dictate it
+to suppress this user's duress signal in later ceremonies.
 
-### Cons
+~~Continue accepting the same set after disclosure; replacement remains voluntary.~~
 
-- A coercer controlling input can force the affected user's checks to remain safe.
-- Nonces and shielding cannot restore the disclosed secret. This fails OC-SR-01
-  and requires an explicit reduction in the security claim.
+**~~Message sequence~~**
+
+- ~~User -> ST -> Active (existing consent answer)~~
+- ~~Active -> WT -> SAR (ordinary withdrawal and placeholder)~~
+- ~~SAR -> WT -> Active (exact acknowledgment); withdrawal continues~~
+
+### ~~Pros~~
+
+- ~~Preserves availability without consent-update state or authority.~~
+- ~~Retains signing checks, peer approvals, delays, and other peers' duress signals.~~
+
+### ~~Cons~~
+
+- ~~A coercer controlling input can force the affected user's checks to remain safe.~~
+- ~~Nonces and shielding cannot restore the disclosed secret. This fails OC-SR-01
+  and requires an explicit reduction in the security claim.~~
 
 ## Option 3. Paired rotation
 
@@ -108,6 +162,15 @@ both devices. Bind updates and receipts to setup, identities, epoch, and
 transition. An uncertain participant blocks until decision evidence or recovery
 is available. Two-phase commit can preserve safety while blocking [R1]; a witness
 is a recovery and availability choice, not universally required for safety.
+
+**Message sequence**
+
+```text
+User -> ST -> Active (fresh set, two confirmations)
+Active -> Backup (encrypted set and proposed epoch)
+Backup -> Active (durable prepare receipt)
+Active -> Backup (commit); Backup -> Active (durable commit receipt)
+```
 
 ### Pros
 
@@ -129,6 +192,14 @@ is a recovery and availability choice, not universally required for safety.
 Enter one fresh set independently on both devices. Authenticated private equality
 checking can detect mismatch without publishing a guessable hash [R2].
 
+**Message sequence**
+
+```text
+User -> ST -> Active (fresh set and confirmations)
+User -> ST -> Backup (same set and confirmations)
+Active <-> Backup (private equality and matching epoch receipts)
+```
+
 #### Pros
 
 - Avoids transmitting the set between devices while retaining one memorized answer.
@@ -139,44 +210,77 @@ checking can detect mismatch without publishing a guessable hash [R2].
 - Equality does not prove durable commit. A partial update must exclude the stale
   device; accepting both answers to mask mismatch violates OC-SR-02.
 
-### Variant 4B. Distinct pre-enrolled sets
+### ~~Variant 4B. Distinct pre-enrolled sets~~
 
-Memorize one independent set per device and rotate each exposed set before that
-device next activates.
+**Rejected.** The user would need to memorize two separate sets.
 
-#### Pros
+~~Memorize one independent set per device and rotate each exposed set before that
+device next activates.~~
 
-- Disclosure of one independently chosen set need not expose the other.
-- Active rotation need not update backup consent; backup enrollment is already done.
+**~~Message sequence~~**
 
-#### Cons
+- ~~User -> ST -> Active (set A); User -> ST -> Backup (set B)~~
+- ~~Activation procedure -> Backup (proof of source exclusion)~~
+- ~~Backup -> ST (challenge); User -> ST -> Backup (answer from set B)~~
 
-- Two sets, including a rarely used one, increase confusion and false duress.
-- Related sets and common ST compromise weaken separation. Backup eligibility
-  still requires compromise tracking; wrong-device hints must not reveal answers.
+#### ~~Pros~~
 
-### Variant 4C. Enrollment on backup activation
+- ~~Disclosure of one independently chosen set need not expose the other.~~
+- ~~Active rotation need not update backup consent; backup enrollment is already done.~~
 
-Store `CONSENT_REENROLL_REQUIRED` in the backup. After excluding the old signing
-authority, require private ST enrollment before withdrawal. Rotate active consent
-locally through durable quarantine, confirmation, and commit.
+#### ~~Cons~~
 
-#### Pros
+- ~~Two sets, including a rarely used one, increase confusion and false duress.~~
+- ~~Related sets and common ST compromise weaken separation. Backup eligibility
+  still requires compromise tracking; wrong-device hints must not reveal answers.~~
 
-- Removes shared consent and its synchronization; the user remembers one set.
-- Backup activation cannot restore a copied exposed answer.
+### ~~Variant 4C. Enrollment on backup activation~~
 
-#### Cons
+**Rejected as drawn.** Its message sequence places an Active Boomlet exchange in
+the activation flow, when Boomlet is permanently offline. Variant 4E moves this
+exchange to backup creation but leaves coerced enrollment at activation.
 
-- Recovery requires private enrollment when the user may be rushed or coerced.
-  The device cannot detect an attacker dictating the replacement.
-- Requires enforceable revocation of a missing active device. Lost history limits
-  non-reuse guarantees; enrollment delays backup readiness.
+~~Introduce a versioned protected `CONSENT_REENROLL_REQUIRED` mode for the backup.
+After excluding the old signing authority, require private ST enrollment before
+withdrawal. Rotate active consent locally through durable quarantine,
+confirmation, and commit. The current backup schema requires a five-element set;
+an empty or dummy set cannot encode this mode.~~
+
+**~~Message sequence~~**
+
+- ~~Active -> Backup (protected reenrollment-required mode)~~
+- ~~Activation procedure -> Backup (proof of source exclusion)~~
+- ~~User -> ST -> Backup (fresh set and two confirmations)~~
+- ~~Backup (commit enrollment before withdrawal)~~
+
+#### ~~Pros~~
+
+- ~~Removes shared consent and its synchronization; the user remembers one set.~~
+- ~~Backup activation cannot restore a copied exposed answer.~~
+
+#### ~~Cons~~
+
+- ~~Recovery requires private enrollment when the user may be rushed or coerced.
+  The device cannot detect an attacker dictating the replacement.~~
+- ~~Requires enforceable revocation of a missing active device. Lost history limits
+  non-reuse guarantees; enrollment delays backup readiness.~~
+- ~~Activation and legacy import must enforce the mode. A local flag does not
+  retire an offline device holding the old set and signing share.~~
 
 ### Variant 4D. Retire the backup before local rotation
 
 Erase a reachable trustworthy backup or revoke it through every future activation
-path. Rotate locally, then provision a replacement backup.
+path. Rotate locally, then provision a replacement backup through a lifecycle
+transition that excludes the former target. Clearing `backup_complete` locally
+does not establish that exclusion.
+
+**Message sequence**
+
+```text
+Retirement procedure -> Active (proof old Backup is excluded)
+User -> ST -> Active (fresh set and two confirmations)
+Active -> replacement Backup (target-bound protected state)
+```
 
 #### Pros
 
@@ -189,11 +293,51 @@ path. Rotate locally, then provision a replacement backup.
 - Declaring a missing device retired is insufficient. Erasure cannot retract
   extracted secrets; replacement must not revive old signing authority.
 
+### ~~Variant 4E. Preprovisioned reenrollment for offline activation~~
+
+**Rejected.** A coercer can observe or dictate the fresh safe set during
+activation. Source exclusion and two confirmations do not establish private,
+uncoerced enrollment.
+
+~~During backup creation, Active provisions Backup with a versioned, target-bound
+`CONSENT_REENROLL_REQUIRED` mode instead of a copied safe set. After Active is
+permanently offline, Backup verifies independent source-exclusion and current-state
+evidence, then enrolls one fresh set through trusted ST before any withdrawal.
+If either proof is unavailable, Backup remains inactive.~~
+
+**~~Message sequence~~**
+
+- ~~Active -> Backup (reenrollment-required state during backup creation)~~
+- ~~Exclusion mechanism -> Backup (source-exclusion proof after permanent loss)~~
+- ~~Recovery mechanism -> Backup (current-state and pending-duty evidence)~~
+- ~~User -> ST -> Backup (fresh set and two confirmations)~~
+- ~~Backup (commit enrollment; activate only after all gates pass)~~
+
+#### ~~Pros~~
+
+- ~~Activation needs no message from the offline Boomlet and retains one memorized set.~~
+
+#### ~~Cons~~
+
+- ~~Independent source exclusion and current-state recovery remain unsolved; a loss
+  report or timeout cannot supply either proof.~~
+- ~~Requires a versioned backup schema and private enrollment during recovery,
+  when coercion or lack of ST access may prevent completion.~~
+
 ## Option 5. Derived sets with a witnessed epoch
 
 Both devices derive consent from a protected high-entropy root and a committed
 epoch. A witness records the current epoch; the user privately learns and confirms
 each set before commitment.
+
+**Message sequence**
+
+```text
+Active -> ST -> User (privately show set derived for new epoch)
+User -> ST -> Active (two confirmations)
+Active -> Witness (commit epoch); Witness -> Backup (current epoch proof)
+Backup (derive set only under the committed epoch)
+```
 
 ### Pros
 
@@ -214,6 +358,15 @@ Replace the reusable answer with a ceremony-specific response. One concrete
 candidate privately pre-enrolls independent answers, allocates one durably before
 each ceremony, repeats it only for that ceremony's retries, and never reuses a
 spent entry. Other candidates compute responses from a protected secret.
+
+**Message sequence**
+
+```text
+Active (durably allocate unused answer for this ceremony)
+Active -> ST (fresh check); ST -> User (challenge)
+User -> ST (answer); ST -> Active (nonce-bound result)
+Active (durably consume answer; exact retries use the same allocation)
+```
 
 ### Pros
 
@@ -236,6 +389,15 @@ Enroll independent fresh sets and store randomized, target-bound recovery
 envelopes externally. A witness binds the committed epoch to the exact envelope;
 Boomletwo imports only the current one during authorized recovery.
 
+**Message sequence**
+
+```text
+User -> ST -> Active (fresh set and confirmations)
+Active -> Store (target-bound encrypted envelope)
+Active -> Witness (epoch and envelope digest)
+Witness -> Backup (current epoch proof); Store -> Backup (matching envelope)
+```
+
 ### Pros
 
 - Permits rotation with an offline backup without one permanent derivation root.
@@ -251,48 +413,80 @@ Boomletwo imports only the current one during authorized recovery.
 - Confirmation, storage, witness commitment, and activation require coordinated
   recovery, service availability, and additional key management.
 
-## Option 8. Consent authority in ST
+## ~~Option 8. Consent authority in ST~~
 
-Move persistent consent and comparison into ST; neither Boomlet stores the set.
-ST returns a ceremony-bound receipt and SAR-encrypted classification with uniform
-public behavior. Boomlet requires acknowledgment of that exact payload. Keeping
-the existing placeholder format gives ST `doxing_key_for_sar`; otherwise redesign
-rescue release. Replacement STs reenroll instead of importing stale consent.
+**Rejected as drawn.** Local rotation or replacement ST reenrollment can make a
+coercer-chosen safe set current while Boomlet is offline. No independent gate
+prevents this change from taking effect on Boomletwo.
 
-### Pros
+~~Move persistent consent and comparison into ST; neither Boomlet stores the set.
+ST returns a result bound to each outstanding check and a SAR-encrypted
+classification with uniform public behavior. Boomlet requires acknowledgment
+of that exact payload. Replacement STs reenroll instead of importing stale
+consent.~~
 
-- One consent authority serves both devices, removing their consent synchronization.
-- Rotation can remain local and preserve the descriptor.
+**~~Message sequence~~**
 
-### Cons
+- ~~User -> ST (rotate or reenroll safe set); ST (make it current)~~
+- ~~Active -> ST (outstanding nonce, phase, and withdrawal)~~
+- ~~User -> ST (answer); ST -> Active (per-check receipt and SAR ciphertext)~~
+- ~~Active -> WT -> SAR (authenticated relay requiring a new channel contract)~~
+- ~~SAR -> WT -> Active (exact payload acknowledgment)~~
 
-- Concentrates durable consent and rescue authority in ST. Compromise can force
-  safe classification; receipts prove origin, not honest behavior.
-- Moves backup, rollback, and revocation problems into ST. Old identities and
-  pending receipts need cutover rules.
-- Changes provisioning, placeholder authentication, and SAR trust under OC-SR-08.
+### ~~Pros~~
 
-## Option 9. Online consent verifier
+- ~~One consent authority serves both devices, removing their consent synchronization.~~
+- ~~Rotation can remain local and preserve the descriptor.~~
 
-ST submits encrypted, authenticated responses to an authoritative service on each
-check. The verifier binds its consent epoch and verdict to the ceremony, producing
-a uniform receipt and SAR-confidential classification. Boomlet requires SAR's
-acknowledgment; backups cannot substitute cached consent.
+### ~~Cons~~
 
-### Pros
+- ~~Concentrates durable consent in ST. Giving it `doxing_key_for_sar` also grants
+  historical rescue-data decryption and `dynamic_update_auth_key`, which can
+  authenticate uploads under any device ID. Choose a narrower signaling
+  capability or explicitly accept that expanded authority.~~
+- ~~Moves backup, rollback, and revocation problems into ST. Old identities and
+  pending receipts need cutover rules.~~
+- ~~ST ciphertext cannot be inserted into the Boomlet-to-SAR placeholder channel
+  unchanged. Define its authenticated relay or replacement channel, replay key,
+  and exact acknowledgment coverage without sharing Boomlet channel secrets.~~
 
-- Rotation updates one record and reaches offline backups at their next required
-  check without distributing the new set to them.
-- Protected history can survive local-device loss.
+## ~~Option 9. Online consent verifier~~
 
-### Cons
+**Rejected as drawn.** A coerced update of the verifier's authoritative record
+can make a known safe answer valid for Boomletwo without the original Boomlet.
+No independent gate for such updates is specified.
 
-- Adds service dependence, censorship, classification privacy, and database risks.
-  A compromised verifier can suppress duress; replication needs explicit trust bounds.
-- Wrong valid sets must signal duress, not authentication failure. Ordinary OTP
-  success receipts expose classification and can permit relay [R3].
-- Must define rescue authority and pending-verdict cutover. Revocation cannot undo
-  completed signing or a delivered rescue signal.
+~~ST submits encrypted, authenticated responses to an authoritative service on each
+check. The verifier binds its consent epoch and verdict to the exact outstanding
+check nonce and phase, producing a uniform receipt and SAR-confidential
+classification. Boomlet consumes only that check's result and requires SAR's
+acknowledgment; backups cannot substitute cached consent.~~
+
+**~~Message sequence~~**
+
+- ~~User -> ST -> Verifier (rotate safe set); Verifier (commit new epoch)~~
+- ~~Active -> ST (outstanding nonce, phase, and withdrawal)~~
+- ~~User -> ST (answer); ST -> Verifier (authenticated encrypted response)~~
+- ~~Verifier -> Active (per-check verdict and SAR-confidential payload)~~
+- ~~Active -> WT -> SAR (payload over a defined authenticated channel)~~
+- ~~SAR -> WT -> Active (exact acknowledgment)~~
+
+### ~~Pros~~
+
+- ~~Rotation updates one record and reaches offline backups at their next required
+  check without distributing the new set to them.~~
+- ~~Protected history can survive local-device loss.~two ph~
+
+### ~~Cons~~
+
+- ~~Adds service dependence, censorship, classification privacy, and database risks.
+  A compromised verifier can suppress duress; replication needs explicit trust bounds.~~
+- ~~Wrong valid sets must signal duress, not authentication failure. Ordinary OTP
+  success receipts expose classification and can permit relay [R3].~~
+- ~~Must define rescue authority and pending-verdict cutover. Revocation cannot undo
+  completed signing or a delivered rescue signal.~~
+- ~~If the verifier originates SAR ciphertext, it needs an authenticated channel
+  contract distinct from the current Boomlet-to-SAR placeholder channel.~~
 
 ## Option 10. Private randomized cues
 
@@ -300,6 +494,14 @@ Privately show the user a fresh safe button position for each round. All fixed
 rounds must match for safe; any valid mismatch means duress, with uniform public
 behavior. Bind and erase cue state. This implements Option 6 through a private
 visual or tactile channel rather than a memorized sequence.
+
+**Message sequence**
+
+```text
+Active -> ST (fresh check and round)
+ST -> User (private cue); User -> ST (selection)
+ST -> Active (nonce-bound round result); repeat fixed rounds, then erase cue
+```
 
 ### Pros
 
@@ -323,6 +525,15 @@ a deadline policy. The exposed set or local user alone cannot cancel review.
 Define clearance and escalation thresholds, rescue-data access, and enforcement
 by both devices, including fallback limits.
 
+**Message sequence**
+
+```text
+Active -> WT -> SAR (open withdrawal case)
+SAR -> Guardians (review request); Guardians -> SAR (independent decisions)
+SAR -> WT -> Active (clearance or escalation under the deadline policy)
+Active (sign only after required clearance)
+```
+
 ### Pros
 
 - A safe local answer cannot suppress all review; rescue consideration can begin
@@ -336,18 +547,31 @@ by both devices, including fallback limits.
 - Routine review exposes more information; outages can cause false escalation.
   Visible refusal may alert the coercer and increase physical danger.
 - Replaces SAR release and concealment rules. A veto does not establish timely
-  rescue; guardian replacement and fallback remain attack paths.
+  rescue; guardian replacement and fallback remain attack paths. Adoption must
+  replace the incompatible observability requirement in the Boomletwo lifecycle.
 
-## Proposed disposition
+## Integration findings and decision gates
 
-Keep Option 1 as the conservative candidate, conditional on safe restricted
-rollover. Option 2 is explicit acceptance of reduced protection.
+These findings apply only to the affected choices. Struck choices retain their
+findings for review. OCI-01 has a candidate check-binding rule, pending
+implementation evidence. The active gates require a selected design or migration
+procedure.
 
-Compare Variant 4C with Option 8 for local rotation; consider Option 9 if mandatory
-online verification is acceptable. Options 3, 5, and 7 serve pre-enrolled backup
-readiness; Variant 4D supports migration when temporary backup loss is acceptable.
-Options 6 and 10 target unnoticed observation. Option 11 adds independent response
-at the cost of some concealment. These are candidates, not verified guarantees.
+| ID | Choice | Decision or evidence required |
+| --- | --- | --- |
+| OCI-01, high | ~~8~~, ~~9~~ | If reconsidered, verify per-check nonce, phase, epoch, and payload binding across restart and exact retry. |
+| OCI-02, high | ~~8~~ | If reconsidered, decide whether ST may gain rescue decryption and upload authority from `doxing_key_for_sar`. |
+| OCI-03, high | ~~1~~ | If reconsidered, specify complete rollover spending gates and destination policy. |
+| OCI-04, high | Fixed-set recovery, ~~1~~ | Specify durable quarantine with pending rescue and stalled withdrawals; test crashes and races. |
+| OCI-05, high | ~~4C~~, 4D, ~~4E~~ | Version the backup consent mode and enforce source and former-target exclusion; test legacy imports and delayed receipts. |
+| OCI-06, medium | ~~8~~, possibly ~~9~~ | If reconsidered, define the classifier-to-SAR channel, replay scope, and exact acknowledgment without weakening Boomlet authentication. |
+| OCI-07, high | ~~1~~ after rescue-key compromise | If reconsidered, use a new doxing password and registration, with a transition for old setup obligations. |
+| OCI-08, medium | ~~2~~, 11 | Define a versioned acceptance profile. Option 2 fails OC-SR-01; Option 11 conflicts with BW-SR-08. |
+
+Synthetic checks showed that a ceremony-only binding cannot distinguish two
+checks in one withdrawal, a rescue-root holder can authenticate uploads and
+decrypt retained data, and the current backup schema has no consent-mode field.
+No consent implementation or physical device was tested.
 
 ## Validation and adoption
 
@@ -356,8 +580,6 @@ at the cost of some concealment. These are candidates, not verified guarantees.
 - Test unauthorized or coerced maintenance, exposed-set reuse, stolen keys,
   guessing from transcripts, exhaustion, and false-safe or false-duress rates.
   Preserve queued rescue; old valid sets must not produce distinctive errors.
-- For rollover, test destination substitution, competing signatures, reorganization,
-  peer refusal, fees, residual deposits, and every fallback boundary.
 - For witnesses, ST authority, and verifiers, test stale or conflicting records,
   substituted payloads, outages, compromised authority, and pending-receipt cutover.
 - For sequences and cues, test repeated observation, dictated input, physical
@@ -366,8 +588,8 @@ at the cost of some concealment. These are candidates, not verified guarantees.
 
 Broader changes require versioned messages, authority and observability rules,
 and migration tests. Retire or revoke old devices capable of bypassing new gates;
-if that cannot be enforced, roll funds over. Updating new devices alone leaves
-old spending authority intact.
+if that cannot be enforced, the in-place recovery path is unavailable. Updating
+new devices alone leaves old spending authority intact.
 
 Adoption requires an explicit choice, documented lost properties, operator
 recovery actions, and reproducible evidence. Tests cover exercised cases;
@@ -375,10 +597,7 @@ model checks establish properties only within their stated assumptions.
 
 Update `spec/SPEC.md`, setup and withdrawal documentation, `DESIGN.md`, `README.md`,
 `GLOSSARY.md`, security models, an ADR, and operator runbooks for the selected
-option. Option 1 specifically requires durable quarantine, restricted rollover,
-active-withdrawal handling, rescue preservation, device retirement, and evidence
-that rollover meets its timing bounds. Change PlantUML only for adopted protocol
-changes; do not regenerate SVGs.
+option. Change PlantUML only for adopted protocol changes; do not regenerate SVGs.
 
 ## Review basis
 
