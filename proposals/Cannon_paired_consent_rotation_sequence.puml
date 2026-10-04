@@ -1,0 +1,345 @@
+@startuml paired_consent_rotation
+title Paired consent rotation and persistent duress delivery
+hide footbox
+autonumber
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 100
+
+actor User as U
+participant "Iso signer" as I
+participant "Relay host" as H
+participant "Secure Terminal" as S
+participant "Boomlet source" as B
+participant "Boomletwo inactive" as W
+participant "Watchtower" as T
+participant "Setup-bound SAR" as A
+
+note over S,W
+  PairBinding and its normal-key certificate are provisioned and retained.
+  Source and target have separate management keys; the logical peer key is copied.
+  ST retains its logical Boomlet pairing, setup ID, normal key, pair digest and generation.
+  Both consent records and prior decision floors match before a new attempt.
+  No withdrawal, signing handoff, outstanding check, or SAR duty may be unresolved.
+end note
+
+note over H,W
+  ENC = SPEC cbc_cmac_encrypt; DEC authenticates before decryption.
+  SIG = SPEC sign_message; VERIFY checks exact signer, domain and content type.
+  DOM(op) = "Boomerang/consent_rotation/v1/" + fixed_operation.
+  CTX(op) = canonical_encode("consent_rotation_" + fixed_operation, setup_id).
+  LCTX(op) = canonical_encode("consent_rotation_" + fixed_ST_operation).
+  E_BW(op,P) = ENC(k_BW, CTX(op), SIG(B_management, DOM(op), P)).
+  E_WB(op,P) = ENC(k_WB, CTX(op), SIG(W_management, DOM(op), P)).
+  k_BW and k_WB use certified physical keys, roles, direction and PROTOCOL_VERSION.
+  ST encryption uses the existing directional logical Boomlet/ST keys.
+  EH(E) = sha256(canonical_encode(E)); CD(C) hashes the canonical Candidate.
+  Frame(op,E) uses the fixed selector, u16 envelope length and zero transport padding.
+  Every fresh envelope uses a fresh IV. Retries preserve exact bytes.
+end note
+
+note over B,W
+  Every receive checks bounded framing, expected context, canonical payload,
+  exact scope, authorized sender, operation, attempt floor and journal phase.
+  Invalid input preserves authority holds and duress; failures are uniform.
+  Every response uses a trusted receipt-relative fixed release deadline.
+  Durable state and exact reply are stored before release.
+  The relay only copies bytes and supplies no authority or trusted timing.
+end note
+
+group Trusted review and normal-key authorization
+  U -> I: Request consent replacement; reconstruct normal key
+  I -> H: BEGIN_REVIEW, empty canonical tuple
+  H -> B: BEGIN_REVIEW
+  B -> B: Check current binding, resolved predecessor and bounded capacity
+  B -> B: Create Scope with next attempt_seq, fresh rotation_id and new_commit_id
+  B -> B: Create review_nonce; retain one volatile pending intent
+  B -> B: Review = MessageWithNonce(Scope, review_nonce)
+  B -> B: E_review = ENC(k_BS, LCTX(review_challenge), (PairCertificate, Review))
+  B -> H: (PairCertificate, Scope, E_review)
+  H -> I: Public PairCertificate and Scope
+  H -> S: Frame(review_challenge, E_review)
+  S -> S: DEC; verify normal certificate, stored anchors, logical pairing and Scope
+  S -> U: Display consent replacement, setup, device pair and epochs
+  U -> S: Approve exact intent
+  S -> S: A_st = SIG(ST, DOM(st_review), Review)
+  S -> S: E_review_approval = ENC(k_SB, LCTX(review_approval), A_st)
+  S -> H: Frame(review_approval, E_review_approval)
+  H -> B: SUBMIT_REVIEW(E_review_approval)
+  B -> B: DEC; VERIFY A_st; require pending Scope and review_nonce
+  B -> H: Verified A_st, containing no countries or duress state
+  H -> I: A_st
+  I -> I: Verify recovered normal key, pair certificate, ST signature and exact Scope
+  I -> I: Auth = SIG(normal_key, DOM(authorize), A_st)
+  I -> H: SUBMIT_AUTH(Auth)
+  H -> B: SUBMIT_AUTH(Auth)
+  B -> B: Verify Auth and A_st against pending intent and stored normal/ST keys
+  B -> B: Atomically reserve journal, set attempt floor, quarantine predecessor, enter HOLD_WAIT
+end
+
+group Both devices held before the previous-set question
+  B -> B: P_hold = (Scope, PairCertificate, Auth)
+  B -> B: Store E_hold = E_BW(hold, P_hold) before output
+  B -> H: Frame(hold, E_hold)
+  H -> W: Exact frame
+  W -> W: DEC; VERIFY source management signature, normal Auth and ST review
+  W -> W: Require inactive role, binding, next attempt_seq and matching predecessor/floors
+  W -> W: Atomically reserve journal, quarantine predecessor and enter HELD
+  W -> W: Store E_held = E_WB(held, (Scope, EH(E_hold), base_state_seq, D_W))
+  W -> H: Frame(held, E_held), at fixed release deadline
+  H -> B: Exact frame
+
+  alt HELD is authenticated and durably consumed
+    B -> B: DEC; VERIFY target signature, EH(E_hold), Scope and base sequence
+    B -> B: Atomically record HELD and D_B = D_B OR D_W
+    B -> B: Create n_prev and permutation of 1..193; enter PREVIOUS_PENDING
+    B -> B: Q_prev = MessageWithNonce(Check(Scope, 0, 1, space_prev), n_prev)
+    B -> B: Store challenge and E_prev = ENC(k_BS, LCTX(previous_challenge), Q_prev)
+    B -> H: Frame(previous_challenge, E_prev)
+    H -> S: Exact frame
+    S -> S: DEC; validate Scope/round/phase and build five independent display maps
+    S -> U: Ask for previous committed set without displaying the answer
+    U -> S: Select five distinct countries
+    S -> S: R_prev = MessageWithNonce(Answer(Scope, 0, 1, original_indices), n_prev)
+    S -> H: Frame(previous_answer, ENC(k_SB, LCTX(previous_answer), R_prev))
+    H -> B: Exact frame
+    B -> B: DEC; check outstanding scope/phase/nonce, five distinct indices and ranges
+    B -> B: Resolve countries; compare all five against committed predecessor
+    B -> B: D_B = D_B OR mismatch; answer_seq = base_state_seq + 1
+    B -> B: E_continue = ENC(k_BS, LCTX(previous_result), MessageWithNonce(UiResult(Scope,0,0),n_prev))
+    B -> B: Atomically consume response, persist D_B/answer_seq/cache and enter ENROLLING
+    B -> H: Frame(previous_result, E_continue), at fixed release deadline
+    H -> S: Exact frame
+    S -> S: DEC; verify expected Scope and n_prev; continue without correctness feedback
+
+    loop Enrollment round r = 1..3 until READY or cancellation
+      B -> B: Create n_select and fresh space; persist outstanding phase 2
+      B -> B: Q_select = MessageWithNonce(Check(Scope,r,2,space_select),n_select)
+      B -> H: Frame(selection_challenge, stored ENC(k_BS,LCTX(selection_challenge),Q_select))
+      H -> S: Exact frame
+      S -> S: DEC; require Scope/r/phase 2; replace display maps
+      S -> U: Choose fresh set
+      U -> S: Select five distinct countries
+      S -> S: R_select = MessageWithNonce(Answer(Scope,r,2,indices),n_select)
+      S -> H: Frame(selection_answer, ENC(k_SB,LCTX(selection_answer),R_select))
+      H -> B: Exact frame
+      B -> B: DEC; validate nonce/count/ranges; resolve and journal candidate selection
+      B -> B: Compute history non-reuse without changing D_B
+
+      B -> B: Create n_confirm1 and fresh space; persist outstanding phase 3
+      B -> B: Q1 = MessageWithNonce(Check(Scope,r,3,space1),n_confirm1)
+      B -> H: Frame(confirmation_1_challenge, stored ENC(k_BS,LCTX(confirmation_1_challenge),Q1))
+      H -> S: Exact frame
+      S -> S: DEC; require Scope/r/phase 3; replace display maps
+      S -> U: Reproduce the candidate set
+      U -> S: Select five distinct countries
+      S -> S: R1 = MessageWithNonce(Answer(Scope,r,3,indices),n_confirm1)
+      S -> H: Frame(confirmation_1_answer, ENC(k_SB,LCTX(confirmation_1_answer),R1))
+      H -> B: Exact frame
+      B -> B: DEC; validate and consume; record first comparison, preserving D_B
+
+      B -> B: Create n_confirm2 and fresh space; persist outstanding phase 4
+      B -> B: Q2 = MessageWithNonce(Check(Scope,r,4,space2),n_confirm2)
+      B -> H: Frame(confirmation_2_challenge, stored ENC(k_BS,LCTX(confirmation_2_challenge),Q2))
+      H -> S: Exact frame
+      S -> S: DEC; require Scope/r/phase 4; replace display maps
+      S -> U: Reproduce the candidate set
+      U -> S: Select five distinct countries
+      S -> S: R2 = MessageWithNonce(Answer(Scope,r,4,indices),n_confirm2)
+      S -> H: Frame(confirmation_2_answer, ENC(k_SB,LCTX(confirmation_2_answer),R2))
+      H -> B: Exact frame
+      B -> B: DEC; validate and consume; record second comparison, preserving D_B
+      B -> B: result = READY(2) iff valid, unused, and both confirmations match; otherwise RETRY(1)
+      B -> B: Cache E_round = ENC(k_BS,LCTX(round_result),MessageWithNonce(UiResult(Scope,r,result),n_confirm2))
+      B -> H: Frame(round_result, E_round), at fixed release deadline
+      H -> S: Exact frame
+      S -> S: DEC; verify Scope/r/n_confirm2 and display candidate result only
+    end
+
+    opt Authenticated cancellation, applicable at any precommit ST phase
+      U -> H: REQUEST_CANCEL
+      H -> B: REQUEST_CANCEL, empty canonical tuple
+      B -> B: Serialize with acceptance; retire pending country challenge; preserve accepted duress
+      B -> B: Store fresh cancel_nonce and Q_cancel = MessageWithNonce(Scope,cancel_nonce)
+      B -> H: Frame(cancel_challenge, stored ENC(k_BS,LCTX(cancel_challenge),Q_cancel))
+      H -> S: Exact frame
+      S -> S: DEC; verify active Scope and nonce
+      S -> U: Confirm cancellation
+      U -> S: Approve cancellation
+      S -> S: A_cancel = SIG(ST,DOM(st_cancel),Q_cancel)
+      S -> H: Frame(cancel_approval,ENC(k_SB,LCTX(cancel_approval),A_cancel))
+      H -> B: Exact frame
+      B -> B: DEC; VERIFY ST signature, Scope and cancel_nonce; atomically consume and record cancelled
+    end
+
+    alt Candidate READY and not cancelled
+      B -> B: C = (Scope,new_set,count+1,32 padded history rows,base+1,base+2,D_B)
+      B -> B: Freeze enrollment and competing operations
+      B -> B: Atomically store C and E_prepare = E_BW(prepare,(C)); enter PREPARE_WAIT
+      B -> H: Frame(prepare, E_prepare)
+      H -> W: Exact frame
+      W -> W: DEC; VERIFY source signature; require HELD and matching authorization/Scope
+      W -> W: Check complete history prefix, appended new set, non-reuse and sequences
+      W -> W: C_star = C with latch D_W OR C.duress_latched
+      W -> W: E_prepared = E_WB(prepared,(Scope,EH(E_prepare),C_star))
+      W -> W: Atomically persist D_W, answer_seq, C_star, E_prepared; enter PREPARED
+      W -> H: Frame(prepared, E_prepared), at fixed release deadline
+      H -> B: Exact frame
+      B -> B: DEC; VERIFY target signature, EH(E_prepare) and all candidate fields
+      B -> B: Permit only OR latch merge; atomically persist C_star and receipt; enter PREPARED
+    else Candidate unavailable, third round failed, or cancellation accepted
+      B -> B: Keep accepted D_B and quarantine; no commit readiness
+    end
+
+    alt Both durable prepares exist and coordinator chooses COMMIT
+      B -> B: E_commit = E_BW(commit,(Scope,EH(E_prepared),CD(C_star),base+2))
+      B -> B: Atomically install C_star, final sequence, COMMIT decision and exact bytes; enter COMMIT_WAIT
+      B -> H: Frame(commit, E_commit)
+      H -> W: Exact frame
+      W -> W: DEC; VERIFY source signature; match EH(E_prepared), CD(C_star), final sequence
+      W -> W: E_committed = E_WB(committed,(Scope,EH(E_commit),CD(C_star),base+2,D_W))
+      W -> W: Atomically install C_star and receipt; enter COMPLETE, still inactive
+      W -> H: Frame(committed, E_committed), at fixed release deadline
+      H -> B: Exact frame
+      B -> B: DEC; VERIFY Scope, EH(E_commit), CD(C_star), sequence and prepared latch
+      B -> B: Atomically retain terminal evidence; clear withdrawal quarantine; enter COMPLETE
+      B -> H: Frame(terminal_result, stored ENC(k_BS,LCTX(terminal_result),MessageWithNonce(UiResult(Scope,r,3),ui_anchor)))
+      H -> S: Exact frame
+      S -> S: DEC; match active Scope/ui_anchor; display completion once
+    else Coordinator chooses ABORT before any durable COMMIT
+      B -> B: checked = journal.has_accepted_previous; final_seq = base + 1 + checked
+      B -> B: E_abort = E_BW(abort,(Scope,checked,final_seq,D_B))
+      B -> B: Atomically record ABORT decision, final sequence and exact bytes; enter ABORT_WAIT
+      B -> H: Frame(abort, E_abort)
+      H -> W: Exact frame
+      W -> W: DEC; VERIFY source signature; require HELD or PREPARED, matching Scope and final sequence
+      W -> W: D_W = D_W OR received_latch; E_aborted = E_WB(aborted,(Scope,EH(E_abort),final_seq,D_W))
+      W -> W: Atomically retain D_W, quarantine, sequence, attempt floor and exact receipt; enter ABORTED
+      W -> H: Frame(aborted, E_aborted), at fixed release deadline
+      H -> B: Exact frame
+      B -> B: DEC; VERIFY exact request digest/sequence; persist OR merge and terminal receipt; enter ABORTED
+      B -> B: Preserve predecessor quarantine; discard only staged candidate material
+      B -> H: Frame(terminal_result, stored ENC(k_BS,LCTX(terminal_result),MessageWithNonce(UiResult(Scope,r,4),ui_anchor)))
+      H -> S: Exact frame
+      S -> S: DEC; match Scope/ui_anchor; display cancellation without duress classification
+    end
+
+  else HELD is unavailable or unacknowledged
+    B -> B: No previous-set question is issued; previous_checked is false
+    B -> B: E_abort0 = E_BW(abort_unheld,(Scope,PairCertificate,Auth,base+1,D_B))
+    B -> B: Atomically record ABORT decision, final sequence and exact bytes; enter ABORT_WAIT
+    B -> H: Frame(abort_unheld, E_abort0)
+    H -> W: Exact frame, even if the earlier HOLD was lost
+    W -> W: DEC; VERIFY source signature, normal authorization, ST review, binding and attempt floor
+    W -> W: Require unseen or HELD; preserve quarantine; D_W = D_W OR received_latch
+    W -> W: Atomically record ABORTED, base+1, floor and E_aborted0 = E_WB(aborted,(Scope,EH(E_abort0),base+1,D_W))
+    W -> H: Frame(aborted, E_aborted0), at fixed release deadline
+    H -> B: Exact frame
+    B -> B: DEC; VERIFY Scope/EH(E_abort0)/sequence; persist OR merge and terminal evidence
+    B -> H: Frame(terminal_result, stored ENC(k_BS,LCTX(terminal_result),MessageWithNonce(UiResult(Scope,0,4),review_nonce)))
+    H -> S: Exact frame
+    S -> S: DEC; verify reviewed Scope and review_nonce; display cancellation once
+  end
+end
+
+group Recovery at any interrupted control boundary
+  opt Delivery retry while the bound attempt remains admitted
+    B -> H: Retransmit exact stored Frame(op,E_request)
+    H -> W: Exact bytes, without a new IV or altered candidate
+    W -> W: Match accepted request digest; no repeated state transition or persistent write
+    W -> H: Exact cached receipt, released on this delivery's fixed deadline
+    H -> B: Exact bytes
+    B -> B: Consume idempotently only in the proper decision/receipt handler
+  end
+
+  opt Source needs current target evidence
+    B -> B: Reserve query slot; generate fresh query_nonce; store E_query = E_BW(status,(Scope,query_nonce))
+    B -> H: Frame(status, E_query)
+    H -> W: Exact frame
+    W -> W: DEC; VERIFY bound attempt and query budget; read durable phase/sequence and terminal evidence
+    W -> W: Store E_status = E_WB(status_response,(Scope,EH(E_query),query_nonce,phase,seq,kind,evidence_bytes))
+    W -> H: Frame(status_response, E_status), at fixed release deadline
+    H -> B: Exact frame
+    B -> B: DEC; VERIFY Scope, request digest, fresh query nonce and bounded evidence
+    B -> B: Apply terminal evidence and its latch merge through the exact decision/receipt handler
+    note over B,W
+      PREPARED without a source decision cannot activate the backup.
+      Resend exact PREPARE to recover PREPARED; STATUS creates no decision.
+      Recover COMMITTED or ABORTED through their normal receipt handlers.
+      A source already at COMMIT_WAIT must finish COMMIT, never abort.
+    end note
+  end
+
+  opt Prepared target needs the source decision
+    W -> W: Reserve query slot; generate fresh target_query_nonce; store E_query2 = E_WB(status,(Scope,target_query_nonce))
+    W -> H: Frame(status, E_query2)
+    H -> B: Exact frame
+    B -> B: DEC; VERIFY current attempt and nonce; select exact durable decision or NONE
+    B -> B: Check query budget; store E_status2 = E_BW(status_response,(Scope,EH(E_query2),target_query_nonce,phase,seq,kind,evidence_bytes))
+    B -> H: Frame(status_response, E_status2), at fixed release deadline
+    H -> W: Exact frame
+    W -> W: DEC; VERIFY fresh nonce and scope; recover original COMMIT/ABORT envelope through its handler
+    note over B,W
+      NONE, timeout, missing source, or conflicting evidence leaves authority held.
+      No old receipt reconstructs an untransferred latch or proves current eligibility.
+    end note
+  end
+end
+
+group ST restart or terminal-result loss
+  S -> S: Create fresh ui_query_nonce using retained setup and pair anchors
+  S -> H: Frame(ui_status,ENC(k_SB,LCTX(ui_status),MessageWithNonce((setup_id,pair_digest),ui_query_nonce)))
+  H -> B: Exact frame
+  B -> B: DEC; match retained binding; check eight-query budget; read current or last terminal journal
+  B -> B: Retire any unconsumed input nonce; prepare fresh UiResume; preserve accepted duress
+  B -> B: Pending cancellation uses phase 5, fresh cancel nonce and identity-space padding
+  B -> B: E_ui_reply = ENC(k_BS,LCTX(ui_status_response),MessageWithNonce((Scope,ui_status,UiResume),ui_query_nonce))
+  B -> B: Atomically store replacement, query acceptance and exact E_ui_reply
+  B -> H: Frame(ui_status_response,E_ui_reply)
+  H -> S: Exact frame
+  S -> S: DEC; verify its outstanding query nonce and Scope; use only the authenticated UiResume after restart
+  S -> S: Display terminal status once, rebuild country maps, or confirm the resumed cancellation
+  note over S,W
+    Eight fresh STATUS queries per direction and eight UI queries are reserved per attempt.
+    Exact duplicate queries recover cached bytes without writes or nonce replacement.
+    Exhaustion stalls fresh queries and preserves decisions, holds and duress.
+  end note
+end
+
+group Subsequent ordinary withdrawal after rotation completion
+  note over S,A
+    The eligible active device is B, or W after independently proved activation.
+    Transaction review, unanimous approvals, digging and signing rules still apply.
+    This subflow shows the existing local placeholder path for initial commit and every Ping.
+  end note
+
+  loop Initial TxCommit, then every new Ping
+    B -> B: effective_duress = retained_duress_latched OR current_check_is_duress
+    B -> B: p = doxing_key_for_sar if effective_duress, otherwise zero_bytes_32
+    B -> B: P = ENC(k_BSAR,canonical_encode("withdrawal_duress_placeholder",approved_id),p), fresh IV
+    B -> B: inner = SIG(logical_Boomlet,"Boomerang/withdrawal/" + kind, TxCommit_or_Ping)
+    B -> B: outer = SIG(logical_Boomlet,"Boomerang/withdrawal/" + kind + "_envelope",PaddedMessage(inner,P))
+    B -> H: ENC(k_BWT,canonical_encode("withdrawal_" + kind,approved_id),outer)
+    H -> T: Exact withdrawal envelope
+    T -> T: DEC; verify both signatures, approval/commit gate, approved ID and freshness/sequence
+    T -> A: Exact P on existing setup-bound placeholder forwarding path
+    A -> A: Set fixed ack_release_at before parsing; authenticate, decrypt and classify P
+    A -> A: Construct signed exact-envelope acknowledgment and identical fixed-shape processing record
+    A -> A: Durably commit replay tuple (approved_id,logical_Boomlet_pubkey,P.iv); activate duress for new valid duress tuple
+    A -> A: Ack = SIG(SAR,"Boomerang/withdrawal/sar_placeholder_response",P)
+    A -> A: E_ack = ENC(k_SARB,canonical_encode("withdrawal_sar_placeholder_response",approved_id),Ack)
+    A -> T: Exact E_ack at the fixed deadline; no late acknowledgment after overrun
+    T -> H: E_ack with existing verified commit collection or encrypted Pong
+    H -> B: Exact withdrawal delivery
+    B -> B: DEC E_ack; verify SAR signature and byte-for-byte Ack.content == P
+    B -> B: Verify accompanying withdrawal evidence before any progress
+  end
+
+  note over B,A
+    Correct answers to the new set cannot override a true persistent latch.
+    Every new Ping uses a new placeholder IV; in-flight retries retain exact bytes.
+    Safe and duress share message shape, timing, queues, writes, retries and exposed status.
+    Rescue work cannot change acknowledgment release or reveal classification to the relay.
+    No later traffic means no delivery claim, even though the latch remains durable.
+  end note
+end
+@enduml
