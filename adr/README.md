@@ -20,6 +20,13 @@ not override the specification.
 | [0007](0007-niso-prevalidation-and-boomlet-revalidation.md) | Prevalidate protocol data on Niso and independently revalidate signing conditions on Boomlet. |
 | [0008](0008-distinct-fixed-byte-encodings.md) | Give common fixed-width cryptographic byte strings distinct canonical tags. |
 
+## Proposed Decisions
+
+| ADR | Decision |
+| --- | --- |
+| [0009](0009-paired-consent-rotation.md) | Rotate the five-country consent set on Boomlet and Boomletwo through authenticated two-phase commit. |
+| [0010](0010-niso-relayed-consent-rotation.md) | Relay consent rotation through Niso and authorize it with signed ST approval, keeping the mnemonic out of the ceremony. |
+
 ## Status Values
 
 - `Proposed`: under active review and not yet normative.

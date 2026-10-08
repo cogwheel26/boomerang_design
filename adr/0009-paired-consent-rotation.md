@@ -14,40 +14,43 @@ memorized answer, the existing descriptor, and service registrations.
 ## Decision
 
 Retain the unordered set of five distinct countries. Boomlet coordinates
-authenticated two-phase commit of the fresh set, epoch, history, and persistent
-duress state with Boomletwo.
+authenticated two-phase commit of the replacement set and duress flag with
+Boomletwo.
 
 Both devices durably prepare the same candidate before Boomlet records an
 irrevocable commit. Boomlet resumes withdrawal only after consuming Boomletwo's
 durable commit receipt. Unresolved participants remain held pending authenticated
 decision evidence.
 
-Every rotation asks for the previous committed set through ST, then enrolls a
-fresh set with two confirmations. A valid mismatch durably latches duress before
-any reply and follows the same enrollment flow. Prepare and abort transfer that
-latch through encrypted, authenticated messages and merge it using OR. It never
-clears within the setup and applies to future commitments and Pings. Correct and
-wrong answers have identical observable flows; sets and duress remain encrypted.
+Trusted ST handles the previous-set check and two fresh enrollment confirmations.
+A valid mismatch durably sets duress before any reply and completes the same
+flow; devices OR-merge the flag. Correct and wrong answers have identical
+observable behavior, with sets and duress encrypted.
 
 ## Rationale
 
 Paired commitment coordinates both stored copies without changing the user's
-consent method or adding an external epoch authority. Safety takes priority over
-availability when the decision is uncertain. Two-phase commit can block when
+consent method or adding an external freshness authority. Safety takes priority
+over availability when the decision is uncertain. Two-phase commit can block when
 its coordinator fails; this is an accepted cost
 ([Gray and Lamport](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2003-96.pdf)).
 
 ## Consequences
 
 Both devices must participate, and storing the secret twice increases correlated
-exposure. Recovery needs protected journals, rollback floors, and exact decision
-and receipt retries. Abort keeps the previous set unusable for withdrawals and
-preserves latched duress. Rotation can pause an active withdrawal during digging
-after commitment or in later phases, preserving mystery, progress, signing history,
-and SAR duties. Resumption requires the commit receipt and a fresh Ping's exact
-SAR acknowledgment. Rotation leaves Boomletwo inactive; activation requires proof
-that the source can no longer act and the backup has the latest consent, replay,
-signing, and rescue state.
+exposure. Recovery needs rollback-resistant state, bounded journals, and exact
+decision and receipt retries. Abort preserves quarantine and duress.
+
+Rotation may pause withdrawal during digging after commitment or in later phases,
+preserving progress, signing history, and SAR duties. Resumption requires the
+commit receipt and exact SAR acknowledgment. The duress flag survives correct
+answers until withdrawal end and acknowledged delivery, with paired reset when
+replicated; idle rotation carries it into the next withdrawal. Past sets are
+discarded, so later re-enrollment of an older exposed set remains possible.
+
+Boomletwo stays inactive. Activation requires proof that the source can no
+longer act and the backup has the latest consent, replay, signing, and rescue
+state.
 
 ## Rejected Alternatives
 

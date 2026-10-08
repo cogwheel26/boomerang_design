@@ -1,445 +1,448 @@
 # Paired consent rotation message contract
 
-The [proposal](Cannon_paired_consent_rotation_proposal.md) uses the following
-typed tuples and the [complete sequence](Cannon_paired_consent_rotation_sequence.puml).
-These are proposed extensions to SPEC, not adopted wire types. Canonical
-encoding, BIP340, directional ECDH key derivation, and CBC-CMAC follow SPEC
-Sections 8–9. Tuple items have the exact order and types below. Unknown versions,
-operations, counts, enum values, trailing bytes, and alternative encodings fail
-before semantic use. Existing wrapper schemas retain their field definitions.
+The [proposal](Cannon_paired_consent_rotation_proposal.md) and
+[complete sequence](Cannon_paired_consent_rotation_sequence.puml) use these proposed
+extensions to SPEC. They remain unadopted wire types. Canonical encoding, BIP340,
+directional ECDH keys, and CBC-CMAC follow SPEC Sections 8–9. Tuple items have the
+exact order and types below. Unknown versions, operations, enum values, trailing
+bytes, and alternative encodings fail before semantic use.
 
-## Pair binding and attempt scope
+## Pairing and attempt identity
 
 ```text
-PairBinding = (
-  consent_profile_version: u16,             // exactly 1
+Review = (
   setup_instance_id: bytes32,
-  logical_peer: PeerId,
-  source_management_pubkey: bytes33,
-  target_management_pubkey: bytes33,
-  st_identity_pubkey: bytes33,
-  lifecycle_generation: u64
-)
-
-Scope = (
-  pair_binding_digest: bytes32,
-  attempt_seq: u64,
-  predecessor_epoch: u64,
-  base_state_seq: u64
+  backup_boomlet_pubkey: bytes33,
+  state_token_with_nonce: MessageWithNonce<bytes32>
 )
 ```
 
-`pair_binding_digest` is tagged SHA-256 of canonical `PairBinding` under
-`Boomerang/consent_rotation/v1/pair_binding`. Provision and retain a normal-key
-signature on that tuple under `Boomerang/consent_rotation/v1/pair_binding`.
-Both devices and ST retain that certificate and its verification anchors. The
-stored certificate, device's own key, logical peer, ST pairing, setup, and
-lifecycle generation must agree. Management keys must be independently generated
-and distinct from each other and the copied logical peer key, including their
-x-only signing representations. Rotation uses the stored pair certificate.
+Existing setup uses the normal-key-authorized backup request, authenticated state
+transfer, and signed `BackupDone` to establish the fixed pair. Boomlet retains the
+accepted backup public key; Boomletwo retains the imported setup, source and ST
+identities. Control envelopes bind the retained setup ID and paired keys.
+Require distinct source and backup keys, including their x-only representations.
+Rotation messages cannot replace the pairing or public keys.
 
-| Value | Security role and checks |
-| --- | --- |
-| `pair_binding_digest` | Selects the retained setup, physical pair, ST, lifecycle, and profile during review and admission; later messages must match the admitted scope. |
-| `attempt_seq` | Protected admission floor rejects old attempts; country input, decisions, and recovery use it to select the same journal. |
-| `predecessor_epoch` | Admission checks the current set version; prepare checks its history prefix, and commit installs epoch plus one. |
-| `base_state_seq` | Admission checks the protected consent-state version; accepted previous answers and decisions advance it without depending on classification. |
-| Review nonce | Source admission requires its outstanding nonce; target verifies the original ST approval in HOLD or ABORT_UNHELD. |
+Boomletwo retains its original keypair through import and uses it for target
+messages. Until authorized activation, its applet permits the copied Boomlet key
+only for SAR-receipt verification. Protected role and key selection survive
+restart and cannot be chosen by a host. The inactive backup cannot originate
+source rotation, withdrawal, or ST messages or expose arbitrary signing or
+encryption with the copied key.
 
-Both devices retain `last_attempt_seq`, initially 0. A new attempt uses
-`last_attempt_seq + 1`; its predecessor epoch and base sequence must match both
-devices' protected records. The new epoch is `predecessor_epoch + 1`.
-`consent_state_seq` has its own protected floor, advanced on accepted previous-set
-answers and decisions, so rollback within an attempt cannot erase accepted duress.
-After admission, operations match the journal's scope and enforce their phase,
-sequence, and request-digest checks. Terminal retries use the recorded scope,
-not the updated predecessor fields, and cannot reopen the attempt.
+Provision the same fresh random 32-byte `consent_state_token` on both devices.
+BEGIN_REVIEW wraps that token in `MessageWithNonce<bytes32>` with a fresh review
+nonce distinct from the token. ST signs that exact object. Its approved nonce is
+`attempt_nonce` in every later rotation payload. On authorized admission, both
+devices atomically replace their token with that nonce and retain the original
+approval in the journal. This consumes the predecessor even if the attempt aborts.
+Authorized pairing changes retire pending reviews and provision a fresh shared
+token; tokens are never shared across setups or pairs.
 
-The source privately binds the review nonce to its current withdrawal identity
+A fresh HOLD requires a matching predecessor token and a terminal previous
+journal. Exact recorded approvals take the journal recovery path before fresh
+admission checks; another approval for that predecessor conflicts. Later handlers
+match the journal's approved attempt nonce and phase, rather than its consumed
+predecessor token.
+Terminal control duplicates return cached results without writes, prompts, or latch
+merging. Superseded attempts are stale. Random tokens require atomic,
+rollback-resistant storage for the entire consent record, flag, and journal.
+
+The source privately binds its pending review to the current withdrawal identity
 or absence of one. Starting, replacing, completing, or abandoning a withdrawal
-retires the review. On admission, it rechecks eligibility and durably captures the latest
-withdrawal state before pausing. Target imports no withdrawal checkpoint.
+retires the review. Admission rechecks eligibility and checkpoints the latest
+withdrawal state. Target imports no withdrawal checkpoint. Source consumes the
+preceding decision receipt before admitting another attempt.
 
-Exact current-attempt messages recover their recorded result. Once a later
-attempt is admitted, older attempts are stale. Retain the current journal and
-last resolved decision and receipt. Starting the next attempt requires a terminal
-previous journal at both devices and the preceding receipt durably consumed by
-the source. A target cannot replace HELD or PREPARED with a newer attempt.
+## Duress flag
 
-The source admits one pending intent. An intent lost before authorization
-acceptance needs fresh trusted review. After authorization acceptance, its
-scope and attempt floor are durable before HOLD is released. A conflicting
-scope or different approval at the same sequence is rejected. An admitted
-attempt retains its original approval. Inactive targets admit only the bound
-source's management operations.
+Both devices store `under_duress: bool`, initially false. Every accepted valid
+wrong answer, including the previous-set check, updates the source atomically:
+
+```text
+under_duress := under_duress OR answer_is_wrong
+user_is_in_duress := under_duress
+```
+
+Correct answers, confirmation rounds, rotation, retries, and restart cannot clear
+the flag. Authenticated state transfers OR-merge it. It governs subsequent
+commitments and Pings through the end of the withdrawal. A flag set between
+withdrawals carries into the next one. Withdrawal end permits the reset below
+only after exact SAR acknowledgment; abandonment cannot erase an undelivered
+signal. Enrollment confirmation failures are not duress answers.
+
+Each admitted rotation sets source `paired_reset_pending=true`, regardless of
+classification. It survives abort and restart until the paired reset completes.
+The old set remains available for comparison during the attempt; successful
+commit replaces it. Erase predecessor copies and completed country-input material
+after terminal evidence is durable. Retain no archive of past sets.
 
 ## Trusted review and country input
 
-Niso relays device-encrypted envelopes unchanged. ST uses its existing air-gapped
-interface and supplies explicit signed approval. Niso handles public review
-metadata and ciphertexts; the ceremony requires no mnemonic, passphrase, or
+Niso relays device-encrypted envelopes unchanged. ST retains its air gap and
+supplies explicit signed approval. Rotation requires no mnemonic, passphrase, or
 normal private key.
 
-Niso's local commands request device operations; each device verifies the required
-authorization and state. Selector 41 BEGIN_REVIEW has empty tuple input and
-returns `(scope, review_envelope)`. Selector 42 SUBMIT_REVIEW takes one
-review-approval envelope, durably admits the approved attempt, and
-returns the encrypted HOLD. Selector 43 is reserved and rejected.
-Selector 44 REQUEST_CANCEL has empty tuple input and produces the cancellation
-challenge; 45 RESUME has empty tuple input and resumes the recorded attempt
-without new authority. Each contextual payload uses its exact canonical type.
-BEGIN_REVIEW is allowed only without an unresolved authorized rotation. An active
-withdrawal qualifies during DIGGING after commitment and in later phases; a
-stalled withdrawal uses its retained phase. The normal commit-collection and SAR
-checks and one-time mystery initialization precede DIGGING. Source checks its own
-current ceremony state; an early request cannot pause or advance it.
-BEGIN_REVIEW creates one volatile pending intent and waits for a free ST input
-session; the withdrawal itself can remain active or stalled. Advancing the
-attempt floor, quarantining consent, and releasing HOLD require verified ST approval. Public
-return values contain no country input or duress state. Requests are rate limited
-and malformed input has uniform permitted failures.
+Local selectors are 41 BEGIN_REVIEW with empty tuple input, returning
+one review envelope; 42 SUBMIT_REVIEW with one approval envelope, returning
+encrypted HOLD; 43 reserved and rejected; 44 REQUEST_CANCEL with empty input;
+and 45 RESUME with empty input, returning the recorded next message. Local
+requests supply no authority themselves.
 
-The source supplies `MessageWithNonce<Scope>` through its existing Boomlet-to-ST
-channel. ST verifies its retained pair certificate and the scope's binding digest
-against its authenticated pairing and displays consent replacement, setup,
-device identities, and epochs. Explicit user approval
-makes ST sign that exact nonce-bound scope under
+BEGIN_REVIEW requires no unresolved rotation, FINISH, or withdrawal teardown,
+and a free ST input session. An active withdrawal qualifies during DIGGING after
+commitment and in later phases; a stalled withdrawal uses its retained phase.
+Commit-collection and SAR checks and one-time mystery initialization precede DIGGING. An early
+request cannot pause or advance withdrawal. One volatile review is pending;
+state loss before admission requires fresh review.
+
+Source derives `Review` metadata from protected setup state and sends it through
+its existing paired ST channel. ST authenticates that source and displays consent
+replacement, setup, and source and backup identities, then explicitly approves.
+It signs the exact `state_token_with_nonce` under
 `Boomerang/consent_rotation/v1/st_review`.
-This `SignedMessage<MessageWithNonce<Scope>>` authorizes rotation within the
-stored pair; the previous-set answer classifies duress.
+ST durably retains the approved attempt nonce before releasing approval and keeps
+it across restart for UI recovery.
 
-SUBMIT_REVIEW verifies the stored normal-key pair certificate, the ST signature
-under `Boomerang/consent_rotation/v1/st_review`, and the exact pending scope and
-review nonce. It rechecks the predecessor, private withdrawal binding, phase
-eligibility, attempt floor, and storage capacity before admission. The source
-atomically persists the approval, scope, source withdrawal checkpoint and pause,
-advanced attempt floor, quarantine, exact HOLD, and
-`duress_latched OR current_check_is_duress` before releasing HOLD. Exact approval
-retries return the cached HOLD without another admission, counter advance, or
-write. Terminal attempts remain terminal; delayed HOLD or HELD cannot reopen
-them. Once a later attempt is admitted, an older approval is stale.
+SUBMIT_REVIEW verifies the retained pairing, ST signature, exact pending token
+and nonce, current predecessor token, private withdrawal binding, eligibility,
+and storage reservation. Before releasing HOLD, source atomically persists the
+approval, journal, consumed predecessor, checkpoint and pause, quarantine,
+`paired_reset_pending=true`, and any already accepted withdrawal duress.
+Exact approval retries recover HOLD or the terminal result without admission
+again. An older approval cannot reopen a terminal or superseded attempt.
 
-HOLD carries the ST-signed approval. Its scope is `authorization.content.content`.
-The target independently verifies its retained certificate under the pair-binding
-domain and the approval under `Boomerang/consent_rotation/v1/st_review` against
-its retained normal and ST public keys. It requires the approval scope to match
-its stored binding and a matching inactive role, predecessor, and attempt floor.
-Freshness comes from the review nonce at source and protected attempt floors at both devices, not host
-timestamps.
+HOLD carries `SignedMessage<MessageWithNonce<bytes32>>`.
+Target verifies the ST signature with its retained ST public key and checks the
+setup-bound paired channel, inactive role, predecessor token, and journal
+admission rules. It consumes that token and persists quarantine and activation
+hold before HELD. Source persists HELD and its OR merge before asking for the
+previous set. Neither host timestamps nor a rotation count establish freshness.
 
-Profile provisioning gives both devices and ST the certificate, setup ID, normal
-public key, pair digest, and lifecycle generation alongside their authenticated
-device pairing. They retain these anchors; an incoming review cannot install another
-binding. The reviewed logical peer and descriptor must identify the user's
-intended setup. Device replacement, rebinding, signing, and Boomletwo activation
-retain their separate authorization requirements.
+ST approval authorizes rotation only within the fixed pair. Device replacement,
+rebinding, signing, and Boomletwo activation retain their separate requirements.
 
 ```text
-Check = (scope: Scope, round: u8, phase: u8, space: DuressCheckSpace)
-Answer = (scope: Scope, round: u8, phase: u8, selection: DuressSignalIndex)
-UiResult = (scope: Scope, round: u8, result: u8)
+Check = (attempt_nonce: bytes32, round: u8, phase: u8, space: DuressCheckSpace)
+Answer = (attempt_nonce: bytes32, round: u8, phase: u8, selection: DuressSignalIndex)
+UiResult = (attempt_nonce: bytes32, round: u8, result: u8)
 UiResume = (present: bool, round: u8, phase: u8, nonce: bytes32, space: DuressCheckSpace)
 ```
 
 Challenges and answers use `MessageWithNonce<Check>` and
-`MessageWithNonce<Answer>`. `space` contains one permutation of integers 1–193.
-ST creates the five shuffled display columns and returns five distinct original
-indices. It prevents duplicate user selections. Phase values are 1 previous set,
-2 new selection, 3 first confirmation, and 4 second confirmation. Round is 0
-for the previous set and 1–3 for enrollment. Each phase gets a fresh nonce and
-permutation; both endpoints require the exact scope, round, phase, and nonce.
+`MessageWithNonce<Answer>`. Space is a permutation of integers 1–193. ST displays
+five independently shuffled columns and returns five distinct original indices.
+Phase is 1 previous set, 2 selection, 3 first confirmation, or 4 second
+confirmation. Round is 0 for the previous set and 1–3 for enrollment. Require the
+exact attempt nonce, round, phase, and outstanding prompt nonce. Each phase uses
+a fresh nonce and permutation.
 
-Before releasing a challenge, source persists its nonce, permutation, phase,
-and exact encrypted bytes. Each accepted answer is atomically consumed with
-its response digest, state changes, and cached result or next challenge.
-Restart recovers these records; an unconsumed challenge may instead be durably
-retired and replaced with a fresh nonce. Replayed retired nonces cannot satisfy
-another phase. Accepted-response retries return the cached successor without
-another comparison, write, prompt, or counter increment.
+Before sending, persist the phase, nonce, permutation, and exact challenge bytes.
+Accepted answers atomically consume the nonce and store their response digest,
+flag update, and cached successor. Restart recovers that record. An unconsumed
+challenge may instead be retired and replaced; its retired nonce cannot satisfy
+another phase. Accepted-response retries recover the successor without another
+comparison, prompt, or write.
 
-ST also treats `(scope, round, phase, nonce)` as one input session. A duplicate
-challenge before answer preserves its display maps and selections. After answer,
-it resends the exact cached encrypted answer without prompting again. Conflicting
-challenge content at the same nonce is rejected. ST state loss uses UI status
-recovery below; it cannot redisplay a captured challenge as a fresh session.
+ST accepts challenges and results only for its retained approved attempt nonce.
+It retains the display maps and selections for one
+`(attempt_nonce, round, phase, nonce)` session. Before answering, duplicates
+preserve that session. After answering, duplicates resend its exact cached
+encrypted answer. Conflicting content at the same nonce is rejected. ST state
+loss requires authenticated UI recovery.
 
-The previous answer always returns `UiResult` 0 CONTINUE. Persist the latch and
-`answer_seq = base_state_seq + 1` before that result leaves the device. Compare
-all five values even when duress is already latched. Both classifications use
-the same write and release path.
+The previous answer always yields UiResult 0 CONTINUE. Compare all five values
+even when the flag is true; persist `previous_checked=true`, the flag, response
+consumption, and uniform result before release. A valid mismatch proceeds through
+the same enrollment flow.
 
-Each enrollment round runs selection and both confirmations before reporting
-1 RETRY or 2 READY. READY requires five valid distinct country values, no reuse
-in committed history, and both confirmations matching. Comparisons use sorted
-country values; selection order has no meaning. An invalid history choice still
-runs both confirmations. After round 3 failure the source decides ABORT.
-Authentication and encoding failures stall the outstanding phase instead of
-being treated as country mismatches. Country confirmation failures do not
-increment `consent_state_seq` or clear duress.
+Each enrollment round completes selection and both confirmations before reporting
+1 RETRY or 2 READY. READY requires five valid distinct sorted countries, different
+from the current committed set, and both confirmations matching. Candidate
+validity never depends on the flag. After round 3 failure, source decides ABORT.
+Authentication or encoding failures stall the phase rather than classify duress.
+There is no lifetime non-reuse check.
 
-UI results use `MessageWithNonce<UiResult>` with the answered nonce. The round
-result echoes the second-confirmation nonce. Terminal results are 3 COMPLETE
-or 4 ABORTED, anchored to the latest outstanding or accepted ST nonce, or the
-review nonce when no country prompt ran. ST retains that scope and nonce until
-terminal delivery; duplicates cannot repeat visible prompts. ST state loss
-requires a fresh authenticated status challenge to source before displaying a
-terminal result, not acceptance of an old unsolicited result.
-Recovered terminal displays identify the returned attempt and never attach an
-older result to a different intent.
+UI results echo the answered nonce; round results echo the second-confirmation
+nonce. Terminal results are 3 COMPLETE or 4 ABORTED, anchored to the latest
+outstanding or accepted ST nonce, or review nonce if no country prompt ran.
+ST retains the attempt and prompt nonces until terminal delivery. After ST state
+loss, fresh authenticated status is required before displaying a terminal result;
+an old unsolicited result cannot attach to another review.
 
-User cancellation before commit requires ST to sign a fresh nonce-bound Scope
-under `Boomerang/consent_rotation/v1/st_cancel`. Source retires any pending
-country challenge before issuing this cancellation challenge. Accepted duress
-survives. Repeated REQUEST_CANCEL returns the cached outstanding challenge;
-it cannot repeatedly retire input or allocate nonces. Without approval the
-ceremony remains held. Acceptance atomically consumes the cancellation nonce
-and records cancellation before any decision or reply; exact approval retries
-recover that result. No cancellation request can change a durable COMMIT.
+Before COMMIT, cancellation requires ST approval of a fresh
+`MessageWithNonce<bytes32>` containing the attempt nonce under
+`Boomerang/consent_rotation/v1/st_cancel`.
+Source retires pending country input before issuing the persisted cancellation
+challenge. Repeated REQUEST_CANCEL recovers that challenge without allocating
+another nonce. Acceptance atomically consumes it and records cancellation.
+Accepted duress survives; no cancellation can alter durable COMMIT.
 
 ## Candidate and control messages
 
 ```text
 Candidate = (
-  scope: Scope,
+  attempt_nonce: bytes32,
   new_set: list<u16>,                       // exactly 5, ascending, distinct
-  history_count: u16,
-  history_slots: list<list<u16>>,           // exactly 32 rows of 5 items
-  answer_seq: u64,                         // base_state_seq + 1
-  final_state_seq: u64,                    // base_state_seq + 2
-  duress_latched: bool
+  under_duress: bool
 )
 ```
 
-Active history rows are sorted valid five-country sets, distinct and in epoch
-order. Unused rows are exactly five zeros, used only as padding. Committed
-`history_count = consent_epoch + 1`; candidate count is predecessor count plus
-one. The prefix must match retained history and the final active row must equal
-`new_set`. Neither zero padding nor missing history can represent active consent.
-The fixed capacity permits initial enrollment and 31 successful rotations.
-
-Define `EH(E) = sha256(canonical_encode(E))` for an encrypted envelope, and
+Define `EH(E) = sha256(canonical_encode(E))` for an encrypted envelope and
 `CD(C) = tagged_sha256("Boomerang/consent_rotation/v1/candidate",
-canonical_encode(C))`. CD and all latch-bearing content remain encrypted.
+canonical_encode(C))`. Keep CD and all flag-bearing content encrypted.
 
 | Operation | Exact signed content tuple |
 | --- | --- |
-| `hold` | `(authorization: SignedMessage<MessageWithNonce<Scope>>)` |
-| `held` | `(scope: Scope, request_digest: bytes32, state_seq: u64, duress_latched: bool)` |
+| `hold` | `(authorization: SignedMessage<MessageWithNonce<bytes32>>)` |
+| `held` | `(attempt_nonce: bytes32, request_digest: bytes32, under_duress: bool)` |
 | `prepare` | `(candidate: Candidate)` |
-| `prepared` | `(scope: Scope, request_digest: bytes32, candidate: Candidate)` |
-| `commit` | `(scope: Scope, prepared_envelope_digest: bytes32, candidate_digest: bytes32, final_state_seq: u64)` |
-| `committed` | `(scope: Scope, request_digest: bytes32, candidate_digest: bytes32, final_state_seq: u64, duress_latched: bool)` |
-| `abort` | `(scope: Scope, previous_checked: bool, final_state_seq: u64, duress_latched: bool)` |
-| `abort_unheld` | `(authorization: SignedMessage<MessageWithNonce<Scope>>, final_state_seq: u64, duress_latched: bool)` |
-| `aborted` | `(scope: Scope, request_digest: bytes32, final_state_seq: u64, duress_latched: bool)` |
-| `status` | `(scope: Scope, query_nonce: bytes32)` |
-| `status_response` | `(scope: Scope, request_digest: bytes32, query_nonce: bytes32, journal_phase: u8, state_seq: u64, evidence_kind: u8, evidence: bytes)` |
+| `prepared` | `(attempt_nonce: bytes32, request_digest: bytes32, candidate: Candidate)` |
+| `commit` | `(attempt_nonce: bytes32, prepared_envelope_digest: bytes32, candidate_digest: bytes32)` |
+| `committed` | `(attempt_nonce: bytes32, request_digest: bytes32, candidate_digest: bytes32, under_duress: bool)` |
+| `abort` | `(attempt_nonce: bytes32, previous_checked: bool, under_duress: bool)` |
+| `abort_unheld` | `(authorization: SignedMessage<MessageWithNonce<bytes32>>, under_duress: bool)` |
+| `aborted` | `(attempt_nonce: bytes32, request_digest: bytes32, under_duress: bool)` |
+| `status` | `(attempt_nonce: bytes32, query_nonce: bytes32)` |
+| `status_response` | `(attempt_nonce: bytes32, request_digest: bytes32, query_nonce: bytes32, journal_phase: u8, evidence_kind: u8, evidence: bytes)` |
+| `finish` | `(predecessor_state_token: bytes32, next_state_token: bytes32, approved_withdrawal_id: bytes32, sar_receipt: CbcCmacEnvelope)` |
+| `finished` | `(request_digest: bytes32, next_state_token: bytes32)` |
 
-HOLD is source to target; HELD is target to source. PREPARE and COMMIT flow
-source to target with corresponding target receipts. ABORT follows the same
-direction. STATUS works in either direction. Each `request_digest` is EH of
-the exact request envelope. HELD's state sequence must equal the scope's base;
-source durably OR-merges its returned latch before asking for the previous set.
+HOLD, PREPARE, COMMIT, ABORT, ABORT_UNHELD, and FINISH flow source to target;
+their receipts flow back. STATUS works in either direction. Each request digest
+is EH of the exact request envelope.
 
-Target accepts PREPARE only while HELD, with matching scope and completed
-source answer sequence. It verifies candidate history and computes an otherwise
-identical candidate whose latch is local OR received. Before PREPARED release,
-persist the merged latch, candidate, mirrored answer sequence, and exact receipt.
-Source verifies EH and every candidate field, permitting only a false-to-true
-latch merge, then durably records the same prepared candidate.
+Source releases PREPARE only after durable previous-answer acceptance and both
+candidate confirmations. Target accepts it only while HELD with the original
+attempt nonce, valid new set different from its current set, and source signature
+against the retained identity key. That signature attests to completed input checks.
+Target OR-merges the flag into the otherwise identical candidate and persists it,
+prepared state, and exact PREPARED before reply. Source verifies EH and every
+field, permitting only a false-to-true flag merge, then durably prepares that
+same candidate.
 
-COMMIT requires both durable prepares. Source installs the candidate and records
-the decision and exact COMMIT bytes atomically before output. Target requires
-the digest of its exact PREPARED envelope, matching CD and final sequence;
-it installs the prepared candidate and exact COMMITTED receipt atomically.
-Source remains withdrawal-held until the matching receipt is consumed. Target
-resolves its rotation hold but retains its inactive lifecycle gate. Installing
-the candidate sets `consent_epoch = scope.predecessor_epoch + 1` on both devices.
+COMMIT requires both durable prepares. Source atomically installs the candidate
+and records irrevocable COMMIT and exact bytes before sending. Target requires
+the digest of its exact PREPARED, matching CD, attempt nonce, and prepared phase;
+it atomically installs the candidate, clears consent quarantine, and stores
+COMMITTED. Source remains held until consuming the matching receipt. Target
+remains inactive. Commit retains the state token consumed at admission.
 
-ABORT is permitted only before source COMMIT. Its final sequence is base plus
-1 when no previous response was accepted, otherwise base plus 2. Source records
-that decision and its latest latch before output. Target OR-merges the latch and
-persists the sequence, quarantine, terminal decision, and receipt before reply.
-Source persists its OR merge of ABORTED before resolving. With HELD unacknowledged,
-source instead sends ABORT_UNHELD with the original ST approval,
-independent of duress. No previous answer can have been accepted in this phase;
-its final sequence is base plus 1. Target accepts it only when unseen or HELD,
-after the same retained-certificate, ST approval, and scope checks as HOLD. It records
-the attempt floor and quarantine and returns ABORTED. It cannot accept
-that variant after PREPARED or COMPLETE.
-Terminal decisions reject conflicts and preserve exact receipt retries.
-At PREPARED, a regular ABORT must assert `previous_checked=true`; its final
-sequence must equal the prepared final sequence. A reserved or prepared sequence
-is never itself evidence that COMMIT occurred.
+ABORT is permitted only before source COMMIT. Source records that decision and
+its latest flag before output. Target OR-merges the flag and persists quarantine,
+terminal decision, and exact ABORTED before reply. Source persists its OR merge
+before resolving. A PREPARED target requires `previous_checked=true`.
+An unacknowledged HOLD instead uses ABORT_UNHELD with the original ST approval,
+independently of classification. No previous answer has run in that phase.
+Target accepts it only for an unseen admissible predecessor or the same HELD
+attempt, consumes the token if unseen, and returns ABORTED. PREPARED or COMPLETE
+cannot accept that variant. Terminal decisions reject conflicts.
 
 ## Paused withdrawal and resumption
 
-The source checkpoint preserves PSBT, transaction and withdrawal identifiers,
-approval and commit collections, phase and stall reason, accepted ST results,
-mystery, counter, next unused Ping sequence, last-seen block, reached evidence,
-replay floors, retained fragments, signing nonce-use history, and pending exact SAR envelopes.
-Reserve capacity for this record alongside both journals before admission.
-Rotation assumes no live MuSig2 exchange. Pause and recovery cannot discard an
-accepted duress result, revive a consumed nonce, or abandon and restart the withdrawal.
+Checkpoint PSBT, identifiers, approvals and commits, phase and stall reason,
+accepted ST results, mystery, counter, next unused Ping sequence, reached
+evidence, last-seen block, replay memory, retained fragments, signing nonce-use
+history, and exact pending SAR duties. Reserve storage before admission.
+Rotation assumes no live MuSig2 exchange.
 
-While held, source performs no new withdrawal progress, ST check, signing output,
-or fragment export. It can retransmit exact already emitted protocol messages
-and validate their exact SAR receipts; these duties survive pause and abort.
-Retire queued Pings that have not been emitted, preserving their reserved
-sequences. Their replacements carry current duress at the next unused sequence.
-Unconsumed pre-pause Pongs cannot later credit progress. Retire any pending
-withdrawal country challenge at admission and retain its nonce in replay memory;
-after consent commit its replacement uses the committed set, fresh space and
-nonce, and the retained withdrawal phase and identity.
+While held, source produces no new progress, withdrawal ST input, signing output,
+or fragment export. It can retransmit emitted messages and consume their exact
+SAR receipts. Retire unsent Pings while preserving reserved sequences.
+Unconsumed pre-pause Pongs cannot credit later progress. Retire any pending
+withdrawal country challenge; its replacement after commit uses the new set,
+fresh nonce, and retained withdrawal identity and phase.
 
-Only a verified COMMITTED receipt permits source resumption. Resume the
-checkpoint in place with monotonic receipt and replay updates accumulated during
-pause; never restore an older duress or signing record. Reapply normal freshness
-and chain-view gates. Expired inputs stall or follow existing failure handling;
-rotation supplies no new approvals, mystery, progress credit, or extended deadline.
-Other stall reasons still require their ordinary valid retry or recovery input.
-Abort or unresolved rotation leaves consent quarantined and the withdrawal held.
+Only verified COMMITTED permits in-place resumption, including receipt and replay
+updates accumulated during pause. Reapply ordinary freshness and chain-view
+gates. Rotation supplies no approvals, mystery, progress credit, or deadline
+extension. Abort or uncertainty leaves consent quarantined and withdrawal held.
 
-Set a durable withdrawal resume gate bound to the new consent epoch after
-COMMITTED, initially without an expected packet. Keep older SAR duties separately;
-their receipts cannot clear this gate. Preserve the initial TxCommit bytes and emit a fresh Ping at the next
-unused sequence with current effective duress. Mystery and counter remain
-unchanged. Persist the gate epoch, exact new packet, and expected placeholder
-before releasing it. Recovery and retries reuse that record.
+After COMMITTED, persist a resume gate bound to the current state token, initially
+without an expected packet. Older SAR duties remain separate. Preserve TxCommit
+bytes and emit a fresh Ping at the next unused sequence carrying the flag.
+Persist the gate token, exact packet, and expected placeholder before sending.
+Recovery and retries reuse that record. Until its exact SAR receipt clears the
+gate, no counter credit, new signing output, or fragment export is allowed.
 
-WT forwards every placeholder to the setup-bound SAR. For every valid Ping, WT
-immediately relays `(approved_withdrawal_id, duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0)`
-through Niso, including after distributing reached evidence. Niso forwards the
-same fields unchanged. WT retains all normal Ping checks; exact duplicates
-return cached receipts. After digging termination, WT updates the source's slot
-in its retained reached collection with the latest true Ping and redistributes
-that collection for ordinary signing revalidation. Stale peer evidence still
-stalls. A receipt alone neither creates a Pong nor reopens digging. Source verifies its bound
-approved ID, SAR signer and context, and signature over the exact newly emitted
-placeholder, then durably consumes the receipt and clears the gate. Old receipts
-satisfy only their original duties. Exact packet and receipt retries are cached.
-Until this gate clears, no counter credit, new signing output, or fragment export
-is permitted; the ordinary approval, digging and signing gates remain mandatory.
+For every valid Ping, WT forwards the placeholder to the setup-bound SAR and
+immediately relays
+`(approved_withdrawal_id, duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0)`
+through Niso, including after digging ends. Source verifies the bound approved
+ID, SAR signer and context, and signature over the exact expected placeholder.
+An older receipt cannot clear a newer token's gate. Receipt consumption clears
+only the resume gate, never `under_duress`.
 
-A rotation after signing output cannot revoke that output. Backup activation
-still requires current signing, replay, withdrawal, and rescue evidence;
-the consent receipt provides no such authority.
+After digging termination, WT replaces the source's slot in its retained reached
+collection with the latest true Ping and redistributes it for ordinary signing
+revalidation. Stale evidence still stalls. A receipt creates no progress or Pong
+and cannot reopen digging. Rotation cannot revoke released signing output;
+backup activation still needs independent current-state and source-exclusion
+evidence.
 
-## Contexts, signatures, and release
+## Withdrawal end and paired reset
 
-For each control operation in the table:
+Before withdrawal teardown, retire outstanding ST input and freeze further flag
+updates. Emit a fresh final Ping carrying the current flag at the next unused
+sequence for either classification. Persist its exact packet and expected
+placeholder and consume the matching SAR acknowledgment before reset. WT retains
+the delivery record through teardown and accepts this final Ping under its
+ordinary checks even after digging termination. Its receipt proves delivery,
+not signing or progress authority. Restart recovers the final packet and receipt;
+abandonment or failure without acknowledgment preserves the flag and SAR duties.
+Closing blocks new withdrawals, rotations, and duress input until delivery and
+any paired reset complete. If abandonment precedes an approved withdrawal ID,
+carry the flag into the next withdrawal instead.
+
+If rotation ran between withdrawals, this reset belongs to the next withdrawal.
+A completed or abandoned rotation alone cannot clear the flag. Unresolved or
+quarantined rotation blocks paired reset.
+
+When `paired_reset_pending` is true, source creates FINISH with its current token,
+a fresh next token distinct from the current one, the ending approved withdrawal
+ID, and the exact final SAR receipt. It records withdrawal end, verified receipt,
+and exact FINISH before sending, retaining the flag. Until FINISHED is consumed,
+no new withdrawal,
+rotation, or duress answer can begin.
+
+Target verifies the source signature against its retained identity key and checks
+the fixed pair, current predecessor token, inactive role, and absence of an
+unresolved or quarantined rotation.
+Using the copied logical peer's channel keys only for verification, it decrypts
+the SAR receipt with its stated approved ID, verifies the setup-bound SAR signer
+and response domain, and authenticates the enclosed placeholder under that ID.
+Plaintext must be zeros or `doxing_key_for_sar`; a true local flag requires the
+key-bearing value. The source signature attests that this is the exact final
+receipt for the ended withdrawal. No host-supplied receipt can request reset
+without that signed statement.
+
+Target atomically clears the flag, installs the next token, and stores exact
+FINISHED before reply. Source verifies request digest, paired channel, and next
+token, then atomically installs that token, clears the flag and
+`paired_reset_pending`, and completes teardown while preserving replay and
+rescue obligations.
+Both classifications use the same FINISH exchange, writes, and deadlines.
+A missing receipt blocks cleanup; RESUME retransmits exact FINISH, and target
+returns cached FINISHED without clearing anything again. A conflicting or
+superseded reset is rejected.
+
+Where no rotation flag was replicated, `paired_reset_pending=false`; source may
+reset locally after withdrawal end and final SAR acknowledgment. This choice
+depends on whether rotation occurred, never on classification. After reset, old
+rotation receipts and country answers can only recover cached terminal results;
+they cannot OR-merge an earlier flag into a later withdrawal. Reset changes no
+consent set and cannot cancel SAR activation already recorded.
+
+## Contexts, recovery, and bounds
+
+For each control operation:
 
 ```text
 domain(op) = "Boomerang/consent_rotation/v1/" + op
 context(op) = canonical_encode("consent_rotation_" + op, setup_instance_id)
-E = cbc_cmac_encrypt(directional_management_keys, context(op),
-                    sign_message(sender_management_key, domain(op), content))
+E = cbc_cmac_encrypt(directional_channel_keys, context(op),
+                    sign_message(sender_identity_privkey, domain(op), content))
 ```
 
-Operation strings are fixed profile constants, never host-provided labels.
-Management keys use entity roles `boomlet` and `boomletwo`, with certified
-physical keys, direction, and PROTOCOL_VERSION in the KDF. Existing logical
-Boomlet-to-ST keys encrypt review and country messages; the inactive target
-cannot exercise the copied logical identity to initiate those flows.
+Source messages use `boomlet_0_identity_privkey`; target messages use
+`boomletwo_Identity_privkey`. SPEC's `channel_keys` uses their corresponding
+public keys, roles `boomlet` and `boomletwo`, direction, and protocol version.
+Operation strings are fixed profile constants. Sender attribution relies on
+the protected applet roles above.
 
-ST operation suffixes are `review_challenge`, `review_approval`,
-`previous_challenge`, `previous_answer`, `previous_result`,
-`selection_challenge`, `selection_answer`, `confirmation_1_challenge`,
-`confirmation_1_answer`, `confirmation_2_challenge`, `confirmation_2_answer`,
-`round_result`, `cancel_challenge`, `cancel_approval`, `terminal_result`,
-`ui_status`, and `ui_status_response`. Their contexts are
-`canonical_encode("consent_rotation_" + suffix)` without setup ID, as nonce-bound
-local flows. Review and cancel approvals are ST-signed under their specified
-domains; other ST payloads are authenticated by the channel. The nonce-bound
-scope inside each payload binds setup and attempt. UI status uses a fresh
-ST-generated nonce and `(pair_binding_digest: bytes32)`
-request; source returns
-`(scope: Scope, result: u8, resume: UiResume)`, echoing that nonce, with result 0
-pending, 3 complete, or 4 aborted from the durable journal. A pending unconsumed
-country challenge is retired and replaced with a fresh nonce and permutation;
-the fresh challenge is persisted and supplied inline as `resume`. The ST uses
-only this nonce-bound resumption after restart. Accepted answers and decisions
-remain intact. A pending cancellation uses `present=true`, phase 5, round 0,
-a fresh cancellation nonce, and the identity space as padding. ST confirms
-cancellation and signs `MessageWithNonce<Scope>` with that nonce. Phase 5 is
-valid only in UiResume. Without a pending challenge, `present=false`, round and
-phase are 0, nonce is zero, and space is the identity permutation 1–193; ST never
-displays those padding values. Exact duplicate UI queries recover their cached
-reply without retiring another challenge. This exchange changes no decision.
+ST suffixes are `review_challenge`, `review_approval`, `previous_challenge`,
+`previous_answer`, `previous_result`, `selection_challenge`, `selection_answer`,
+`confirmation_1_challenge`, `confirmation_1_answer`, `confirmation_2_challenge`,
+`confirmation_2_answer`, `round_result`, `cancel_challenge`, `cancel_approval`,
+`terminal_result`, `ui_status`, and `ui_status_response`. Context is
+`canonical_encode("consent_rotation_" + suffix)`. Review and cancellation
+approvals are signed under their specified domains; channel authentication
+protects other ST payloads.
 
-CBC-CMAC verification precedes decryption. New envelopes have fresh IVs;
-exact retries retransmit stored bytes. Valid operations and either latch value
-perform identical bounded writes and response scheduling. Set
-`release_at = trusted_received_at + reply_delay[operation]` before parsing.
-Release valid replies exactly at that deadline; a missed deadline has the same
-failure at the deadline and no late reply. A durable decision is retained even
-when its reply misses the deadline. Reply timers and release gates must be
-trusted device functions, not host promises. Actual delay values require
-worst-case device measurements before deployment.
+UI status uses a fresh ST-generated query nonce and `(attempt_nonce: bytes32)`.
+Source requires the retained journal's attempt nonce. It returns
+`(attempt_nonce: bytes32, result: u8, resume: UiResume)`, echoing the query nonce,
+with result 0 pending, 3 complete, or 4 aborted. Retire and replace only
+unconsumed challenges, durably supplying the fresh one inline. Pending cancellation
+uses present=true, phase 5, round 0, fresh cancellation nonce, and identity space
+as padding. Otherwise absent input has present=false, round and phase 0, zero
+nonce, and identity space 1–193; ST never displays padding.
 
-## Recovery and bounds
+Source retains up to eight accepted UI query digests in acceptance order and one
+exact encrypted reply for the last query. Each attempt starts with an empty list
+and no reply. Compute each digest as
+`sha256(canonical_encode(consent_rotation_ui_status_with_nonce))` after verifying the
+ST channel and journal attempt nonce. The last query's duplicate returns that
+reply without writes or input replacement. A digest present earlier in the list
+is superseded and rejected without reply or state change. A fresh query requires
+a free slot; exhaustion rejects it while preserving the last query's exact retry.
+
+For a fresh query, atomically append its digest, replace the cached encrypted
+reply, and persist any replacement challenge before sending. Discard the
+superseded UI reply. Preserve accepted answers, the flag, and decisions. Restart
+recovers the digest list and current reply together. Cached replies are immutable
+snapshots; later phase progress cannot regenerate a reply for the same query.
+ST retains one outstanding query and retries its exact envelope. It accepts only
+an authenticated reply matching that attempt and echoing the query's nonce.
+After state loss or abandoning a query, ST uses a fresh nonce to recover current
+input or a terminal result.
 
 Journal phases are 0 HOLD_WAIT, 1 HELD, 2 PREVIOUS_PENDING, 3 ENROLLING,
 4 PREPARE_WAIT, 5 PREPARED, 6 COMMIT_WAIT, 7 COMPLETE, 8 ABORT_WAIT, and 9 ABORTED.
-Target uses HELD, PREPARED, COMPLETE, and ABORTED; COMPLETE there means committed
-inactive. A source COMPLETE journal can still have a withdrawal awaiting its
-resume SAR receipt; recovery preserves that separate gate and exact packet.
-A request with no admitted journal fails uniformly; preauthorization ST state
-loss requires fresh review.
-Invalid inputs preserve the phase and latch. A prepared target cannot decide
-from silence or timeout. Source decision transitions serialize against all
-accepted ST responses and conflicting operations.
-Late replies cannot advance a terminal journal or another attempt. An old
-valid HELD received after ABORT cannot issue a previous-set prompt.
+Target uses HELD, PREPARED, COMPLETE, and ABORTED; COMPLETE there is committed
+inactive. Resume and paired reset gates remain separate durable records.
+Invalid input preserves phase and flag. Prepared targets cannot decide from
+silence or timeout. Source decisions serialize against accepted ST responses.
 
-STATUS uses a fresh query nonce. Replies bind that nonce and EH of the request;
-stale replies cannot overwrite journal phase. Evidence kind is 0 none, 1 COMMIT,
-2 ABORT, 3 COMMITTED, 4 ABORTED, or 5 ABORT_UNHELD. Evidence is the canonical bytes of that
-original encrypted message, or empty bytes for kind 0. Recover it through its
-ordinary decision or receipt handler, including that handler's durable latch
-merge. STATUS itself changes no consent state or authority. For ABORT without
-HOLD, recover its authorization-bearing variant. Never reduce a protected
-sequence. Source COMPLETE requires retained COMMITTED evidence.
+STATUS binds a fresh query nonce and EH of the request. Evidence kind is 0 none,
+1 COMMIT, 2 ABORT, 3 COMMITTED, 4 ABORTED, or 5 ABORT_UNHELD. Evidence is the
+canonical original encrypted message, or empty bytes for kind 0. Resolve it only
+through the ordinary decision or receipt handler; STATUS itself changes no
+authority or flag. Late evidence cannot overwrite a terminal decision, repeat
+a merge after reset, or affect a superseding attempt. Source COMPLETE requires
+retained COMMITTED evidence.
 
-Each direction admits at most eight distinct STATUS query nonces per attempt;
-source admits eight UI status nonces. The requester reserves its slot and exact
-request before release. Reserve their reply caches with the journal. Persist first acceptance and exact reply once; duplicate
-queries use that cache without another write or challenge replacement. Every
-fresh UI query consumes its slot even without a pending challenge. Exhaustion
-stalls fresh queries while retaining exact retries, decisions, and duress.
-These budgets survive restart and never depend on classification.
+Retain current control messages, response digests with cached successors, and
+last terminal decision and receipt. Before admitting a successor, compact
+completed input, candidates, and prepare envelopes that contain an earlier set.
+Only the current committed set and an unresolved candidate need retention.
+Recovery cannot erase signing, replay, or rescue evidence.
 
-Each endpoint retains exact current control messages, last terminal decision
-and receipt, and accepted ST response digests with cached successors. At most
-one country challenge is outstanding. Compaction occurs only after terminal
-evidence is durable and superseded messages cannot authorize work below the
-attempt floor. Recovery cannot erase queued rescue or signing evidence.
+Verify CBC-CMAC before decryption. New envelopes use fresh IVs; retries reuse
+stored bytes. Either flag value uses identical bounded comparison, storage,
+queues, permitted failures, and trusted fixed response deadlines.
+Set `release_at = trusted_received_at + reply_delay[operation]` before parsing.
+A missed deadline yields the same failure and no late reply, while retaining any
+durable decision. Measured worst-case device work must fit those deadlines.
+No observer-accessible status, logs, metrics, or diagnostics reveal classification.
 
 | Bound | Value or requirement |
 | --- | --- |
-| Committed history slots | 32, padded on every transfer |
 | Enrollment rounds | 3; selection and two confirmations per round |
 | Automatic exact-delivery retries | 8 per object; exhaustion stalls and preserves state |
 | Fresh status queries | 8 per direction per attempt; 8 UI queries per attempt |
-| Control envelope maximum | 2,048 bytes; authorization-bearing ABORT uses the same bound |
+| ST recovery cache | At most 8 accepted query digests and one exact encrypted reply per attempt |
+| Control envelope maximum | 2,048 bytes, including FINISH |
 | Status evidence maximum | 2,048 bytes, one original envelope |
 | Status envelope maximum | 3,072 bytes |
 | ST envelope maximum | 1,536 bytes |
-| Transport frame | 4,096 bytes for management, 2,048 for ST; operation selector, envelope length, and zero padding |
+| Transport frame | 4,096 bytes between devices, 2,048 for ST |
 | Decoded nesting depth | 12, including wrappers |
-| Counter admission | Attempt floor below u64 maximum, base sequence at most maximum minus 2, and free history slot |
-| Journal reservation | Space for current and last terminal records, cached responses, and atomic replacement before HOLD acceptance |
+| Journal reservation | Current and last terminal records, device-status reply caches, ST query digests and one reply, checkpoint, and paired reset record before admission |
 
-The frame is `operation: u8 || envelope_length: uint16_be || envelope_bytes ||
-zero_bytes(frame_size - 3 - envelope_length)`. Management selectors, in table
-order, are 1 HOLD, 2 HELD, 3 PREPARE, 4 PREPARED, 5 COMMIT, 6 COMMITTED,
-7 ABORT, 8 ABORT_UNHELD, 9 ABORTED, 10 STATUS, and 11 STATUS_RESPONSE. ST
-selectors are 21–37 in suffix order. The selector determines the expected
-authenticated context and exact payload type; tampering cannot change them.
-Transport framing does not enter hashes or signatures. Parse exactly the
-declared envelope bytes and reject nonzero padding or excess length. Even if
-a relay removes transport padding, the canonical envelope shape must reveal
-no classification. Check bounds before allocation, including decrypted payloads
-and status evidence. Explicit retry resumption reuses the same object and never
-resets replay floors. A different capacity or retry profile needs a new consent
-profile version and authenticated admission.
+Device STATUS requesters reserve each query slot and exact request before sending;
+responders persist first acceptance and exact reply once. Duplicate device queries
+perform no additional write. UI recovery uses the single-reply rules above.
+Fresh-query budgets survive restart and never depend on the flag. Exhaustion
+preserves retained exact replies and decisions. Admitting a successor retires
+superseded input and the preceding attempt's UI digests and reply, then starts
+empty bounded caches.
+
+Frames are `operation: u8 || envelope_length: uint16_be || envelope_bytes ||
+zero_bytes(frame_size - 3 - envelope_length)`. Device control selectors in table
+order are 1–13; ST selectors are 21–37 in suffix order. The selector determines
+the authenticated context and exact payload type. Framing enters no hash or
+signature. Reject nonzero padding, excess lengths, and depth before allocation.
+Canonical envelope shape must conceal classification even if relay padding is
+removed. Profile changes require a new version and authenticated admission.

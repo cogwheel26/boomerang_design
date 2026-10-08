@@ -23,19 +23,17 @@ accidental retention, with consequences beyond consent maintenance.
 ## Decision
 
 Use Niso as an untrusted relay and authorize rotation with explicit signed ST
-approval of the exact nonce-bound scope. Rotation requires no mnemonic,
-passphrase, or normal private key.
+approval of the exact nonce-bound current consent state token. Rotation requires
+no mnemonic, passphrase, or normal private key.
 
-During setup, the normal key certifies the setup, logical peer, both physical
-devices' management keys, ST identity, and lifecycle generation. Boomlet,
-Boomletwo, and ST retain that certificate and its public verification anchors.
-Rotation verifies this fixed binding using public keys.
+Existing setup establishes the fixed pair through normal-key backup authorization,
+authenticated state transfer, and signed `BackupDone`
+([SPEC §13.10](../spec/SPEC.md#1310-boomletwo-backup)). Devices retain the setup and
+paired identities. ST authenticates review through its existing paired Boomlet
+channel.
 
-ST approval binds the retained pair certificate, predecessor consent epoch and
-state sequence, next attempt sequence, and fresh review nonce. Both devices
-independently verify the approval and their stored certificate. Source privately
-binds the review to any current withdrawal and preserves it during rotation.
-Niso transports encrypted messages and public review metadata.
+Both devices independently verify the fixed pair and fresh ST approval.
+Niso transports encrypted messages.
 
 ST approval permits consent rotation only within that fixed pair. Device
 replacement, rebinding, signing, and Boomletwo activation retain their separate
@@ -52,21 +50,17 @@ credentials.
 
 ST approval establishes trusted intent but provides less independent ownership
 authentication than possession of the normal key. Someone controlling the paired
-trusted devices and ST can perform unauthorized maintenance, including persistent
-duress latching or history exhaustion. Approval also cannot prove freedom from
+trusted devices and ST can perform unauthorized maintenance, including forcing
+duress or blocking maintenance. Approval also cannot prove freedom from
 coercion.
 
-Devices enforce scope, freshness, checkpoint admission, resource limits,
-and durable two-phase recovery despite a malicious Niso. Rotation during an
-active withdrawal is allowed during digging after commitment and in later phases,
-preserving progress, signing history, and SAR obligations. Resumption requires a
-fresh Ping's exact SAR acknowledgment.
-
-Every rotation asks for the previous set. A valid wrong answer completes the
-same flow, permanently latches duress within the setup, and transfers it to the
-backup through encrypted two-phase commit with OR merging. Either classification
-has the same observable behavior. Niso can interrupt delivery; uncertain
-participants stay held.
+Trusted devices enforce freshness, withdrawal binding, resource limits, durable
+paired commitment, and SAR delivery despite a malicious Niso. Since backup
+provisioning copies Boomlet's identity private key, trusted applet roles must
+prevent the inactive backup from originating source messages. The previous-set
+check accepts valid wrong answers, transferring the duress flag to the
+backup without observable classification differences. Niso can interrupt
+delivery; uncertain participants stay held.
 
 ## Rejected Alternatives
 
@@ -74,4 +68,4 @@ participants stay held.
   credential but requires additional mnemonic access and spending-key handling
   for this maintenance operation.
 - **Consent-set correctness as authorization:** the set may already be observed,
-  and valid wrong answers must still complete rotation with persistent duress.
+  and valid wrong answers must still complete rotation with withdrawal-scoped duress.
