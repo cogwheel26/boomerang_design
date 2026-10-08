@@ -2,7 +2,9 @@
 
 [Exact messages and recovery rules](Cannon_paired_consent_rotation_messages.md)
 and the [full low-level sequence](Cannon_paired_consent_rotation_sequence.puml)
-specify the ceremony below.
+specify the ceremony below. The choices are recorded in
+[ADR 0009](../adr/0009-paired-consent-rotation.md) and
+[ADR 0010](../adr/0010-niso-relayed-consent-rotation.md).
 
 ## Behavior
 
@@ -10,13 +12,15 @@ Boomlet and its designated inactive Boomletwo replace their consent set through
 authenticated two-phase commit. The set remains five distinct countries from
 the 193-entry `DURESS_DISPLAY_VOCABULARY`, unordered and stored as
 `duress_consent_set: list<u16>`. The descriptor, logical peer identity, ST input
-method, and setup-bound WT and SAR registrations remain intact.
+method, and setup-bound WT and SAR registrations remain intact. Rotation can run
+between withdrawals, during `DIGGING` after commitment, and in later withdrawal
+phases. A stalled withdrawal uses its retained phase for this eligibility check.
 
 Every rotation MUST ask for the previous committed set through trusted ST.
 A valid five-country mismatch MUST durably latch duress before Boomlet releases
 any response. Correct and wrong answers proceed identically to fresh enrollment;
-the previous-set answer classifies duress, while normal-key authorization permits
-maintenance.
+the previous-set answer classifies duress, while signed ST approval authorizes
+rotation.
 
 ```text
 duress_latched = duress_latched OR (answer != previous_committed_set)
@@ -35,28 +39,30 @@ the first commitment of each later withdrawal, even after ceremony state resets.
 
 ## Protected state
 
-Both devices retain the current set and:
+Both devices retain the current set and protected consent records. Active
+withdrawal checkpoints stay on their source.
 
 | State | Requirement |
 | --- | --- |
-| `consent_epoch`, `consent_commit_id` | Monotonic `u64` epoch and fresh 32-byte commit identifier; initial epoch is 0. |
+| `consent_epoch` | Monotonic `u64` version of the committed set; initial epoch is 0. |
 | `duress_latched` | Persistent Boolean; authenticated imports and recovery merge using OR. |
 | `consent_state_seq` | Source-issued `u64`, advanced for each accepted previous-set answer and coordinator decision, regardless of classification; target mirrors authenticated advances. |
-| `last_attempt_seq`, `previous_decision_envelope_digest` | Protected attempt floor and last resolved decision digest; prevent delayed authorization from reopening an aborted attempt. |
+| `last_attempt_seq` | Protected attempt floor; prevents delayed authorization from reopening an aborted attempt. |
 | `consent_quarantined` | Blocks ordinary withdrawal with the stored set while allowing previous-set comparison. |
 | `committed_set_history` | Protected append-only history of committed sets, including the current set. |
 | `rotation_journal` | Bound authorization, attempt, ST phases and nonces, accepted responses, candidate, prepare evidence, decision, and exact recovery messages. |
+| `withdrawal_checkpoint` | Source-only protected pause record, active transaction binding, preserved ceremony state, outstanding SAR duties, and pending resume receipt. |
 
-Initial and replacement backups inherit this state. Atomic writes and protected
-rollback floors are required; old signed records cannot prove freshness.
+Initial and replacement backups inherit the replicated consent state. Atomic
+writes and protected rollback floors are required; old signed records cannot
+prove freshness.
 Reserve bounded journal and history capacity before asking for the previous set.
 Exhaustion, overflow, missing history, or uncertain storage integrity blocks
 authority rather than discarding evidence.
 
 Each physical device needs a protected management identity distinct from the
 copied peer identity, authenticated to its setup and backup slot. Maintenance
-signatures use separate domains and grant no signing, activation, key-export,
-or rescue-cancellation authority.
+signatures use separate domains and authorize only scoped consent transitions.
 
 The normal-key-certified pair binding fixes both management keys, logical peer,
 ST, and lifecycle generation. ST retains that binding and the setup identity.
@@ -65,20 +71,24 @@ successful rotations, another rotation is blocked by capacity exhaustion.
 
 ## Rotation ceremony
 
-1. **Authorize and hold.** Rotation runs offline in Iso, which signs normal-key
-   authorization and relays encrypted messages between the devices. ST retains
-   its air gap and identifies the setup and device pair. Authorization binds protocol version,
-   operation, setup, logical peer, physical source and target, lifecycle
-   generation, predecessor epoch and commit identifier, proposed epoch, and
-   fresh 32-byte `rotation_id`. Both devices verify it against their stored
-   normal public key. Boomlet must have no active or stalled withdrawal,
-   outstanding check, signing session, fragment handoff, or unresolved SAR duty.
-   After verifying the nonce-bound ST review and reserving storage, it advances
-   the attempt floor, quarantines the predecessor, and sends encrypted
-   `HOLD`. Boomletwo verifies its inactive role and predecessor, durably
-   quarantines its set and holds activation, then returns `HELD`. Boomlet
-   persists that receipt and its OR merge of the target latch before issuing
-   the previous-set prompt.
+1. **Authorize and hold.** Niso relays encrypted messages as an untrusted host.
+   ST retains its air gap, identifies the setup and device pair, and explicitly
+   approves the nonce-bound rotation scope. It binds the retained pair certificate,
+   next attempt sequence, predecessor consent epoch, and base consent state sequence.
+   The certificate fixes setup, logical peer, physical endpoints, ST, lifecycle,
+   and profile; signature domains distinguish operations. Both devices verify the
+   ST signature and their stored pair certificate against retained public keys.
+   Rotation requires no mnemonic or normal private key.
+   Boomlet rechecks withdrawal eligibility and waits for ST to be available.
+   It privately binds the review to its current withdrawal identity.
+   After verifying that binding, the review nonce, predecessor, and storage
+   capacity, Boomlet atomically records the checkpoint, OR-latches any current
+   withdrawal duress, admits the attempt, advances the attempt floor, quarantines
+   the predecessor, and sends encrypted `HOLD` carrying that approval.
+   Boomletwo independently verifies the certificate, ST approval, inactive role,
+   and predecessor state, durably quarantines its set and holds activation, then returns
+   `HELD`. Boomlet persists that receipt and its OR merge of the target latch
+   before issuing the previous-set prompt.
 
 2. **Check the previous set.** ST asks without displaying the answer. Boomlet
    issues a fresh nonce-bound country challenge tied to the attempt, predecessor,
@@ -95,15 +105,15 @@ successful rotations, another rotation is blocked by capacity exhaustion.
    each with a fresh permutation, nonce, and phase. At most three enrollment
    rounds run; each performs both confirmations before reporting the candidate
    result. Both devices enforce non-reuse against committed history, which
-   excludes previous-set guesses. Candidate
-   validation and bounded confirmation retries depend only on candidate and
-   confirmation results, never the latch. Failure preserves quarantine and
+   excludes previous-set guesses. Candidate validation and bounded confirmation
+   retries depend only on candidate and confirmation results, never the latch.
+   Failure preserves quarantine and
    duress. Only exact resumption of the same recorded attempt may reuse its
    completed previous-set check. The candidate remains inactive.
 
 4. **Prepare.** Boomlet freezes competing operations and durably records the
    candidate and encrypted `PREPARE` before sending. The candidate binds the
-   authorization, attempt, predecessor, new epoch and commit identifier, set,
+   authorization, attempt, predecessor, new epoch, set,
    complete history with the new set appended, source sequence, and latch.
    Boomletwo verifies these and atomically persists its prepared state, activation
    hold, and encrypted `PREPARED` receipt. Its latch becomes
@@ -118,12 +128,38 @@ successful rotations, another rotation is blocked by capacity exhaustion.
    `final_consent_state_seq = source_consent_state_seq + 1`.
    Boomletwo verifies the decision against its prepared record, atomically installs
    the same tuple and stores `COMMITTED`. It resolves its rotation hold but
-   remains inactive. Boomlet retains its withdrawal hold until it verifies and
-   persists that receipt, then clears quarantine and reports completion.
+   remains inactive. Boomlet retains its rotation hold until it verifies and
+   persists that receipt, then clears quarantine and reports completion. An active
+   withdrawal resumes through the checkpoint and SAR gate below.
 
 Only the committed new set can classify as safe, subject to the latch. The old
 set stays invalidated; no overlap is allowed. A true latch permits ordinary
 rotation completion.
+
+## Rotation during a withdrawal
+
+Pause local progress, new withdrawal ST input, signing, and fragment export.
+Retain the same PSBT, identifiers, approvals, phase, mystery, counter, Ping
+sequence, reached state, replay floors, and signing history. Preserve accepted
+duress and continue servicing exact previously emitted messages and SAR receipts.
+Outstanding unconsumed Pongs lose progress eligibility; their SAR duties remain.
+A pending withdrawal country challenge is retired, and its replacement after
+commit uses the new set and a fresh nonce.
+
+After verified COMMITTED, resume the preserved ceremony in place, including
+receipt updates recorded during the pause. Apply normal freshness and chain-view
+checks; elapsed time grants no progress or deadline extension. A fresh Ping at
+the next unused sequence carries current duress. Its exact SAR acknowledgment
+must be durably consumed before further counter credit, new signing output, or
+fragment export. This gate applies to either
+duress value. WT returns that acknowledgment even after digging has terminated;
+it authorizes no progress by itself.
+
+Abort preserves quarantine and keeps the withdrawal paused. Later authorized
+rotation can repair consent; ordinary withdrawal abandonment preserves replay
+and rescue obligations. Already released signatures, fragments, placeholders,
+and rescue activations retain their effects. The checkpoint stays on Boomlet;
+consent commitment supplies no proof that Boomletwo can resume its withdrawal.
 
 ## Abort and recovery
 
@@ -131,13 +167,13 @@ Before durable commit, Boomlet may durably decide `ABORT`, advance its sequence,
 and send the decision with its latest latch. Boomletwo persists the OR merge
 and encrypted `ABORTED` receipt; Boomlet durably merges the returned state before
 resolving the attempt. A target that missed `HOLD` still verifies authorization
-through `ABORT_UNHELD`, which carries the original pair certificate and nested
-authorization. Its sequence is base plus one because no previous-set question
-has run. The target records the abort and quarantine, preventing delayed messages
+through `ABORT_UNHELD`, which carries the original ST-signed approval. The target
+verifies it against the stored pair certificate. Its sequence is base plus one
+because no previous-set question has run. The target records the abort and quarantine, preventing delayed messages
 from reviving it. Candidate material may be erased, but duress, history,
-quarantine, replay floors, and required receipts remain. Another rotation requires resolved
-participant records and fresh authorization. Abort never restores predecessor
-withdrawal.
+quarantine, replay floors, and required receipts remain. Another rotation
+requires resolved participant records and fresh authorization. Abort preserves
+predecessor quarantine.
 
 | Interruption | Required action |
 | --- | --- |
@@ -149,13 +185,9 @@ withdrawal.
 Exact retries neither advance counters nor repeat acceptance or writes. Fresh
 status queries and challenge replacements have reserved, bounded caches. Status
 retrieval changes no consent state; only recovered decision or receipt evidence
-can resolve a held state. ST restart retires unconsumed
-challenges and receives a fresh nonce-bound resumption, preserving accepted duress.
-Two-phase commit can block after coordinator failure, as
-described by Gray and Lamport in
-[*Consensus on Transaction Commit*](https://arxiv.org/abs/cs/0408036).
-If the source is destroyed before transferring its latch, the target hold
-prevents false-safe activation; delivery requires recovering the protected state.
+can resolve a held state. ST restart retires unconsumed challenges and receives
+a fresh nonce-bound resumption, preserving accepted duress. An unavailable
+coordinator leaves unresolved participants held.
 
 ## Concealment and withdrawal protection
 
@@ -176,7 +208,7 @@ Correct and wrong previous-set answers, and either latch value, MUST have:
   release deadlines, and failure behavior, including when the latch is already
   true. Deadlines must exceed measured worst-case work.
 - No classification-dependent logs, metrics, status, backup inspection, or
-  diagnostics accessible to Iso, Niso, WT, or channel observers.
+  diagnostics accessible to Niso, WT, or channel observers.
 
 New envelopes use fresh IVs; retries reuse exact stored bytes. Authenticate
 before decryption and expose uniform cryptographic errors. Each new withdrawal
@@ -188,40 +220,20 @@ signing gates remain required. WT forwards every placeholder to the setup-bound
 SAR. SPEC Sections 16.3–16.6 retain their exact-envelope acknowledgments, identical
 durable processing, fixed deadlines, replay handling, and concealment rules.
 
-Maintenance preserves pending rescue duties and introduces no standalone SAR
-notification. A latched signal reaches SAR through later ordinary withdrawal
-traffic; without that traffic, persistence alone proves no delivery or rescue.
+## Activation and assumptions
 
-## Limits and adoption
+Rotation starts outside a live MuSig2 exchange. Private fresh enrollment, trusted
+endpoints, secure keys, and rollback-resistant storage remain assumptions.
+A coercer who knows and dictates the correct previous
+set can avoid this particular signal and observe the replacement.
 
-Private fresh enrollment, trusted endpoints, secure keys, and rollback-resistant
-storage remain assumptions. A coercer who knows and dictates the correct previous
-set can avoid this particular signal and observe the replacement. Physical input
-observation, compromised endpoints, and SAR revealing a signal fall outside
-communication concealment. Rotation alone cannot repair extracted keys.
+ST approval permits consent rotation within the retained device pair. Device
+replacement, rebinding, signing, and Boomletwo activation retain their separate
+requirements. Someone controlling the paired trusted devices and ST can perform
+unauthorized maintenance, including persistent duress latching or history
+exhaustion.
 
 Boomletwo activation independently requires enforceable source exclusion and
-proof of the latest consent, replay, signing, and rescue state. A rotation
-receipt proves only that rotation. Loss reports, timeouts, normal-key signatures,
-and old snapshots cannot establish current eligibility. If Boomlet is permanently
-offline, proof cannot depend on contacting it; absent proof, the target stays
-inactive. Fresh rotation by a replacement uses its designated inactive successor
-and still asks for the previous set.
-
-The message contract fixes typed payloads, domains, contexts, capacity, and retry
-limits. Adoption requires canonical vectors and measured timing constants with
-trusted device timers; host timing cannot satisfy concealment.
-Legacy devices capable of bypassing these gates must be excluded. Validate:
-
-- Every write and message boundary under crash, replay, loss, reordering,
-  rollback, conflicting attempts, and stale backup activation.
-- Wrong-answer persistence through successful rotation, failed confirmation,
-  abort, restart, imports, and later commitments and Pings, including a true
-  target latch merged back to the source.
-- Equal safe and duress observations across traffic, timing, storage, errors,
-  status, and telemetry; transcript guessing and substitution resistance;
-  bounded resource use and retained SAR obligations.
-
-These requirements need model, implementation, and hardware evidence before
-adoption. Update SPEC, lifecycle requirements, security models, an ADR, and
-protocol source diagrams when adopted.
+proof of the latest consent, replay, signing, and rescue state. Until both are
+proved, the target stays inactive. Permanent source loss requires independent
+proof. Legacy devices must enforce the same gates before participating.
