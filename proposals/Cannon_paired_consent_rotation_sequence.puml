@@ -14,174 +14,236 @@ participant SAR order 99 #Yellow
 
 autonumber "<b>[00]"
 
+hnote over Boomlet, Boomletwo #Lavender: At authenticated backup provisioning, Boomlet initializes \n consent_freshness_token := random_bytes(32); under_duress := false; consent_quarantined := false \n consent_rotation_state := Null \n Import these fields with the authenticated backup state; retain them across restart and rotation
+hnote over Boomlet #Lavender: At provisioning: paired_reset_pending := false; withdrawal_resume_pending := false \n Each accepted withdrawal consent answer updates under_duress := under_duress OR (sort(duress_signal) != sort(duress_consent_set)) before output \n Rotation entry loads retained values
+
+note over Boomlet, Boomletwo
+Review = (setup_instance_id, backup_boomlet_pubkey, rotation_request_with_nonce)
+Check = (consent_rotation_id, enrollment_round, input_step, space)
+Answer = (consent_rotation_id, enrollment_round, input_step, selection)
+UiResult = (consent_rotation_id, enrollment_round, result)
+PendingConsentInput = (input_pending, enrollment_round, input_step, nonce, space)
+Candidate = (consent_rotation_id, replacement_consent_set, under_duress)
+Rotation variables refer to fields retained in consent_rotation_state.
+Every send atomically persists its state updates and exact envelope before output; retries reuse retained bytes.
+rotation_domain(op) := "Boomerang/consent_rotation/v1/" + op
+rotation_context(op) := canonical_encode("consent_rotation_" + op, setup_instance_id)
+st_rotation_context(op) := canonical_encode("consent_rotation_" + op)
+country_op(input_step, kind) := ("previous" if input_step == 1 else "selection" if input_step == 2 else "confirmation_1" if input_step == 3 else "confirmation_2") + "_" + kind
+control_seal(operation, content, sender_identity_privkey, directional_keys) := cbc_cmac_encrypt(directional_keys, rotation_context(operation), sign_message(sender_identity_privkey, rotation_domain(operation), content))
+control_open(operation, envelope, sender_identity_pubkey, directional_keys) := { signed_message := cbc_cmac_decrypt(directional_keys, rotation_context(operation), envelope); assert verify_signature(sender_identity_pubkey, rotation_domain(operation), signed_message); return signed_message.content }
+EH(envelope) := sha256(canonical_encode(envelope))
+ConsentRotationPhase = 0 HOLD_WAIT, 1 HELD, 2 PREVIOUS_PENDING, 3 ENROLLING, 4 PREPARE_WAIT, 5 PREPARED, 6 COMMIT_WAIT, 7 COMPLETE, 8 ABORT_WAIT, 9 ABORTED
+end note
+
+hnote over Boomlet, Boomletwo #Lavender: Each endpoint derives directional keys locally as in setup \n boomlet_0_to_st_keys := channel_keys(boomlet_0_identity_privkey, "boomlet", st_0_identity_pubkey, "st", boomlet_0_identity_pubkey, st_0_identity_pubkey) \n st_to_boomlet_0_keys := channel_keys(st_0_identity_privkey, "st", boomlet_0_identity_pubkey, "boomlet", st_0_identity_pubkey, boomlet_0_identity_pubkey) \n boomlet_0_to_boomletwo_keys := channel_keys(boomlet_0_identity_privkey, "boomlet", boomletwo_Identity_pubkey, "boomletwo", boomlet_0_identity_pubkey, boomletwo_Identity_pubkey) \n boomletwo_to_boomlet_0_keys := channel_keys(boomletwo_Identity_privkey, "boomletwo", boomlet_0_identity_pubkey, "boomlet", boomletwo_Identity_pubkey, boomlet_0_identity_pubkey)
+
 group Rotation authorization
 User o-> Niso: magic: "consent_rotation_start"
 Niso o-> Boomlet: <b>BEGIN_REVIEW \n ()
+hnote over Boomlet #Lavender: withdrawal_checkpoint := current retained withdrawal state, or Null if idle \n active_withdrawal := (withdrawal_checkpoint != Null) \n withdrawal_phase := withdrawal_checkpoint.phase if active_withdrawal else IDLE
 hnote over Boomlet #Pink: Assert no unresolved rotation, FINISH or teardown and ST available \n If active_withdrawal: assert withdrawal_phase in {DIGGING, READY_TO_SIGN, SIGNING, SIGNATURE_EXPORTED}
-hnote over Boomlet #Lavender: consent_state_token_with_nonce := MessageWithNonce{content: consent_state_token, nonce: random_bytes(32)} \n consent_rotation_review := Review{setup_instance_id, boomletwo_Identity_pubkey, consent_state_token_with_nonce} \n Bind pending review to retained pair and current withdrawal identity
+hnote over Boomlet #Lavender: consent_rotation_request_with_nonce := MessageWithNonce{content: consent_freshness_token, nonce: random_bytes(32)} \n consent_rotation_review := Review{setup_instance_id, boomletwo_Identity_pubkey, consent_rotation_request_with_nonce} \n pending_consent_rotation_review := consent_rotation_review \n Bind pending_consent_rotation_review to retained pair and current withdrawal identity \n consent_rotation_review_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context("review_challenge"), consent_rotation_review)
 Boomlet o-> Niso: consent_rotation_review_encrypted_by_boomlet_0_for_st
 Niso o-> ST: consent_rotation_review_encrypted_by_boomlet_0_for_st
+hnote over ST #Lavender: consent_rotation_review := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context("review_challenge"), consent_rotation_review_encrypted_by_boomlet_0_for_st) \n setup_instance_id := consent_rotation_review.setup_instance_id \n boomletwo_Identity_pubkey := consent_rotation_review.backup_boomlet_pubkey \n consent_rotation_request_with_nonce := consent_rotation_review.rotation_request_with_nonce
 hnote over ST #Pink: Authenticate review from paired boomlet_0_identity_pubkey
 ST o-> User: magic: "approve_consent_rotation" \n setup_instance_id; boomlet_0_identity_pubkey; boomletwo_Identity_pubkey
 User o-> ST: magic: "consent_rotation_approved"
-hnote over ST #Lavender: consent_rotation_nonce := consent_state_token_with_nonce.nonce \n Retain consent_rotation_nonce durably for UI recovery \n consent_state_token_with_nonce_signed_by_st := sign_message(st_0_identity_privkey, \n "Boomerang/consent_rotation/v1/st_review", consent_state_token_with_nonce)
-ST o-> Niso: consent_state_token_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0
-Niso o-> Boomlet: <b>SUBMIT_REVIEW \n consent_state_token_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0
-hnote over Boomlet #Pink: Assert retained pairing, ST signature, pending state token and outstanding nonce match \n Assert current predecessor token, private withdrawal binding, eligible withdrawal_phase and storage capacity
-hnote over Boomlet #Lavender: round := 0; previous_checked := false \n consent_rotation_nonce := consent_state_token_with_nonce.nonce \n consent_state_token := consent_rotation_nonce; paired_reset_pending := true \n under_duress := under_duress OR current_check_is_duress \n Atomically persist checkpoint, pause, approval, consumed token, flag and quarantine \n Preserve mystery, counter, Ping sequence and signing history \n Retire unsent Pings, unconsumed withdrawal ST input and Pong progress
+hnote over ST #Lavender: consent_rotation_id := consent_rotation_request_with_nonce.nonce \n consent_rotation_request_with_nonce_signed_by_st := sign_message(st_0_identity_privkey, \n "Boomerang/consent_rotation/v1/st_review", consent_rotation_request_with_nonce) \n consent_rotation_request_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0 := cbc_cmac_encrypt(st_to_boomlet_0_keys, st_rotation_context("review_approval"), consent_rotation_request_with_nonce_signed_by_st) \n Retain consent_rotation_id durably for UI recovery
+ST o-> Niso: consent_rotation_request_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0
+Niso o-> Boomlet: <b>SUBMIT_REVIEW \n consent_rotation_request_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0
+hnote over Boomlet #Lavender: consent_rotation_request_with_nonce_signed_by_st := cbc_cmac_decrypt(st_to_boomlet_0_keys, st_rotation_context("review_approval"), consent_rotation_request_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0)
+hnote over Boomlet #Pink: Assert verify_signature(st_0_identity_pubkey, rotation_domain("st_review"), consent_rotation_request_with_nonce_signed_by_st) \n Assert consent_rotation_request_with_nonce_signed_by_st.content == pending_consent_rotation_review.rotation_request_with_nonce \n Assert retained pairing, pending freshness token and outstanding nonce match \n Assert current predecessor token, private withdrawal binding, eligible withdrawal_phase and storage capacity
+hnote over Boomlet #Lavender: enrollment_round := 0; previous_set_checked := false; cancelled := false; result := 0 \n rotation_phase := 0; st_recovery_query_digests := [] \n consent_rotation_id := consent_rotation_request_with_nonce.nonce \n consent_freshness_token := consent_rotation_id; paired_reset_pending := true \n latest_st_challenge_nonce := consent_rotation_id; consent_quarantined := true \n withdrawal_checkpoint := latest retained withdrawal state, or Null if idle \n consent_rotation_state := {authorization: consent_rotation_request_with_nonce_signed_by_st, rotation_phase: 0, st_recovery_query_digests: [], st_recovery_reply: Null} \n Preserve mystery, counter, Ping sequence and signing history \n Retire unsent Pings, unconsumed withdrawal ST input and Pong progress \n Atomically persist checkpoint, pause, approval, consumed token, flag and quarantine
 end group
 
 group Hold both devices
 hnote over Boomlet, Boomletwo #Pink: Bind control envelopes to setup_instance_id and retained pair keys \n Verify source signatures with boomlet_0_identity_pubkey and target signatures with boomletwo_Identity_pubkey \n Boomletwo uses its original key for target messages; while inactive, copied Boomlet key is restricted to SAR verification
-hnote over Boomlet #Lavender: consent_rotation_hold := (consent_state_token_with_nonce_signed_by_st) \n Persist exact HOLD before sending
+hnote over Boomlet #Lavender: consent_rotation_hold := (consent_rotation_request_with_nonce_signed_by_st) \n consent_rotation_hold_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo := control_seal("hold", consent_rotation_hold, boomlet_0_identity_privkey, boomlet_0_to_boomletwo_keys) \n Persist exact HOLD before sending
 Boomlet o-> Niso: consent_rotation_hold_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
 Niso o-> Boomletwo: consent_rotation_hold_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-hnote over Boomletwo #Pink: Verify ST signature with retained st_0_identity_pubkey \n consent_rotation_nonce := consent_rotation_hold.authorization.content.nonce \n Assert inactive role \n New attempt requires consent_rotation_hold.authorization.content.content == consent_state_token and terminal previous journal \n Duplicates must match original approval
-hnote over Boomletwo #Lavender: consent_state_token := consent_rotation_nonce \n Persist consumed token, quarantine and activation hold \n consent_rotation_held := (consent_rotation_nonce, \n EH(consent_rotation_hold_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), under_duress)
+hnote over Boomletwo #Lavender: consent_rotation_hold := control_open("hold", consent_rotation_hold_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo, boomlet_0_identity_pubkey, boomlet_0_to_boomletwo_keys)
+hnote over Boomletwo #Pink: Verify ST signature with retained st_0_identity_pubkey \n consent_rotation_id := consent_rotation_hold.authorization.content.nonce \n Assert inactive role \n New attempt requires consent_rotation_hold.authorization.content.content == consent_freshness_token and terminal previous rotation record \n Duplicates must match original approval
+hnote over Boomletwo #Lavender: consent_freshness_token := consent_rotation_id \n consent_quarantined := true; rotation_phase := 1 \n consent_rotation_state := {authorization: consent_rotation_hold.authorization, rotation_phase: 1} \n consent_rotation_held := (consent_rotation_id, \n EH(consent_rotation_hold_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), under_duress) \n consent_rotation_held_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0 := control_seal("held", consent_rotation_held, boomletwo_Identity_privkey, boomletwo_to_boomlet_0_keys) \n Persist approval, consumed token, quarantine and activation hold
 Boomletwo o-> Niso: consent_rotation_held_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
 Niso o-> Boomlet: consent_rotation_held_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+hnote over Boomlet #Lavender: consent_rotation_held := control_open("held", consent_rotation_held_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0, boomletwo_Identity_pubkey, boomletwo_to_boomlet_0_keys)
 
 alt HELD receipt verified
-  hnote over Boomlet #Lavender: under_duress := under_duress OR consent_rotation_held.under_duress \n Persist HELD receipt and flag
+  hnote over Boomlet #Lavender: under_duress := under_duress OR consent_rotation_held.under_duress; rotation_phase := 1 \n Persist HELD receipt and flag
 
   group Check previous consent
-  hnote over Boomlet #Lavender: round := 0; phase := 1 \n duress_check_space := DuressCheckSpace{space: random_permutation([1..193])} \n consent_rotation_check_with_nonce := MessageWithNonce{ \n content: Check{consent_rotation_nonce, round, phase, duress_check_space}, nonce: random_bytes(32)} \n Persist challenge before sending
-  Boomlet o-> Niso: consent_rotation_check_with_nonce_encrypted_by_boomlet_0_for_st
-  Niso o-> ST: consent_rotation_check_with_nonce_encrypted_by_boomlet_0_for_st
-  hnote over ST #Pink: Assert consent_rotation_check_with_nonce.content.attempt_nonce == consent_rotation_nonce
+  hnote over Boomlet #Lavender: enrollment_round := 0; input_step := 1; rotation_phase := 2 \n duress_check_space := DuressCheckSpace{space: random_permutation([1..193])} \n consent_rotation_country_challenge_with_nonce := MessageWithNonce{ \n content: Check{consent_rotation_id, enrollment_round, input_step, duress_check_space}, nonce: random_bytes(32)} \n latest_st_challenge_nonce := consent_rotation_country_challenge_with_nonce.nonce \n consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context(country_op(input_step, "challenge")), consent_rotation_country_challenge_with_nonce) \n Persist challenge before sending
+  Boomlet o-> Niso: consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st
+  Niso o-> ST: consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st
+  hnote over ST #Lavender: consent_rotation_country_challenge_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context(country_op(input_step, "challenge")), consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st) \n enrollment_round := consent_rotation_country_challenge_with_nonce.content.enrollment_round; input_step := consent_rotation_country_challenge_with_nonce.content.input_step \n duress_check_space := consent_rotation_country_challenge_with_nonce.content.space
+  hnote over ST #Pink: Assert consent_rotation_country_challenge_with_nonce.content.consent_rotation_id == consent_rotation_id
   hnote over ST #Lavender: duress_display_columns, retained_display_maps := create_duress_display_columns(duress_check_space.space)
   ST o-> User: magic: "enter_previous_consent_set" \n duress_display_columns
+  hnote over User #Lavender: user_selection := select_one_from_each(duress_display_columns)
   User o-> ST: user_selection
-  hnote over ST #Lavender: duress_signal_index := map_to_original_indices(user_selection, retained_display_maps) \n consent_rotation_answer_with_nonce := MessageWithNonce{ \n content: Answer{consent_rotation_nonce, round, phase, duress_signal_index}, nonce: consent_rotation_check_with_nonce.nonce}
-  ST o-> Niso: consent_rotation_answer_with_nonce_encrypted_by_st_for_boomlet_0
-  Niso o-> Boomlet: consent_rotation_answer_with_nonce_encrypted_by_st_for_boomlet_0
-  hnote over Boomlet #Pink: Assert attempt nonce, round, phase, outstanding nonce and five distinct valid indices
-  hnote over Boomlet #Lavender: selected_set := sort(duress_check_space.space[duress_signal_index.indices]) \n under_duress := under_duress OR (selected_set != sort(duress_consent_set)) \n previous_checked := true \n Atomically persist accepted answer, flag and cached result before replying \n consent_rotation_result_with_nonce := MessageWithNonce{ \n content: UiResult{consent_rotation_nonce, 0, 0}, nonce: consent_rotation_answer_with_nonce.nonce}
+  hnote over ST #Lavender: duress_signal_index := map_to_original_indices(user_selection, retained_display_maps) \n consent_rotation_country_answer_with_nonce := MessageWithNonce{ \n content: Answer{consent_rotation_id, enrollment_round, input_step, duress_signal_index}, nonce: consent_rotation_country_challenge_with_nonce.nonce} \n consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0 := cbc_cmac_encrypt(st_to_boomlet_0_keys, st_rotation_context(country_op(input_step, "answer")), consent_rotation_country_answer_with_nonce)
+  ST o-> Niso: consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0
+  Niso o-> Boomlet: consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0
+  hnote over Boomlet #Lavender: consent_rotation_country_answer_with_nonce := cbc_cmac_decrypt(st_to_boomlet_0_keys, st_rotation_context(country_op(input_step, "answer")), consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0) \n duress_signal_index := consent_rotation_country_answer_with_nonce.content.selection
+  hnote over Boomlet #Pink: Assert consent_rotation_id, enrollment_round, input_step, outstanding nonce and five distinct valid indices
+  hnote over Boomlet #Lavender: selected_consent_set := sort(duress_check_space.space[duress_signal_index.indices]) \n under_duress := under_duress OR (selected_consent_set != sort(duress_consent_set)) \n previous_set_checked := true \n consent_rotation_result_with_nonce := MessageWithNonce{ \n content: UiResult{consent_rotation_id, 0, 0}, nonce: consent_rotation_country_answer_with_nonce.nonce} \n consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context("previous_result"), consent_rotation_result_with_nonce) \n Atomically persist accepted answer, flag and cached result before replying
   Boomlet o-> Niso: consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st
   Niso o-> ST: consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st
+  hnote over ST #Lavender: consent_rotation_result_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context("previous_result"), consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st)
   end group
 
   group Enroll fresh consent
-  loop round = 1..3, until READY or cancellation
-    loop phase = 2 selection, 3 first confirmation, 4 second confirmation
-      hnote over Boomlet #Lavender: duress_check_space := DuressCheckSpace{space: random_permutation([1..193])} \n consent_rotation_check_with_nonce := MessageWithNonce{ \n content: Check{consent_rotation_nonce, round, phase, duress_check_space}, nonce: random_bytes(32)} \n Persist challenge before sending
-      Boomlet o-> Niso: consent_rotation_check_with_nonce_encrypted_by_boomlet_0_for_st
-      Niso o-> ST: consent_rotation_check_with_nonce_encrypted_by_boomlet_0_for_st
-      hnote over ST #Pink: Assert consent_rotation_check_with_nonce.content.attempt_nonce == consent_rotation_nonce
-      hnote over ST #Lavender: duress_display_columns, retained_display_maps := create_duress_display_columns(duress_check_space.space) \n consent_prompt := "choose_fresh_consent_set" if phase = 2 else "confirm_fresh_consent_set"
+  loop enrollment_round = 1..3, until result == 2 or cancelled
+    hnote over Boomlet #Lavender: rotation_phase := 3; confirmation_matches := {3: false, 4: false}
+    loop input_step = 2 selection, 3 first confirmation, 4 second confirmation
+      hnote over Boomlet #Lavender: duress_check_space := DuressCheckSpace{space: random_permutation([1..193])} \n consent_rotation_country_challenge_with_nonce := MessageWithNonce{ \n content: Check{consent_rotation_id, enrollment_round, input_step, duress_check_space}, nonce: random_bytes(32)} \n latest_st_challenge_nonce := consent_rotation_country_challenge_with_nonce.nonce \n consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context(country_op(input_step, "challenge")), consent_rotation_country_challenge_with_nonce) \n Persist challenge before sending
+      Boomlet o-> Niso: consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st
+      Niso o-> ST: consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st
+      hnote over ST #Lavender: consent_rotation_country_challenge_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context(country_op(input_step, "challenge")), consent_rotation_country_challenge_with_nonce_encrypted_by_boomlet_0_for_st) \n enrollment_round := consent_rotation_country_challenge_with_nonce.content.enrollment_round; input_step := consent_rotation_country_challenge_with_nonce.content.input_step \n duress_check_space := consent_rotation_country_challenge_with_nonce.content.space
+      hnote over ST #Pink: Assert consent_rotation_country_challenge_with_nonce.content.consent_rotation_id == consent_rotation_id
+      hnote over ST #Lavender: duress_display_columns, retained_display_maps := create_duress_display_columns(duress_check_space.space) \n consent_prompt := "choose_fresh_consent_set" if input_step = 2 else "confirm_fresh_consent_set"
       ST o-> User: magic: consent_prompt \n duress_display_columns
+      hnote over User #Lavender: user_selection := select_one_from_each(duress_display_columns)
       User o-> ST: user_selection
-      hnote over ST #Lavender: duress_signal_index := map_to_original_indices(user_selection, retained_display_maps) \n consent_rotation_answer_with_nonce := MessageWithNonce{ \n content: Answer{consent_rotation_nonce, round, phase, duress_signal_index}, nonce: consent_rotation_check_with_nonce.nonce}
-      ST o-> Niso: consent_rotation_answer_with_nonce_encrypted_by_st_for_boomlet_0
-      Niso o-> Boomlet: consent_rotation_answer_with_nonce_encrypted_by_st_for_boomlet_0
-      hnote over Boomlet #Pink: Assert attempt nonce, round, phase, outstanding nonce and five distinct valid indices
-      hnote over Boomlet #Lavender: selected_set := sort(duress_check_space.space[duress_signal_index.indices]) \n phase = 2: new_duress_consent_set := selected_set \n phase = 3, 4: confirmation_matches[phase] := (selected_set == new_duress_consent_set) \n Atomically consume answer and persist next challenge or result
+      hnote over ST #Lavender: duress_signal_index := map_to_original_indices(user_selection, retained_display_maps) \n consent_rotation_country_answer_with_nonce := MessageWithNonce{ \n content: Answer{consent_rotation_id, enrollment_round, input_step, duress_signal_index}, nonce: consent_rotation_country_challenge_with_nonce.nonce} \n consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0 := cbc_cmac_encrypt(st_to_boomlet_0_keys, st_rotation_context(country_op(input_step, "answer")), consent_rotation_country_answer_with_nonce)
+      ST o-> Niso: consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0
+      Niso o-> Boomlet: consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0
+      hnote over Boomlet #Lavender: consent_rotation_country_answer_with_nonce := cbc_cmac_decrypt(st_to_boomlet_0_keys, st_rotation_context(country_op(input_step, "answer")), consent_rotation_country_answer_with_nonce_encrypted_by_st_for_boomlet_0) \n duress_signal_index := consent_rotation_country_answer_with_nonce.content.selection
+      hnote over Boomlet #Pink: Assert consent_rotation_id, enrollment_round, input_step, outstanding nonce and five distinct valid indices
+      hnote over Boomlet #Lavender: selected_consent_set := sort(duress_check_space.space[duress_signal_index.indices]) \n input_step = 2: replacement_consent_set := selected_consent_set \n input_step = 3, 4: confirmation_matches[input_step] := (selected_consent_set == replacement_consent_set) \n Atomically consume answer and persist next challenge or result
     end
-    hnote over Boomlet #Lavender: result := 2 READY if both confirmations match and new_duress_consent_set != duress_consent_set, else 1 RETRY \n consent_rotation_result_with_nonce := MessageWithNonce{ \n content: UiResult{consent_rotation_nonce, round, result}, nonce: consent_rotation_answer_with_nonce.nonce}
+    hnote over Boomlet #Lavender: result := 2 READY if confirmation_matches[3] and confirmation_matches[4] and replacement_consent_set != duress_consent_set, else 1 RETRY \n consent_rotation_result_with_nonce := MessageWithNonce{ \n content: UiResult{consent_rotation_id, enrollment_round, result}, nonce: consent_rotation_country_answer_with_nonce.nonce} \n consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context("round_result"), consent_rotation_result_with_nonce)
     Boomlet o-> Niso: consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st
     Niso o-> ST: consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st
+    hnote over ST #Lavender: consent_rotation_result_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context("round_result"), consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st)
   end
   end group
 
-  opt User cancellation at any phase before COMMIT
+  opt User cancellation at any stage before COMMIT
     User o-> Niso: magic: "consent_rotation_cancel"
     Niso o-> Boomlet: <b>REQUEST_CANCEL \n ()
-    hnote over Boomlet #Lavender: Retire pending country challenge; preserve accepted duress \n consent_rotation_cancel_with_nonce := MessageWithNonce{content: consent_rotation_nonce, nonce: random_bytes(32)} \n Persist cancellation challenge
+    hnote over Boomlet #Lavender: Retire pending country challenge; preserve accepted duress \n consent_rotation_cancel_with_nonce := MessageWithNonce{content: consent_rotation_id, nonce: random_bytes(32)} \n latest_st_challenge_nonce := consent_rotation_cancel_with_nonce.nonce \n consent_rotation_cancel_with_nonce_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context("cancel_challenge"), consent_rotation_cancel_with_nonce) \n Persist cancellation challenge
     Boomlet o-> Niso: consent_rotation_cancel_with_nonce_encrypted_by_boomlet_0_for_st
     Niso o-> ST: consent_rotation_cancel_with_nonce_encrypted_by_boomlet_0_for_st
+    hnote over ST #Lavender: consent_rotation_cancel_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context("cancel_challenge"), consent_rotation_cancel_with_nonce_encrypted_by_boomlet_0_for_st)
     ST o-> User: magic: "confirm_consent_rotation_cancellation"
     User o-> ST: magic: "consent_rotation_cancellation_approved"
-    hnote over ST #Lavender: consent_rotation_cancel_with_nonce_signed_by_st := sign_message(st_0_identity_privkey, \n "Boomerang/consent_rotation/v1/st_cancel", consent_rotation_cancel_with_nonce)
+    hnote over ST #Lavender: consent_rotation_cancel_with_nonce_signed_by_st := sign_message(st_0_identity_privkey, \n "Boomerang/consent_rotation/v1/st_cancel", consent_rotation_cancel_with_nonce) \n consent_rotation_cancel_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0 := cbc_cmac_encrypt(st_to_boomlet_0_keys, st_rotation_context("cancel_approval"), consent_rotation_cancel_with_nonce_signed_by_st)
     ST o-> Niso: consent_rotation_cancel_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0
     Niso o-> Boomlet: consent_rotation_cancel_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0
-    hnote over Boomlet #Pink: Assert signed cancellation matches outstanding attempt nonce and nonce; persist cancellation
+    hnote over Boomlet #Lavender: consent_rotation_cancel_with_nonce_signed_by_st := cbc_cmac_decrypt(st_to_boomlet_0_keys, st_rotation_context("cancel_approval"), consent_rotation_cancel_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_0)
+    hnote over Boomlet #Pink: Assert signed cancellation matches outstanding consent_rotation_id and challenge nonce \n cancelled := true; persist cancellation
   end
 
-  opt Candidate READY and not cancelled
-    hnote over Boomlet #Lavender: consent_rotation_candidate := Candidate{consent_rotation_nonce, new_duress_consent_set, under_duress} \n consent_rotation_prepare := (consent_rotation_candidate) \n Persist completed previous check, candidate and PREPARE before sending
+  opt result == 2 and not cancelled
+    hnote over Boomlet #Lavender: consent_rotation_candidate := Candidate{consent_rotation_id, replacement_consent_set, under_duress} \n consent_rotation_prepare := (consent_rotation_candidate) \n rotation_phase := 4 \n consent_rotation_prepare_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo := control_seal("prepare", consent_rotation_prepare, boomlet_0_identity_privkey, boomlet_0_to_boomletwo_keys) \n Persist completed previous check, candidate and PREPARE before sending
     Boomlet o-> Niso: consent_rotation_prepare_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
     Niso o-> Boomletwo: consent_rotation_prepare_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-    hnote over Boomletwo #Pink: Assert HELD phase, admitted attempt nonce, valid replacement different from current set and source signature under boomlet_0_identity_pubkey
-    hnote over Boomletwo #Lavender: under_duress := under_duress OR consent_rotation_candidate.under_duress \n consent_rotation_candidate.under_duress := under_duress \n consent_rotation_prepared := (consent_rotation_nonce, \n EH(consent_rotation_prepare_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), consent_rotation_candidate) \n Durably persist flag, prepared candidate and receipt
+    hnote over Boomletwo #Lavender: consent_rotation_prepare := control_open("prepare", consent_rotation_prepare_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo, boomlet_0_identity_pubkey, boomlet_0_to_boomletwo_keys) \n consent_rotation_candidate := consent_rotation_prepare.candidate
+    hnote over Boomletwo #Pink: Assert HELD rotation phase, admitted consent_rotation_id, valid replacement different from current set and source signature under boomlet_0_identity_pubkey \n PREPARE closes country input; prepared candidate remains immutable until COMMIT or ABORT
+    hnote over Boomletwo #Lavender: under_duress := under_duress OR consent_rotation_candidate.under_duress \n consent_rotation_candidate.under_duress := under_duress \n consent_rotation_prepared := (consent_rotation_id, \n EH(consent_rotation_prepare_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), under_duress) \n rotation_phase := 5 \n consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0 := control_seal("prepared", consent_rotation_prepared, boomletwo_Identity_privkey, boomletwo_to_boomlet_0_keys) \n Durably persist flag, prepared candidate and receipt
     Boomletwo o-> Niso: consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
     Niso o-> Boomlet: consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
-    hnote over Boomlet #Pink: Assert request digest and same candidate, permitting only an OR merge of duress
-    hnote over Boomlet #Lavender: consent_rotation_candidate := consent_rotation_prepared.candidate \n under_duress := under_duress OR consent_rotation_candidate.under_duress \n Persist candidate, flag and receipt
+    hnote over Boomlet #Lavender: consent_rotation_prepared := control_open("prepared", consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0, boomletwo_Identity_pubkey, boomletwo_to_boomlet_0_keys)
+    hnote over Boomlet #Pink: Assert consent_rotation_prepared.consent_rotation_id == consent_rotation_id \n Assert consent_rotation_prepared.request_digest == EH(consent_rotation_prepare_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo) \n Assert not consent_rotation_candidate.under_duress or consent_rotation_prepared.under_duress
+    hnote over Boomlet #Lavender: consent_rotation_candidate.under_duress := consent_rotation_prepared.under_duress \n under_duress := under_duress OR consent_rotation_prepared.under_duress \n rotation_phase := 5 \n Persist candidate, flag and exact PREPARED; freeze candidate until decision
   end
 
   alt Both durable prepares exist, not cancelled and COMMIT chosen
-    hnote over Boomlet #Lavender: consent_rotation_commit := (consent_rotation_nonce, \n EH(consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0), CD(consent_rotation_candidate)) \n Atomically replace set and persist irrevocable COMMIT before sending
+    hnote over Boomlet #Lavender: consent_rotation_commit := (consent_rotation_id, \n EH(consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0)) \n duress_consent_set := consent_rotation_candidate.replacement_consent_set; rotation_phase := 6 \n consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo := control_seal("commit", consent_rotation_commit, boomlet_0_identity_privkey, boomlet_0_to_boomletwo_keys) \n Atomically replace set and persist irrevocable COMMIT before sending
     Boomlet o-> Niso: consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
     Niso o-> Boomletwo: consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-    hnote over Boomletwo #Pink: Assert decision matches durable prepared candidate and receipt
-    hnote over Boomletwo #Lavender: consent_rotation_committed := (consent_rotation_nonce, \n EH(consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), CD(consent_rotation_candidate), under_duress) \n Atomically replace set, clear consent quarantine and persist COMMITTED; remain inactive
+    hnote over Boomletwo #Lavender: consent_rotation_commit := control_open("commit", consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo, boomlet_0_identity_pubkey, boomlet_0_to_boomletwo_keys)
+    hnote over Boomletwo #Pink: Assert rotation_phase == 5 and consent_rotation_commit.consent_rotation_id == consent_rotation_id \n Assert consent_rotation_commit.prepared_envelope_digest == EH(consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0)
+    hnote over Boomletwo #Lavender: consent_rotation_committed := (consent_rotation_id, \n EH(consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo)) \n duress_consent_set := consent_rotation_candidate.replacement_consent_set; consent_quarantined := false; rotation_phase := 7 \n consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0 := control_seal("committed", consent_rotation_committed, boomletwo_Identity_privkey, boomletwo_to_boomlet_0_keys) \n Atomically replace set and persist COMMITTED; remain inactive
     Boomletwo o-> Niso: consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
     Niso o-> Boomlet: consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
-    hnote over Boomlet #Lavender: Persist verified COMMITTED; clear consent quarantine \n Erase predecessor and completed country input \n withdrawal_resume_pending := active_withdrawal; resume_state_token := consent_state_token \n Initialize resume gate without an expected packet; retain older SAR duties
+    hnote over Boomlet #Lavender: consent_rotation_committed := control_open("committed", consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0, boomletwo_Identity_pubkey, boomletwo_to_boomlet_0_keys) \n Assert rotation_phase == 6 and consent_rotation_committed.consent_rotation_id == consent_rotation_id \n Assert consent_rotation_committed.request_digest == EH(consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo) \n consent_quarantined := false; rotation_phase := 7 \n Erase predecessor and completed country input \n withdrawal_resume_pending := active_withdrawal; resume_consent_freshness_token := consent_freshness_token \n Initialize resume gate without an expected packet; retain older SAR duties \n Persist verified COMMITTED and cleared quarantine
   else Abort before durable COMMIT
-    hnote over Boomlet #Lavender: consent_rotation_abort := (consent_rotation_nonce, previous_checked, under_duress) \n Persist ABORT before sending
+    hnote over Boomlet #Lavender: consent_rotation_abort := (consent_rotation_id, previous_set_checked, under_duress) \n rotation_phase := 8 \n consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo := control_seal("abort", consent_rotation_abort, boomlet_0_identity_privkey, boomlet_0_to_boomletwo_keys) \n Persist ABORT before sending
     Boomlet o-> Niso: consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
     Niso o-> Boomletwo: consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-    hnote over Boomletwo #Lavender: under_duress := under_duress OR consent_rotation_abort.under_duress \n consent_rotation_aborted := (consent_rotation_nonce, \n EH(consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), under_duress) \n Persist flag, ABORTED and quarantine before replying
+    hnote over Boomletwo #Lavender: consent_rotation_abort := control_open("abort", consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo, boomlet_0_identity_pubkey, boomlet_0_to_boomletwo_keys) \n under_duress := under_duress OR consent_rotation_abort.under_duress \n consent_rotation_aborted := (consent_rotation_id, \n EH(consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), under_duress) \n rotation_phase := 9 \n consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0 := control_seal("aborted", consent_rotation_aborted, boomletwo_Identity_privkey, boomletwo_to_boomlet_0_keys) \n Persist flag, ABORTED and quarantine before replying
     Boomletwo o-> Niso: consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
     Niso o-> Boomlet: consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
-    hnote over Boomlet #Lavender: under_duress := under_duress OR consent_rotation_aborted.under_duress \n Persist verified receipt and flag; retain quarantine
+    hnote over Boomlet #Lavender: consent_rotation_aborted := control_open("aborted", consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0, boomletwo_Identity_pubkey, boomletwo_to_boomlet_0_keys) \n under_duress := under_duress OR consent_rotation_aborted.under_duress \n rotation_phase := 9 \n Persist verified receipt and flag; retain quarantine
   end
 
 else HELD unavailable
-  hnote over Boomlet #Lavender: consent_rotation_abort_unheld := (consent_state_token_with_nonce_signed_by_st, under_duress) \n Persist ABORT_UNHELD before sending
+  hnote over Boomlet #Lavender: consent_rotation_abort_unheld := (consent_rotation_request_with_nonce_signed_by_st, under_duress) \n rotation_phase := 8 \n consent_rotation_abort_unheld_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo := control_seal("abort_unheld", consent_rotation_abort_unheld, boomlet_0_identity_privkey, boomlet_0_to_boomletwo_keys) \n Persist ABORT_UNHELD before sending
   Boomlet o-> Niso: consent_rotation_abort_unheld_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
   Niso o-> Boomletwo: consent_rotation_abort_unheld_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-  hnote over Boomletwo #Pink: Verify ST signature with retained st_0_identity_pubkey \n consent_rotation_nonce := consent_rotation_abort_unheld.authorization.content.nonce \n Assert inactive role and matching unseen predecessor or same HELD attempt with original approval \n If unseen: assert consent_rotation_abort_unheld.authorization.content.content == consent_state_token and terminal previous journal
-  hnote over Boomletwo #Lavender: If unseen: consent_state_token := consent_rotation_nonce \n under_duress := under_duress OR consent_rotation_abort_unheld.under_duress \n consent_rotation_aborted := (consent_rotation_nonce, \n EH(consent_rotation_abort_unheld_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), under_duress) \n Persist consumed token, abort, flag and quarantine before replying
+  hnote over Boomletwo #Lavender: consent_rotation_abort_unheld := control_open("abort_unheld", consent_rotation_abort_unheld_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo, boomlet_0_identity_pubkey, boomlet_0_to_boomletwo_keys)
+  hnote over Boomletwo #Pink: Verify ST signature with retained st_0_identity_pubkey \n consent_rotation_id := consent_rotation_abort_unheld.authorization.content.nonce \n Assert inactive role and matching unseen predecessor or same HELD attempt with original approval \n If unseen: assert consent_rotation_abort_unheld.authorization.content.content == consent_freshness_token and terminal previous rotation record
+  hnote over Boomletwo #Lavender: If unseen: consent_freshness_token := consent_rotation_id; consent_rotation_state := {authorization: consent_rotation_abort_unheld.authorization, rotation_phase: 9} \n under_duress := under_duress OR consent_rotation_abort_unheld.under_duress \n consent_rotation_aborted := (consent_rotation_id, \n EH(consent_rotation_abort_unheld_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), under_duress) \n consent_quarantined := true; rotation_phase := 9 \n consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0 := control_seal("aborted", consent_rotation_aborted, boomletwo_Identity_privkey, boomletwo_to_boomlet_0_keys) \n Persist approval, consumed token, abort, flag and quarantine before replying
   Boomletwo o-> Niso: consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
   Niso o-> Boomlet: consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
-  hnote over Boomlet #Lavender: under_duress := under_duress OR consent_rotation_aborted.under_duress \n Persist verified receipt and flag
+  hnote over Boomlet #Lavender: consent_rotation_aborted := control_open("aborted", consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0, boomletwo_Identity_pubkey, boomletwo_to_boomlet_0_keys) \n under_duress := under_duress OR consent_rotation_aborted.under_duress \n rotation_phase := 9 \n Persist verified receipt and flag
 end
 end group
 
 hnote over Boomlet, SAR #Lavender: During pause, service exact emitted packets and their SAR receipts; preserve rescue duties
 
 opt Decision receipt verified
-  hnote over Boomlet #Lavender: result := 3 COMPLETE or 4 ABORTED from durable decision \n terminal_nonce := last_st_nonce if present else consent_rotation_nonce \n consent_rotation_result_with_nonce := MessageWithNonce{content: UiResult{consent_rotation_nonce, round, result}, nonce: terminal_nonce}
+  hnote over Boomlet #Lavender: result := 3 COMPLETE if rotation_phase == 7 else 4 ABORTED \n consent_rotation_result_with_nonce := MessageWithNonce{content: UiResult{consent_rotation_id, enrollment_round, result}, nonce: latest_st_challenge_nonce} \n consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context("terminal_result"), consent_rotation_result_with_nonce)
   Boomlet o-> Niso: consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st
   Niso o-> ST: consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st
+  hnote over ST #Lavender: consent_rotation_result_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context("terminal_result"), consent_rotation_result_with_nonce_encrypted_by_boomlet_0_for_st)
 end
 
 group Interrupted rotation
-hnote over Boomlet, Boomletwo #Lavender: Retransmit exact stored requests; terminal control duplicates return cached receipts without writes or flag merging
-opt Boomlet needs target receipt
-  hnote over Boomlet #Lavender: query_nonce := random_bytes(32) \n consent_rotation_status := (consent_rotation_nonce, query_nonce)
-  Boomlet o-> Niso: consent_rotation_status_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-  Niso o-> Boomletwo: consent_rotation_status_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-  hnote over Boomletwo #Lavender: (evidence_kind, evidence) := \n (3, consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0) if COMPLETE, \n (4, consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0) if ABORTED, else (0, []) \n consent_rotation_status_response := (consent_rotation_nonce, \n EH(consent_rotation_status_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), query_nonce, \n journal_phase, evidence_kind, evidence)
-  Boomletwo o-> Niso: consent_rotation_status_response_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
-  Niso o-> Boomlet: consent_rotation_status_response_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+hnote over Boomlet, Boomletwo #Lavender: On restart reload consent_freshness_token, under_duress, consent_quarantined and consent_rotation_state \n consent_rotation_id := consent_rotation_state.authorization.content.nonce \n Reload rotation_phase, enrollment_round and input_step, latest_st_challenge_nonce and exact control messages from consent_rotation_state \n Retransmit exact stored requests; terminal control duplicates return cached receipts without writes or flag merging
+opt Boomlet waits for COMMITTED
+  Niso o-> Boomlet: <b>RESUME \n ()
+  Boomlet o-> Niso: consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
+  Niso o-> Boomletwo: consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
+  hnote over Boomletwo #Pink: Verify original COMMIT through its ordinary handler; exact recorded duplicate returns cached COMMITTED
+  Boomletwo o-> Niso: consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+  Niso o-> Boomlet: consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+  hnote over Boomlet #Pink: Consume through ordinary COMMITTED handler; terminal duplicates are read-only
 end
-opt Boomletwo needs coordinator decision
-  hnote over Boomletwo #Lavender: query_nonce := random_bytes(32) \n consent_rotation_status := (consent_rotation_nonce, query_nonce)
-  Boomletwo o-> Niso: consent_rotation_status_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
-  Niso o-> Boomlet: consent_rotation_status_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
-  hnote over Boomlet #Lavender: (evidence_kind, evidence) := \n (1, consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo) if durable COMMIT, \n (2, consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo) if durable ABORT, \n (5, consent_rotation_abort_unheld_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo) if durable ABORT_UNHELD, else (0, []) \n consent_rotation_status_response := (consent_rotation_nonce, \n EH(consent_rotation_status_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0), query_nonce, \n journal_phase, evidence_kind, evidence)
-  Boomlet o-> Niso: consent_rotation_status_response_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-  Niso o-> Boomletwo: consent_rotation_status_response_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
+opt Boomletwo PREPARED waits for decision
+  Niso o-> Boomletwo: <b>RESUME \n ()
+  Boomletwo o-> Niso: consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+  Niso o-> Boomlet: consent_rotation_prepared_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+  hnote over Boomlet #Pink: Verify original PREPARED through its ordinary handler; recorded duplicate returns only an already durable decision
+  alt Durable COMMIT
+    Boomlet o-> Niso: consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
+    Niso o-> Boomletwo: consent_rotation_commit_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
+    hnote over Boomletwo #Pink: Consume through ordinary COMMIT handler
+    Boomletwo o-> Niso: consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+    Niso o-> Boomlet: consent_rotation_committed_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+  else Durable ABORT
+    Boomlet o-> Niso: consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
+    Niso o-> Boomletwo: consent_rotation_abort_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
+    hnote over Boomletwo #Pink: Consume through ordinary ABORT handler
+    Boomletwo o-> Niso: consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+    Niso o-> Boomlet: consent_rotation_aborted_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+  else No durable decision
+    hnote over Boomlet, Boomletwo #Lavender: Keep hold until source records its ordinary decision from durable PREPARED; timeout supplies no authority
+  end
 end
-hnote over Boomlet, Boomletwo #Pink: Resolve only through verified original decision or receipt in evidence; otherwise retain hold
+hnote over Boomlet, Boomletwo #Lavender: HOLD, PREPARE, ABORT, ABORT_UNHELD and FINISH use the same exact request and retained successor retry convention \n Reject conflicting or superseded envelopes; duplicates cannot repeat flag merges or undo reset
 opt ST restarts
-  hnote over ST #Lavender: consent_rotation_ui_status_with_nonce := MessageWithNonce{ \n content: (consent_rotation_nonce), nonce: random_bytes(32)}
-  ST o-> Niso: consent_rotation_ui_status_with_nonce_encrypted_by_st_for_boomlet_0
-  Niso o-> Boomlet: consent_rotation_ui_status_with_nonce_encrypted_by_st_for_boomlet_0
-  hnote over Boomlet #Pink: Assert authenticated ST channel and journal attempt nonce == consent_rotation_ui_status_with_nonce.content[0]
-  hnote over Boomlet #Lavender: query_digest := sha256(canonical_encode(consent_rotation_ui_status_with_nonce))
-  alt ui_query_digests != [] and query_digest == ui_query_digests[-1]
-    Boomlet o-> Niso: consent_rotation_ui_status_response_with_nonce_encrypted_by_boomlet_0_for_st
-    Niso o-> ST: consent_rotation_ui_status_response_with_nonce_encrypted_by_boomlet_0_for_st
-  else query_digest in ui_query_digests or len(ui_query_digests) == 8
+  hnote over ST #Lavender: consent_rotation_id := retained approved review nonce \n consent_rotation_st_recovery_request_with_nonce := MessageWithNonce{ \n content: (consent_rotation_id), nonce: random_bytes(32)} \n consent_rotation_st_recovery_request_with_nonce_encrypted_by_st_for_boomlet_0 := cbc_cmac_encrypt(st_to_boomlet_0_keys, st_rotation_context("ui_status"), consent_rotation_st_recovery_request_with_nonce)
+  ST o-> Niso: consent_rotation_st_recovery_request_with_nonce_encrypted_by_st_for_boomlet_0
+  Niso o-> Boomlet: consent_rotation_st_recovery_request_with_nonce_encrypted_by_st_for_boomlet_0
+  hnote over Boomlet #Lavender: consent_rotation_st_recovery_request_with_nonce := cbc_cmac_decrypt(st_to_boomlet_0_keys, st_rotation_context("ui_status"), consent_rotation_st_recovery_request_with_nonce_encrypted_by_st_for_boomlet_0)
+  hnote over Boomlet #Pink: Assert authenticated ST channel and recorded consent_rotation_id == consent_rotation_st_recovery_request_with_nonce.content[0]
+  hnote over Boomlet #Lavender: st_recovery_query_digests := consent_rotation_state.st_recovery_query_digests \n consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st := consent_rotation_state.st_recovery_reply \n st_recovery_query_digest := sha256(canonical_encode(consent_rotation_st_recovery_request_with_nonce))
+  alt st_recovery_query_digests != [] and st_recovery_query_digest == st_recovery_query_digests[-1]
+    Boomlet o-> Niso: consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st
+    Niso o-> ST: consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st
+    hnote over ST #Lavender: consent_rotation_st_recovery_response_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context("ui_status_response"), consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st)
+  else st_recovery_query_digest in st_recovery_query_digests or len(st_recovery_query_digests) == 8
     hnote over Boomlet #Pink: Reject without reply or state change
   else Fresh query
-    hnote over Boomlet #Lavender: Retire only unconsumed challenges \n If pending_input_exists: pending_nonce := random_bytes(32) \n If pending country input: pending_space := DuressCheckSpace{space: random_permutation([1..193])} \n consent_rotation_ui_resume := UiResume{pending_input_exists, pending_round, pending_phase, pending_nonce, pending_space} \n result := 0 pending, 3 COMPLETE or 4 ABORTED from journal \n consent_rotation_ui_status_response_with_nonce := MessageWithNonce{ \n content: (consent_rotation_nonce, result, consent_rotation_ui_resume), nonce: consent_rotation_ui_status_with_nonce.nonce} \n ui_query_digests := ui_query_digests + [query_digest] \n Atomically persist replacement, digests and exact encrypted reply; discard superseded reply \n Preserve accepted answers, duress and decision
-    Boomlet o-> Niso: consent_rotation_ui_status_response_with_nonce_encrypted_by_boomlet_0_for_st
-    Niso o-> ST: consent_rotation_ui_status_response_with_nonce_encrypted_by_boomlet_0_for_st
+    hnote over Boomlet #Lavender: consent_rotation_pending_input := PendingConsentInput{false, 0, 0, [0; 32], DuressCheckSpace{space: [1..193]}} \n If unconsumed country challenge: consent_rotation_pending_input := PendingConsentInput{true, enrollment_round, input_step, random_bytes(32), DuressCheckSpace{space: random_permutation([1..193])}} \n If unconsumed cancellation challenge: consent_rotation_pending_input := PendingConsentInput{true, 0, 5, random_bytes(32), DuressCheckSpace{space: [1..193]}} \n Retire only unconsumed challenges; persist this replacement \n If consent_rotation_pending_input.input_pending: latest_st_challenge_nonce := consent_rotation_pending_input.nonce \n result := 3 COMPLETE if rotation_phase == 7 else 4 ABORTED if rotation_phase == 9 else 0 pending \n consent_rotation_st_recovery_response_with_nonce := MessageWithNonce{ \n content: (consent_rotation_id, result, consent_rotation_pending_input), nonce: consent_rotation_st_recovery_request_with_nonce.nonce} \n consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st := cbc_cmac_encrypt(boomlet_0_to_st_keys, st_rotation_context("ui_status_response"), consent_rotation_st_recovery_response_with_nonce) \n st_recovery_query_digests := st_recovery_query_digests + [st_recovery_query_digest] \n consent_rotation_state.st_recovery_query_digests := st_recovery_query_digests \n consent_rotation_state.st_recovery_reply := consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st \n Preserve accepted answers, duress and decision \n Atomically persist replacement, digests and exact encrypted reply; discard superseded reply
+    Boomlet o-> Niso: consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st
+    Niso o-> ST: consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st
+    hnote over ST #Lavender: consent_rotation_st_recovery_response_with_nonce := cbc_cmac_decrypt(boomlet_0_to_st_keys, st_rotation_context("ui_status_response"), consent_rotation_st_recovery_response_with_nonce_encrypted_by_boomlet_0_for_st)
   end
   hnote over ST #Pink: Accept only authenticated reply matching retained attempt and outstanding query nonce
 end
@@ -189,17 +251,15 @@ end group
 
 group Withdrawal resumption
 opt withdrawal_resume_pending and verified COMMITTED
-  hnote over Boomlet #Lavender: Resume the same checkpoint in place with retained receipt updates \n Renew retired country input under committed consent; revalidate freshness and chain view \n Preserve mystery, counter, reached state and next unused Ping sequence
-  hnote over Boomlet #Lavender: user_is_in_duress := under_duress \n duress_placeholder_plaintext := doxing_key_for_sar if user_is_in_duress else [0; 32] \n duress_placeholder := C-SEAL(Boomlet_0, SAR, canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder_plaintext)
-  hnote over Boomlet #Lavender: peer_0_ping := Ping{approved_withdrawal_id, last_seen_block, ping_seq_num, reached_mystery_flag} \n peer_0_ping_signed_by_boomlet_0_padded := PaddedMessage{content: peer_0_ping_signed_by_boomlet_0, padding: duress_placeholder} \n Persist gate token, exact packet and next unused Ping sequence before sending; retries reuse the record
+  hnote over Boomlet #Lavender: Resume the same checkpoint in place with retained receipt updates \n Renew retired country input under committed consent; revalidate freshness and chain view \n Preserve mystery, counter, reached state and next unused Ping sequence \n user_is_in_duress := under_duress \n duress_placeholder_plaintext := doxing_key_for_sar if user_is_in_duress else [0; 32] \n duress_placeholder := cbc_cmac_encrypt(channel_keys(boomlet_0_identity_privkey, "boomlet", sar_pubkey, "sar", boomlet_0_identity_pubkey, sar_pubkey), canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder_plaintext) \n ping_seq_num := ping_seq_num + 1 \n peer_0_ping := Ping{approved_withdrawal_id, last_seen_block, ping_seq_num, reached_mystery_flag} \n peer_0_ping_signed_by_boomlet_0 := sign_message(boomlet_0_identity_privkey, "Boomerang/withdrawal/ping", peer_0_ping) \n peer_0_ping_signed_by_boomlet_0_padded := PaddedMessage{content: peer_0_ping_signed_by_boomlet_0, padding: duress_placeholder} \n peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0 := sign_message(boomlet_0_identity_privkey, "Boomerang/withdrawal/ping_envelope", peer_0_ping_signed_by_boomlet_0_padded) \n peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt := cbc_cmac_encrypt(channel_keys(boomlet_0_identity_privkey, "boomlet", wt_pubkey, "wt", boomlet_0_identity_pubkey, wt_pubkey), canonical_encode("withdrawal_ping", approved_withdrawal_id), peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0) \n Persist gate token, exact packet and next unused Ping sequence before sending; retries reuse the record
   Boomlet o-> Niso: peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt
   Niso o-> WT: peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt
   WT o-> SAR: duress_placeholder; boomlet_0_identity_pubkey; approved_withdrawal_id
   SAR o-> WT: duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0
   WT o-> Niso: approved_withdrawal_id; duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0
   Niso o-> Boomlet: approved_withdrawal_id; duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0
-  hnote over Boomlet #Pink: Assert bound approved ID, SAR signer and context \n Assert duress_placeholder_signed_by_sar.content == exact new duress_placeholder \n Assert resume_state_token == consent_state_token
-  hnote over Boomlet #Lavender: Persist resume receipt; withdrawal_resume_pending := false \n Release counter credit, signing output and fragment export under ordinary phase gates \n Receipt credits no progress and does not reopen completed digging
+  hnote over Boomlet #Pink: Assert bound approved ID, SAR signer and context \n Assert duress_placeholder_signed_by_sar.content == exact new duress_placeholder \n Assert resume_consent_freshness_token == consent_freshness_token
+  hnote over Boomlet #Lavender: Release counter credit, signing output and fragment export under ordinary withdrawal phase gates \n Receipt credits no progress and does not reopen completed digging \n Persist resume receipt; withdrawal_resume_pending := false
   opt Digging already terminated
     hnote over WT #Lavender: reached_pings_collection[peer_0_id] := peer_0_ping_signed_by_boomlet_0
     WT o-> Niso: reached_pings_collection
@@ -209,12 +269,10 @@ opt withdrawal_resume_pending and verified COMMITTED
 end
 end group
 
-hnote over Boomlet #Lavender: Each accepted wrong withdrawal answer OR-sets under_duress before output \n Correct answers preserve the flag; commitments and Pings use under_duress
-
 group Withdrawal end
 opt Current withdrawal ends, or next withdrawal after idle rotation
   hnote over Boomlet #Pink: Assert rotation resolved and consent not quarantined
-  hnote over Boomlet #Lavender: Retire pending ST input; freeze flag updates and new ceremonies \n duress_placeholder_plaintext := doxing_key_for_sar if under_duress else [0; 32] \n duress_placeholder := C-SEAL(Boomlet_0, SAR, canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder_plaintext) \n peer_0_ping := Ping{approved_withdrawal_id, last_seen_block, ping_seq_num, reached_mystery_flag} \n peer_0_ping_signed_by_boomlet_0_padded := PaddedMessage{content: peer_0_ping_signed_by_boomlet_0, padding: duress_placeholder} \n Persist final packet, expected placeholder and next unused sequence before sending
+  hnote over Boomlet #Lavender: Retire pending ST input; freeze flag updates and new ceremonies \n duress_placeholder_plaintext := doxing_key_for_sar if under_duress else [0; 32] \n duress_placeholder := cbc_cmac_encrypt(channel_keys(boomlet_0_identity_privkey, "boomlet", sar_pubkey, "sar", boomlet_0_identity_pubkey, sar_pubkey), canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder_plaintext) \n ping_seq_num := ping_seq_num + 1 \n peer_0_ping := Ping{approved_withdrawal_id, last_seen_block, ping_seq_num, reached_mystery_flag} \n peer_0_ping_signed_by_boomlet_0 := sign_message(boomlet_0_identity_privkey, "Boomerang/withdrawal/ping", peer_0_ping) \n peer_0_ping_signed_by_boomlet_0_padded := PaddedMessage{content: peer_0_ping_signed_by_boomlet_0, padding: duress_placeholder} \n peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0 := sign_message(boomlet_0_identity_privkey, "Boomerang/withdrawal/ping_envelope", peer_0_ping_signed_by_boomlet_0_padded) \n peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt := cbc_cmac_encrypt(channel_keys(boomlet_0_identity_privkey, "boomlet", wt_pubkey, "wt", boomlet_0_identity_pubkey, wt_pubkey), canonical_encode("withdrawal_ping", approved_withdrawal_id), peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0) \n Persist final packet, expected placeholder and next unused sequence before sending
   Boomlet o-> Niso: peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt
   Niso o-> WT: peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt
   WT o-> SAR: duress_placeholder; boomlet_0_identity_pubkey; approved_withdrawal_id
@@ -224,15 +282,17 @@ opt Current withdrawal ends, or next withdrawal after idle rotation
   hnote over Boomlet #Pink: Assert bound approved ID, SAR signer, context and exact final placeholder
   hnote over Boomlet #Lavender: final_sar_receipt := duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0 \n Persist verified final receipt and withdrawal end; retain under_duress
   opt paired_reset_pending
-    hnote over Boomlet #Lavender: consent_rotation_finish := (consent_state_token, random_bytes(32), approved_withdrawal_id, final_sar_receipt) \n Persist exact FINISH; hold new withdrawals, rotations and input
+    hnote over Boomlet #Lavender: consent_rotation_finish := (consent_freshness_token, random_bytes(32), approved_withdrawal_id, final_sar_receipt) \n consent_rotation_finish_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo := control_seal("finish", consent_rotation_finish, boomlet_0_identity_privkey, boomlet_0_to_boomletwo_keys) \n Persist exact FINISH; hold new withdrawals, rotations and input
     Boomlet o-> Niso: consent_rotation_finish_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
     Niso o-> Boomletwo: consent_rotation_finish_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo
-    hnote over Boomletwo #Pink: Assert source signature under boomlet_0_identity_pubkey, pair, current token, inactive role and resolved nonquarantined journal \n Verify enclosed SAR receipt and placeholder under approved_withdrawal_id \n If under_duress: require key-bearing acknowledged plaintext
-    hnote over Boomletwo #Lavender: under_duress := false; consent_state_token := consent_rotation_finish.next_state_token \n consent_rotation_finished := ( \n EH(consent_rotation_finish_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), consent_state_token) \n Atomically persist flag, token and exact FINISHED before replying
+    hnote over Boomletwo #Lavender: consent_rotation_finish := control_open("finish", consent_rotation_finish_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo, boomlet_0_identity_pubkey, boomlet_0_to_boomletwo_keys)
+    hnote over Boomletwo #Pink: Assert source signature under boomlet_0_identity_pubkey, pair, current token, inactive role and resolved nonquarantined rotation record \n Verify enclosed SAR receipt and placeholder under approved_withdrawal_id \n If under_duress: require key-bearing acknowledged plaintext
+    hnote over Boomletwo #Lavender: under_duress := false; consent_freshness_token := consent_rotation_finish.next_consent_freshness_token \n consent_rotation_finished := ( \n EH(consent_rotation_finish_signed_by_boomlet_0_encrypted_by_boomlet_0_for_boomletwo), consent_freshness_token) \n consent_rotation_finished_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0 := control_seal("finished", consent_rotation_finished, boomletwo_Identity_privkey, boomletwo_to_boomlet_0_keys) \n Atomically persist flag, token and exact FINISHED before replying
     Boomletwo o-> Niso: consent_rotation_finished_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
     Niso o-> Boomlet: consent_rotation_finished_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0
+    hnote over Boomlet #Lavender: consent_rotation_finished := control_open("finished", consent_rotation_finished_signed_by_boomletwo_encrypted_by_boomletwo_for_boomlet_0, boomletwo_Identity_pubkey, boomletwo_to_boomlet_0_keys)
     hnote over Boomlet #Pink: Assert paired channel, exact request digest and next token
-    hnote over Boomlet #Lavender: under_duress := false; consent_state_token := consent_rotation_finished.next_state_token \n paired_reset_pending := false \n Atomically persist FINISHED and teardown; preserve replay and rescue duties
+    hnote over Boomlet #Lavender: under_duress := false; consent_freshness_token := consent_rotation_finished.next_consent_freshness_token \n paired_reset_pending := false \n Atomically persist FINISHED and teardown; preserve replay and rescue duties
   end
 end
 hnote over Boomlet, Boomletwo #Lavender: Missing FINISHED holds cleanup; RESUME retries exact FINISH and cached FINISHED \n Abandonment or restart without final SAR acknowledgment preserves the flag

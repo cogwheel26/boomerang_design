@@ -13,7 +13,7 @@ bytes, and alternative encodings fail before semantic use.
 Review = (
   setup_instance_id: bytes32,
   backup_boomlet_pubkey: bytes33,
-  state_token_with_nonce: MessageWithNonce<bytes32>
+  rotation_request_with_nonce: MessageWithNonce<bytes32>
 )
 ```
 
@@ -31,23 +31,24 @@ restart and cannot be chosen by a host. The inactive backup cannot originate
 source rotation, withdrawal, or ST messages or expose arbitrary signing or
 encryption with the copied key.
 
-Provision the same fresh random 32-byte `consent_state_token` on both devices.
-BEGIN_REVIEW wraps that token in `MessageWithNonce<bytes32>` with a fresh review
-nonce distinct from the token. ST signs that exact object. Its approved nonce is
-`attempt_nonce` in every later rotation payload. On authorized admission, both
-devices atomically replace their token with that nonce and retain the original
-approval in the journal. This consumes the predecessor even if the attempt aborts.
+Provision the same fresh random 32-byte `consent_freshness_token` on both devices.
+BEGIN_REVIEW creates `consent_rotation_request_with_nonce` with that token as
+content and a fresh review nonce distinct from it. ST signs that exact object.
+The approved review nonce is `consent_rotation_id` in every later rotation
+payload. On authorized admission, both devices atomically replace their token
+with that nonce and retain the original approval in `consent_rotation_state`.
+This consumes the predecessor even if the attempt aborts.
 Authorized pairing changes retire pending reviews and provision a fresh shared
 token; tokens are never shared across setups or pairs.
 
 A fresh HOLD requires a matching predecessor token and a terminal previous
-journal. Exact recorded approvals take the journal recovery path before fresh
+rotation record. Exact recorded approvals take the recovery path before fresh
 admission checks; another approval for that predecessor conflicts. Later handlers
-match the journal's approved attempt nonce and phase, rather than its consumed
+match the recorded rotation ID and rotation phase, rather than the consumed
 predecessor token.
 Terminal control duplicates return cached results without writes, prompts, or latch
 merging. Superseded attempts are stale. Random tokens require atomic,
-rollback-resistant storage for the entire consent record, flag, and journal.
+rollback-resistant storage for the consent set, flag, and rotation record.
 
 The source privately binds its pending review to the current withdrawal identity
 or absence of one. Starting, replacing, completing, or abandoning a withdrawal
@@ -87,8 +88,9 @@ normal private key.
 Local selectors are 41 BEGIN_REVIEW with empty tuple input, returning
 one review envelope; 42 SUBMIT_REVIEW with one approval envelope, returning
 encrypted HOLD; 43 reserved and rejected; 44 REQUEST_CANCEL with empty input;
-and 45 RESUME with empty input, returning the recorded next message. Local
-requests supply no authority themselves.
+and 45 RESUME on either device with empty input, returning its retained next
+outbound envelope. Source may return control or ST input; target returns its
+latest receipt. Local requests supply no authority themselves.
 
 BEGIN_REVIEW requires no unresolved rotation, FINISH, or withdrawal teardown,
 and a free ST input session. An active withdrawal qualifies during DIGGING after
@@ -100,22 +102,22 @@ state loss before admission requires fresh review.
 Source derives `Review` metadata from protected setup state and sends it through
 its existing paired ST channel. ST authenticates that source and displays consent
 replacement, setup, and source and backup identities, then explicitly approves.
-It signs the exact `state_token_with_nonce` under
+It signs the exact `rotation_request_with_nonce` under
 `Boomerang/consent_rotation/v1/st_review`.
-ST durably retains the approved attempt nonce before releasing approval and keeps
+ST durably retains the approved rotation ID before releasing approval and keeps
 it across restart for UI recovery.
 
 SUBMIT_REVIEW verifies the retained pairing, ST signature, exact pending token
 and nonce, current predecessor token, private withdrawal binding, eligibility,
 and storage reservation. Before releasing HOLD, source atomically persists the
-approval, journal, consumed predecessor, checkpoint and pause, quarantine,
+approval, rotation record, consumed predecessor, checkpoint and pause, quarantine,
 `paired_reset_pending=true`, and any already accepted withdrawal duress.
 Exact approval retries recover HOLD or the terminal result without admission
 again. An older approval cannot reopen a terminal or superseded attempt.
 
 HOLD carries `SignedMessage<MessageWithNonce<bytes32>>`.
 Target verifies the ST signature with its retained ST public key and checks the
-setup-bound paired channel, inactive role, predecessor token, and journal
+setup-bound paired channel, inactive role, predecessor token, and rotation record
 admission rules. It consumes that token and persists quarantine and activation
 hold before HELD. Source persists HELD and its OR merge before asking for the
 previous set. Neither host timestamps nor a rotation count establish freshness.
@@ -124,36 +126,37 @@ ST approval authorizes rotation only within the fixed pair. Device replacement,
 rebinding, signing, and Boomletwo activation retain their separate requirements.
 
 ```text
-Check = (attempt_nonce: bytes32, round: u8, phase: u8, space: DuressCheckSpace)
-Answer = (attempt_nonce: bytes32, round: u8, phase: u8, selection: DuressSignalIndex)
-UiResult = (attempt_nonce: bytes32, round: u8, result: u8)
-UiResume = (present: bool, round: u8, phase: u8, nonce: bytes32, space: DuressCheckSpace)
+Check = (consent_rotation_id: bytes32, enrollment_round: u8, input_step: u8, space: DuressCheckSpace)
+Answer = (consent_rotation_id: bytes32, enrollment_round: u8, input_step: u8, selection: DuressSignalIndex)
+UiResult = (consent_rotation_id: bytes32, enrollment_round: u8, result: u8)
+PendingConsentInput = (input_pending: bool, enrollment_round: u8, input_step: u8, nonce: bytes32, space: DuressCheckSpace)
 ```
 
 Challenges and answers use `MessageWithNonce<Check>` and
 `MessageWithNonce<Answer>`. Space is a permutation of integers 1–193. ST displays
 five independently shuffled columns and returns five distinct original indices.
-Phase is 1 previous set, 2 selection, 3 first confirmation, or 4 second
-confirmation. Round is 0 for the previous set and 1–3 for enrollment. Require the
-exact attempt nonce, round, phase, and outstanding prompt nonce. Each phase uses
-a fresh nonce and permutation.
+Input step is 1 previous set, 2 selection, 3 first confirmation, or 4 second
+confirmation. Enrollment round is 0 for the previous set and 1–3 for enrollment.
+Require the exact rotation ID, enrollment round, input step, and outstanding
+prompt nonce. Each input step uses a fresh nonce and permutation.
 
-Before sending, persist the phase, nonce, permutation, and exact challenge bytes.
+Before sending, persist the input step, nonce, permutation, and exact challenge
+bytes.
 Accepted answers atomically consume the nonce and store their response digest,
 flag update, and cached successor. Restart recovers that record. An unconsumed
 challenge may instead be retired and replaced; its retired nonce cannot satisfy
-another phase. Accepted-response retries recover the successor without another
+another input step. Accepted-response retries recover the successor without another
 comparison, prompt, or write.
 
-ST accepts challenges and results only for its retained approved attempt nonce.
+ST accepts challenges and results only for its retained approved rotation ID.
 It retains the display maps and selections for one
-`(attempt_nonce, round, phase, nonce)` session. Before answering, duplicates
-preserve that session. After answering, duplicates resend its exact cached
+`(consent_rotation_id, enrollment_round, input_step, nonce)` session. Before
+answering, duplicates preserve that session. After answering, duplicates resend its exact cached
 encrypted answer. Conflicting content at the same nonce is rejected. ST state
 loss requires authenticated UI recovery.
 
 The previous answer always yields UiResult 0 CONTINUE. Compare all five values
-even when the flag is true; persist `previous_checked=true`, the flag, response
+even when the flag is true; persist `previous_set_checked=true`, the flag, response
 consumption, and uniform result before release. A valid mismatch proceeds through
 the same enrollment flow.
 
@@ -161,7 +164,7 @@ Each enrollment round completes selection and both confirmations before reportin
 1 RETRY or 2 READY. READY requires five valid distinct sorted countries, different
 from the current committed set, and both confirmations matching. Candidate
 validity never depends on the flag. After round 3 failure, source decides ABORT.
-Authentication or encoding failures stall the phase rather than classify duress.
+Authentication or encoding failures stall the input step rather than classify duress.
 There is no lifetime non-reuse check.
 
 UI results echo the answered nonce; round results echo the second-confirmation
@@ -172,7 +175,7 @@ loss, fresh authenticated status is required before displaying a terminal result
 an old unsolicited result cannot attach to another review.
 
 Before COMMIT, cancellation requires ST approval of a fresh
-`MessageWithNonce<bytes32>` containing the attempt nonce under
+`MessageWithNonce<bytes32>` containing the rotation ID under
 `Boomerang/consent_rotation/v1/st_cancel`.
 Source retires pending country input before issuing the persisted cancellation
 challenge. Repeated REQUEST_CANCEL recovers that challenge without allocating
@@ -183,56 +186,60 @@ Accepted duress survives; no cancellation can alter durable COMMIT.
 
 ```text
 Candidate = (
-  attempt_nonce: bytes32,
-  new_set: list<u16>,                       // exactly 5, ascending, distinct
+  consent_rotation_id: bytes32,
+  replacement_consent_set: list<u16>,  // exactly 5, ascending, distinct
   under_duress: bool
 )
 ```
 
-Define `EH(E) = sha256(canonical_encode(E))` for an encrypted envelope and
-`CD(C) = tagged_sha256("Boomerang/consent_rotation/v1/candidate",
-canonical_encode(C))`. Keep CD and all flag-bearing content encrypted.
+Define `EH(E) = sha256(canonical_encode(E))` for an encrypted envelope.
+Keep all flag-bearing content and receipts encrypted.
 
 | Operation | Exact signed content tuple |
 | --- | --- |
 | `hold` | `(authorization: SignedMessage<MessageWithNonce<bytes32>>)` |
-| `held` | `(attempt_nonce: bytes32, request_digest: bytes32, under_duress: bool)` |
+| `held` | `(consent_rotation_id: bytes32, request_digest: bytes32, under_duress: bool)` |
 | `prepare` | `(candidate: Candidate)` |
-| `prepared` | `(attempt_nonce: bytes32, request_digest: bytes32, candidate: Candidate)` |
-| `commit` | `(attempt_nonce: bytes32, prepared_envelope_digest: bytes32, candidate_digest: bytes32)` |
-| `committed` | `(attempt_nonce: bytes32, request_digest: bytes32, candidate_digest: bytes32, under_duress: bool)` |
-| `abort` | `(attempt_nonce: bytes32, previous_checked: bool, under_duress: bool)` |
+| `prepared` | `(consent_rotation_id: bytes32, request_digest: bytes32, under_duress: bool)` |
+| `commit` | `(consent_rotation_id: bytes32, prepared_envelope_digest: bytes32)` |
+| `committed` | `(consent_rotation_id: bytes32, request_digest: bytes32)` |
+| `abort` | `(consent_rotation_id: bytes32, previous_set_checked: bool, under_duress: bool)` |
 | `abort_unheld` | `(authorization: SignedMessage<MessageWithNonce<bytes32>>, under_duress: bool)` |
-| `aborted` | `(attempt_nonce: bytes32, request_digest: bytes32, under_duress: bool)` |
-| `status` | `(attempt_nonce: bytes32, query_nonce: bytes32)` |
-| `status_response` | `(attempt_nonce: bytes32, request_digest: bytes32, query_nonce: bytes32, journal_phase: u8, evidence_kind: u8, evidence: bytes)` |
-| `finish` | `(predecessor_state_token: bytes32, next_state_token: bytes32, approved_withdrawal_id: bytes32, sar_receipt: CbcCmacEnvelope)` |
-| `finished` | `(request_digest: bytes32, next_state_token: bytes32)` |
+| `aborted` | `(consent_rotation_id: bytes32, request_digest: bytes32, under_duress: bool)` |
+| `finish` | `(expected_consent_freshness_token: bytes32, next_consent_freshness_token: bytes32, approved_withdrawal_id: bytes32, sar_receipt: CbcCmacEnvelope)` |
+| `finished` | `(request_digest: bytes32, next_consent_freshness_token: bytes32)` |
 
 HOLD, PREPARE, COMMIT, ABORT, ABORT_UNHELD, and FINISH flow source to target;
-their receipts flow back. STATUS works in either direction. Each request digest
-is EH of the exact request envelope.
+their receipts flow back. Each request digest is EH of the exact request envelope.
 
 Source releases PREPARE only after durable previous-answer acceptance and both
 candidate confirmations. Target accepts it only while HELD with the original
-attempt nonce, valid new set different from its current set, and source signature
+rotation ID, valid new set different from its current set, and source signature
 against the retained identity key. That signature attests to completed input checks.
 Target OR-merges the flag into the otherwise identical candidate and persists it,
-prepared state, and exact PREPARED before reply. Source verifies EH and every
-field, permitting only a false-to-true flag merge, then durably prepares that
-same candidate.
+prepared state, and exact PREPARED before reply. PREPARED attests to durable
+storage of the exact PREPARE's rotation ID and set with the returned merged flag.
+Source verifies the paired signer, rotation ID, and EH of its retained PREPARE,
+rejecting a false flag if its candidate's flag is true. It keeps the candidate's
+ID and set, installs the returned flag, and atomically persists the OR merge,
+prepared candidate, and exact receipt. Both prepared candidates are immutable.
+No further country answers are accepted after PREPARE; exact accepted-answer
+retries recover their cached successors.
 
 COMMIT requires both durable prepares. Source atomically installs the candidate
 and records irrevocable COMMIT and exact bytes before sending. Target requires
-the digest of its exact PREPARED, matching CD, attempt nonce, and prepared phase;
-it atomically installs the candidate, clears consent quarantine, and stores
-COMMITTED. Source remains held until consuming the matching receipt. Target
-remains inactive. Commit retains the state token consumed at admission.
+the current rotation ID, prepared phase, and EH of its exact retained PREPARED.
+That receipt binds the PREPARE and merged flag, identifying the immutable
+candidate to install. Target atomically installs it, clears consent quarantine,
+and stores COMMITTED. Source verifies the paired signer, rotation ID, and EH of
+its exact irrevocable COMMIT before clearing its hold. COMMITTED attests to
+installation of that prepared candidate. Target remains inactive. Commit retains
+the freshness token installed at admission.
 
 ABORT is permitted only before source COMMIT. Source records that decision and
 its latest flag before output. Target OR-merges the flag and persists quarantine,
 terminal decision, and exact ABORTED before reply. Source persists its OR merge
-before resolving. A PREPARED target requires `previous_checked=true`.
+before resolving. A PREPARED target requires `previous_set_checked=true`.
 An unacknowledged HOLD instead uses ABORT_UNHELD with the original ST approval,
 independently of classification. No previous answer has run in that phase.
 Target accepts it only for an unseen admissible predecessor or the same HELD
@@ -259,8 +266,8 @@ updates accumulated during pause. Reapply ordinary freshness and chain-view
 gates. Rotation supplies no approvals, mystery, progress credit, or deadline
 extension. Abort or uncertainty leaves consent quarantined and withdrawal held.
 
-After COMMITTED, persist a resume gate bound to the current state token, initially
-without an expected packet. Older SAR duties remain separate. Preserve TxCommit
+After COMMITTED, persist a resume gate bound to the current freshness token,
+initially without an expected packet. Older SAR duties remain separate. Preserve TxCommit
 bytes and emit a fresh Ping at the next unused sequence carrying the flag.
 Persist the gate token, exact packet, and expected placeholder before sending.
 Recovery and retries reuse that record. Until its exact SAR receipt clears the
@@ -360,20 +367,21 @@ ST suffixes are `review_challenge`, `review_approval`, `previous_challenge`,
 approvals are signed under their specified domains; channel authentication
 protects other ST payloads.
 
-UI status uses a fresh ST-generated query nonce and `(attempt_nonce: bytes32)`.
-Source requires the retained journal's attempt nonce. It returns
-`(attempt_nonce: bytes32, result: u8, resume: UiResume)`, echoing the query nonce,
-with result 0 pending, 3 complete, or 4 aborted. Retire and replace only
-unconsumed challenges, durably supplying the fresh one inline. Pending cancellation
-uses present=true, phase 5, round 0, fresh cancellation nonce, and identity space
-as padding. Otherwise absent input has present=false, round and phase 0, zero
-nonce, and identity space 1–193; ST never displays padding.
+ST recovery uses a fresh ST-generated query nonce and
+`(consent_rotation_id: bytes32)`. Source requires the recorded rotation ID and
+returns `(consent_rotation_id: bytes32, result: u8, pending_input: PendingConsentInput)`,
+echoing the query nonce, with result 0 pending, 3 complete, or 4 aborted.
+Retire and replace only unconsumed challenges, durably supplying the fresh one
+inline. Pending cancellation uses `input_pending=true`, input step 5, enrollment
+round 0, a fresh cancellation nonce, and identity space as padding. Absent input
+has `input_pending=false`, enrollment round and input step 0, zero nonce, and
+identity space 1–193; ST never displays padding.
 
-Source retains up to eight accepted UI query digests in acceptance order and one
+Source retains up to eight accepted ST recovery query digests in acceptance order and one
 exact encrypted reply for the last query. Each attempt starts with an empty list
 and no reply. Compute each digest as
-`sha256(canonical_encode(consent_rotation_ui_status_with_nonce))` after verifying the
-ST channel and journal attempt nonce. The last query's duplicate returns that
+`sha256(canonical_encode(consent_rotation_st_recovery_request_with_nonce))`
+after verifying the ST channel and recorded rotation ID. The last query's duplicate returns that
 reply without writes or input replacement. A digest present earlier in the list
 is superseded and rejected without reply or state change. A fresh query requires
 a free slot; exhaustion rejects it while preserving the last query's exact retry.
@@ -388,20 +396,41 @@ an authenticated reply matching that attempt and echoing the query's nonce.
 After state loss or abandoning a query, ST uses a fresh nonce to recover current
 input or a terminal result.
 
-Journal phases are 0 HOLD_WAIT, 1 HELD, 2 PREVIOUS_PENDING, 3 ENROLLING,
+Rotation phases are 0 HOLD_WAIT, 1 HELD, 2 PREVIOUS_PENDING, 3 ENROLLING,
 4 PREPARE_WAIT, 5 PREPARED, 6 COMMIT_WAIT, 7 COMPLETE, 8 ABORT_WAIT, and 9 ABORTED.
 Target uses HELD, PREPARED, COMPLETE, and ABORTED; COMPLETE there is committed
 inactive. Resume and paired reset gates remain separate durable records.
 Invalid input preserves phase and flag. Prepared targets cannot decide from
 silence or timeout. Source decisions serialize against accepted ST responses.
 
-STATUS binds a fresh query nonce and EH of the request. Evidence kind is 0 none,
-1 COMMIT, 2 ABORT, 3 COMMITTED, 4 ABORTED, or 5 ABORT_UNHELD. Evidence is the
-canonical original encrypted message, or empty bytes for kind 0. Resolve it only
-through the ordinary decision or receipt handler; STATUS itself changes no
-authority or flag. Late evidence cannot overwrite a terminal decision, repeat
-a merge after reset, or affect a superseding attempt. Source COMPLETE requires
-retained COMMITTED evidence.
+Device recovery uses exact retained control envelopes through their ordinary
+handlers. RESUME returns the device's pending outbound control or ST envelope;
+an undecided prepared target returns its original PREPARED. First delivery in an
+expected active phase follows normal validation and atomic persistence. Exact
+recorded duplicates return the durable successor below without writes, new
+input, or flag merging. If no successor exists yet, keep the hold. Source may
+continue its ordinary decision step from durable PREPARED, persisting COMMIT or
+ABORT before transmission.
+
+| Received recorded envelope | Retained successor, when available |
+| --- | --- |
+| HOLD | HELD, or the terminal receipt |
+| HELD | Pending PREPARE, ABORT, or ABORT_UNHELD |
+| PREPARE | PREPARED, or the terminal receipt |
+| PREPARED | Recorded COMMIT or ABORT |
+| COMMIT | COMMITTED |
+| ABORT or ABORT_UNHELD | ABORTED |
+| FINISH | FINISHED |
+
+Replies retain their original request digests. Ordinary pairing, attempt, phase,
+and request-digest checks apply; FINISH uses its reset bindings above. Conflicting
+content is rejected. Once source records a decision, even a first late HELD or
+PREPARED matching its retained request can only retransmit that decision, without
+input, candidate changes, or flag merging. Receipt replay and timeout never
+choose a decision.
+Terminal receipts cannot overwrite a decision, repeat a merge after reset, or
+affect a superseding attempt. Superseded envelopes are stale. Source COMPLETE
+requires retained COMMITTED.
 
 Retain current control messages, response digests with cached successors, and
 last terminal decision and receipt. Before admitting a successor, compact
@@ -421,28 +450,25 @@ No observer-accessible status, logs, metrics, or diagnostics reveal classificati
 | --- | --- |
 | Enrollment rounds | 3; selection and two confirmations per round |
 | Automatic exact-delivery retries | 8 per object; exhaustion stalls and preserves state |
-| Fresh status queries | 8 per direction per attempt; 8 UI queries per attempt |
+| Fresh ST recovery queries | 8 per attempt |
 | ST recovery cache | At most 8 accepted query digests and one exact encrypted reply per attempt |
 | Control envelope maximum | 2,048 bytes, including FINISH |
-| Status evidence maximum | 2,048 bytes, one original envelope |
-| Status envelope maximum | 3,072 bytes |
 | ST envelope maximum | 1,536 bytes |
 | Transport frame | 4,096 bytes between devices, 2,048 for ST |
 | Decoded nesting depth | 12, including wrappers |
-| Journal reservation | Current and last terminal records, device-status reply caches, ST query digests and one reply, checkpoint, and paired reset record before admission |
+| Rotation storage reservation | Current and last terminal records, exact control successors, ST query digests and one reply, checkpoint, and paired reset record before admission |
 
-Device STATUS requesters reserve each query slot and exact request before sending;
-responders persist first acceptance and exact reply once. Duplicate device queries
-perform no additional write. UI recovery uses the single-reply rules above.
-Fresh-query budgets survive restart and never depend on the flag. Exhaustion
-preserves retained exact replies and decisions. Admitting a successor retires
-superseded input and the preceding attempt's UI digests and reply, then starts
-empty bounded caches.
+Automatic exact-delivery retry counters and ST query budgets survive restart and
+never depend on the flag. RESUME returns stored bytes without resetting budgets.
+Exhaustion preserves retained exact replies and decisions. Admitting a successor
+retires superseded input and the preceding attempt's ST digests and reply, then
+starts an empty bounded ST cache.
 
 Frames are `operation: u8 || envelope_length: uint16_be || envelope_bytes ||
 zero_bytes(frame_size - 3 - envelope_length)`. Device control selectors in table
-order are 1–13; ST selectors are 21–37 in suffix order. The selector determines
-the authenticated context and exact payload type. Framing enters no hash or
+order are 1–9, 12–13; 10–11 are reserved and rejected. ST selectors are 21–37 in
+suffix order. The selector determines the authenticated context and exact payload
+type. Framing enters no hash or
 signature. Reject nonzero padding, excess lengths, and depth before allocation.
 Canonical envelope shape must conceal classification even if relay padding is
 removed. Profile changes require a new version and authenticated admission.

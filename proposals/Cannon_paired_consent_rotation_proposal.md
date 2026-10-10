@@ -43,15 +43,15 @@ set; private enrollment remains necessary.
 | --- | --- |
 | `duress_consent_set` | Current committed five-country set; one candidate during rotation. |
 | `under_duress` | Durable Boolean, initially false; OR-merged until authorized withdrawal-end reset. |
-| `consent_state_token` | Shared random freshness token; consumed on every admitted attempt, including one that aborts. |
+| `consent_freshness_token` | Shared random freshness token; consumed on every admitted attempt, including one that aborts. |
 | `consent_quarantined` | Blocks withdrawal with the stored set while allowing rotation comparison and recovery. |
-| `rotation_journal` | Current approval, input phases and nonces, candidate, prepares, decision, and exact recovery messages. |
+| `consent_rotation_state` | Current approval, input steps and nonces, candidate, prepares, decision, and exact recovery messages. |
 | `paired_reset_pending` | Source records that a rotation flag was replicated; cleared after authenticated paired reset. |
 | `withdrawal_checkpoint` | Source-only pause state, signing and replay history, SAR duties, and resume gate. |
 
 Use atomic, rollback-resistant storage for the whole record. Random tokens do
-not protect a restored storage snapshot. Reserve bounded journal, checkpoint,
-reply-cache, and reset capacity before admission. Uncertain storage blocks
+not protect a restored storage snapshot. Reserve bounded storage for rotation,
+checkpoint, reply-cache, and reset records before admission. Uncertain storage blocks
 authority rather than discarding evidence.
 
 Existing authenticated setup fixes the peer, backup and ST identities. Boomlet
@@ -66,7 +66,7 @@ until authorized activation. Rotation requires no mnemonic or normal private key
 
 1. **Authorize and hold.** Niso relays encrypted messages. ST displays the setup
    and device pair from Boomlet's authenticated review, then explicitly signs a
-   fresh nonce-bound current state token. The approved review nonce identifies
+   fresh nonce-bound current freshness token. The approved review nonce identifies
    the attempt in subsequent messages.
    Boomlet verifies the retained pairing, ST signature, pending review and nonce,
    current token, withdrawal eligibility, and storage. It privately binds review
@@ -75,11 +75,12 @@ until authorized activation. Rotation requires no mnemonic or normal private key
    and pauses withdrawal, preserves accepted duress, sets quarantine and
    `paired_reset_pending`, and records HOLD before sending. Boomletwo verifies
    the approval, stored binding, inactive role, token, and terminal predecessor
-   journal, then consumes the token and persists HOLD. Boomlet consumes HELD and
+   record, then consumes the token and persists HOLD. Boomlet consumes HELD and
    OR-merges its flag before prompting.
 
-2. **Check the previous set.** A fresh ST challenge binds the approved attempt
-   nonce, phase, permutation, and prompt nonce. Boomlet accepts five valid distinct indices,
+2. **Check the previous set.** A fresh ST challenge binds the approved rotation
+   ID, input step, permutation, and prompt nonce. Boomlet accepts five valid
+   distinct indices,
    compares against its current set, and atomically persists answer consumption,
    the flag, and a uniform CONTINUE result. A mismatch proceeds without
    correctness feedback or extra prompts. Malformed or stale input stalls.
@@ -91,23 +92,24 @@ until authorized activation. Rotation requires no mnemonic or normal private key
    regardless of the flag. The candidate remains inactive.
 
 4. **Prepare.** Boomlet persists the candidate and PREPARE. Boomletwo verifies
-   the admitted attempt nonce and valid replacement, OR-merges the flag, and
-   durably stores that candidate and PREPARED. Boomlet verifies the exact request digest
-   and every field, permitting only a false-to-true flag merge, then persists
-   the same prepared candidate. Competing checks, signing, and pairing changes
-   remain held.
+   the admitted rotation ID and valid replacement, OR-merges the flag, and
+   durably stores that candidate and PREPARED. The receipt identifies the exact
+   PREPARE and merged flag. Boomlet verifies both, rejects a flag downgrade, and
+   persists the same candidate. Prepared candidates are immutable; further
+   country input, signing, and pairing changes remain held.
 
 5. **Commit.** After both durable prepares, Boomlet atomically installs the
-   candidate and records irrevocable COMMIT before sending. Boomletwo verifies
-   the prepared receipt and candidate digests, atomically installs the candidate,
-   clears consent quarantine, and stores COMMITTED. It remains inactive. Boomlet
-   releases its hold only after durably consuming that receipt. The consumed state
-   token remains current; completed predecessor and input material can be erased.
+   candidate and records irrevocable COMMIT before sending. COMMIT identifies
+   the exact PREPARED receipt. Boomletwo verifies it, atomically installs its
+   prepared candidate, clears consent quarantine, and stores COMMITTED identifying
+   the exact COMMIT. It remains inactive. Boomlet releases its hold only after
+   durably consuming that receipt. The freshness token installed at admission
+   remains current; completed predecessor and input material can be erased.
 
 Fresh requests must match the protected current token. Admitted messages use
-their journal's approved attempt nonce and phase. Terminal control duplicates
-recover cached results without prompts, writes, or repeated flag merging. A successor retires
-the preceding attempt's input and candidate records.
+their rotation record's approved rotation ID and rotation phase. Terminal control
+duplicates recover cached results without prompts, writes, or repeated flag
+merging. A successor retires the preceding attempt's input and candidate records.
 
 ## Withdrawal pause and flag reset
 
@@ -122,7 +124,7 @@ After COMMITTED, resume the checkpoint in place under ordinary freshness and
 chain-view gates. A fresh Ping at the next unused sequence carries the flag.
 Its exact SAR acknowledgment must be consumed before further counter credit,
 signing output, or fragment export. The resume gate is bound to the current
-state token; an earlier receipt cannot clear it. Neither receipt nor elapsed
+freshness token; an earlier receipt cannot clear it. Neither receipt nor elapsed
 time credits progress or extends a deadline. WT returns receipts after digging
 termination and refreshes reached evidence for ordinary signing revalidation.
 
@@ -155,10 +157,16 @@ quarantine and the flag.
 | Interruption | Required action |
 | --- | --- |
 | Wrong answer recorded before transfer | Recover the source flag; target stays held until prepare or authenticated abort transfers it. |
-| Target prepared, source decision unknown | Recover the durable decision; no unilateral timeout decision. |
+| Target prepared, source decision unknown | Retransmit exact PREPARED; source returns its recorded COMMIT or ABORT, otherwise both stay held. |
 | COMMIT or receipt lost | Retransmit exact COMMIT or recover COMMITTED; commit cannot become abort. |
 | Final SAR receipt or FINISHED lost | Retain the flag and exact delivery or reset record; retry without new input. |
 | Rollback, conflicting evidence, or permanent source loss | Block uncertain authority until current state and decision are independently proved. |
+
+Device recovery retransmits retained control envelopes through their ordinary
+handlers. Source RESUME returns its pending control message or ST input; target
+RESUME returns its latest receipt. Exact duplicates recover recorded successors
+without new input or repeated flag merging. Prepared devices never decide from
+timeout.
 
 ST recovery retains one exact encrypted reply and up to eight accepted query
 digests per attempt. The current query's retry returns that reply; superseded
@@ -167,9 +175,9 @@ its digest, reply, and any replacement challenge, preserving accepted answers,
 the flag, and decisions. ST accepts only replies matching its outstanding query
 nonce. The cache and query budget survive restart.
 
-Encrypt sets, flags, candidate digests, signatures, and receipts with SPEC's
+Encrypt sets, flags, signatures, and receipts with SPEC's
 directional CBC-CMAC channels. Verify authentication before decryption. Bind
-operations to setup, physical pair, token, input phase, and exact request.
+operations to setup, physical pair, token, input step, and exact request.
 Use fresh IVs for new envelopes and stored bytes for retries.
 
 Correct and wrong previous answers and either flag value MUST have identical
