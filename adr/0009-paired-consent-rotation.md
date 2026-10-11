@@ -1,4 +1,4 @@
-# ADR 0009. Paired Consent Rotation Through Two-Phase Commit
+# ADR 0009. Paired Consent Rotation With Durable Acknowledgment
 
 - **Status:** Proposed
 - **Recorded:** 2026-10-07
@@ -13,40 +13,41 @@ memorized answer, the existing descriptor, and service registrations.
 
 ## Decision
 
-Retain the unordered set of five distinct countries. Boomlet coordinates
-authenticated two-phase commit of the replacement set and duress flag with
-Boomletwo.
+Retain the unordered set of five distinct countries. Boomlet records an
+authenticated, irrevocable UPDATE installing the replacement and duress flag.
+Boomletwo installs the set, OR-merges the flag, and returns a signed, encrypted
+ACK bound to the exact UPDATE only after durable storage.
 
-Both devices durably prepare the same candidate before Boomlet records an
-irrevocable commit. Boomlet resumes withdrawal only after consuming Boomletwo's
-durable commit receipt. Unresolved participants remain held pending authenticated
-decision evidence.
+Both devices are held before the previous-set check. Trusted ST obtains that
+answer and two fresh enrollment confirmations. A valid mismatch durably sets
+duress before any reply and completes the same flow. Correct and wrong answers
+have identical observable behavior, with sets and duress encrypted.
 
-Trusted ST handles the previous-set check and two fresh enrollment confirmations.
-A valid mismatch durably sets duress before any reply and completes the same
-flow; devices OR-merge the flag. Correct and wrong answers have identical
-observable behavior, with sets and duress encrypted.
+Boomlet remains held until it durably consumes the ACK and required SAR receipt.
+Cancellation is permitted only before UPDATE is recorded. Lost messages recover
+through exact UPDATE and cached ACK retries.
 
 ## Rationale
 
-Paired commitment coordinates both stored copies without changing the user's
-consent method or adding an external freshness authority. Safety takes priority
-over availability when the decision is uncertain. Two-phase commit can block when
-its coordinator fails; this is an accepted cost
-([Gray and Lamport](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2003-96.pdf)).
+Boomlet makes the authorized replacement decision; the inactive backup stores
+it. Durable acknowledgment provides the evidence needed before withdrawal
+resumes, while keeping one current decision and its recovery messages.
+The hold prevents either device from acting on uncertain consent state.
+This preserves the existing interaction without an external freshness authority.
 
 ## Consequences
 
 Both devices must participate, and storing the secret twice increases correlated
-exposure. Recovery needs rollback-resistant state, bounded journals, and exact
-decision and receipt retries. Abort preserves quarantine and duress.
+exposure. Recovery requires rollback-resistant state and exact message retries.
+An unavailable backup blocks completion after UPDATE; Boomlet cannot roll back
+the installed replacement. Abort preserves quarantine and duress.
 
 Rotation may pause withdrawal during digging after commitment or in later phases,
-preserving progress, signing history, and SAR duties. Resumption requires the
-commit receipt and exact SAR acknowledgment. The duress flag survives correct
-answers until withdrawal end and acknowledged delivery, with paired reset when
-replicated; idle rotation carries it into the next withdrawal. Past sets are
-discarded, so later re-enrollment of an older exposed set remains possible.
+preserving progress, signing history, and SAR duties. Resumption requires ACK
+and exact SAR acknowledgment. The duress flag survives correct answers until
+withdrawal end and acknowledged delivery, with paired reset when replicated;
+idle rotation carries it into the next withdrawal. Past sets are discarded, so
+later re-enrollment of an older exposed set remains possible.
 
 Boomletwo stays inactive. Activation requires proof that the source can no
 longer act and the backup has the latest consent, replay, signing, and rescue
@@ -56,7 +57,7 @@ state.
 
 - **Enroll the same set separately on each device:** avoids transferring the set
   but repeats input and exposure opportunities; private equality checking still
-  cannot prove durable commitment.
+  cannot prove durable installation.
 - **Retire the backup before local rotation:** requires enforceable exclusion and
   leaves recovery without an eligible backup until replacement.
 - **Derive sets from a shared root and witnessed epoch:** adds an external

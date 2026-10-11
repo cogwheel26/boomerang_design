@@ -23,8 +23,8 @@ accidental retention, with consequences beyond consent maintenance.
 ## Decision
 
 Use Niso as an untrusted relay and authorize rotation with explicit signed ST
-approval of the exact nonce-bound current consent state token. Rotation requires
-no mnemonic, passphrase, or normal private key.
+approval of the exact nonce-bound current consent freshness token. Rotation
+requires no mnemonic, passphrase, or normal private key.
 
 Existing setup establishes the fixed pair through normal-key backup authorization,
 authenticated state transfer, and signed `BackupDone`
@@ -55,8 +55,8 @@ duress or blocking maintenance. Approval also cannot prove freedom from
 coercion.
 
 Trusted devices enforce freshness, withdrawal binding, resource limits, durable
-paired commitment, and SAR delivery despite a malicious Niso. Since backup
-provisioning copies Boomlet's identity private key, trusted applet roles must
+updates and acknowledgments, and SAR delivery despite a malicious Niso. Backup
+provisioning copies Boomlet's identity private key, so trusted applet roles must
 prevent the inactive backup from originating source messages. The previous-set
 check accepts valid wrong answers, transferring the duress flag to the
 backup without observable classification differences. Niso can interrupt
