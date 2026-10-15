@@ -1,4 +1,4 @@
-# ADR 0010. Niso-Relayed Consent Rotation With ST Approval
+# ADR 0009. Niso-Relayed Consent Rotation With ST Approval
 
 - **Status:** Proposed
 - **Recorded:** 2026-10-07

@@ -24,8 +24,8 @@ not override the specification.
 
 | ADR | Decision |
 | --- | --- |
-| [0009](0009-paired-consent-rotation.md) | Rotate the five-country consent set on Boomlet and Boomletwo through authenticated updates and durable acknowledgments. |
-| [0010](0010-niso-relayed-consent-rotation.md) | Relay consent rotation through Niso and authorize it with signed ST approval, keeping the mnemonic out of the ceremony. |
+| [0009](0009-niso-relayed-consent-rotation.md) | Relay consent rotation through Niso and authorize it with signed ST approval, keeping the mnemonic out of the ceremony. |
+| [0010](0010-consent-counter-display.md) | Display the consent counter during new set entry, authenticated completion, and Boomletwo's first activation consent query. |
 
 ## Status Values
 

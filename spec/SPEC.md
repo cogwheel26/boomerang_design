@@ -2425,6 +2425,11 @@ attempt and MUST satisfy the normal freshness requirements, including a fresh
 
 ### 18.3 Retry
 
+Retries and recovery MUST preserve the protocol's security and durability
+guarantees without repeating accepted state changes. Each message's retry policy
+governs duplicate handling. If safe recovery cannot be established, the actor
+MUST fail closed under Section 18.2.
+
 A retry MAY retransmit an identical authenticated object. It MUST NOT:
 
 - reuse a challenge nonce for a different challenge;

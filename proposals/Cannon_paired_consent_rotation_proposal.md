@@ -1,8 +1,8 @@
 # Paired consent rotation proposal
 
 [Complete sequence](Cannon_paired_consent_rotation_sequence.puml).
-Decisions are recorded in [ADR 0009](../adr/0009-paired-consent-rotation.md) and
-[ADR 0010](../adr/0010-niso-relayed-consent-rotation.md).
+Decisions are recorded in [ADR 0009](../adr/0009-niso-relayed-consent-rotation.md) and
+[ADR 0010](../adr/0010-consent-counter-display.md).
 
 These SPEC extensions remain proposed and unadopted. Encoding, signatures,
 directional channels, and CBC-CMAC follow SPEC Sections 8–9.
@@ -16,10 +16,10 @@ or `DIGGING`; a stalled withdrawal uses its retained phase. DIGGING includes
 waiting for other peers after reaching the local mystery threshold.
 
 The user enters the current set on ST to approve rotation, chooses the new set,
-and confirms the new set once. Boomlet sends Boomletwo one authenticated message
-containing ST approval, the chosen set, and the duress flag. Boomletwo saves the
-set and flag before confirming receipt. Boomlet requires that receipt before
-resuming consent or reporting completion.
+and confirms that selection. Boomlet sends Boomletwo one authenticated message
+containing ST approval, the chosen set, and the duress flag. Boomletwo durably
+saves the set and flag before confirming receipt. Boomlet requires that receipt
+before resuming consent or reporting completion.
 
 Every successful replacement MUST include the current-set check through trusted
 ST. A valid wrong answer MUST durably latch duress before any reply and continue
@@ -36,35 +36,46 @@ it. Subsequent commitments and Pings carry the key-bearing SAR placeholder while
 it is true. Idle duress carries into the next withdrawal. A valid mistaken answer
 can cause false duress.
 
-Confirmation must match the selected set and that set must differ from the
-current one. Cancellation, a valid confirmation mismatch, or selecting the
-current set leaves the set unchanged. These outcomes still send the current set
-and latched flag and require the same receipt. After receipt both devices agree
-and consent may resume, subject to the withdrawal's SAR resumption gate.
+ST immediately repeats confirmation until it matches the selected set. Install
+the confirmed set as a new consent state even when its countries equal the
+current set. Cancellation after admission sends the current set and latched flag
+and requires the same receipt. After receipt both devices agree and consent may
+resume, subject to the withdrawal's SAR resumption gate.
 
 Boomlet installs the chosen set when saving its outgoing message; Boomletwo
-installs it before replying. Erase the old set at installation. Keep no past sets
-or rotation count.
+installs it before replying. Erase the old set at installation. Keep no past sets.
 
 ## State and pairing
 
 | State | Meaning |
 | --- | --- |
-| `duress_consent_set` | Current set; one `new_consent_set` during input. |
+| `duress_consent_set` | Current set; ST holds the candidate during input. |
 | `under_duress` | Durable Boolean, initially false. |
-| `consent_token` | Shared 32-byte predecessor value that rejects replayed approvals. |
-| `rotation_state` | One attempt: ST approval, current stage and prompt, latest answer digest and exact successors, and exact device and terminal messages. |
+| `consent_counter` | Shared monotonic `u64` that rejects replayed approvals and resets. |
+| `rotation_state` | One attempt: ST approval, current stage and query, latest answer digest and successors, chosen outcome, exact device message, and ST completion reply once created. |
 
-Boomlet stages are `selection`, `confirmation`, `waiting_receipt`,
-and `complete`. Boomletwo retains its last accepted message and receipt.
-An incomplete source attempt pauses consent and any existing withdrawal.
+Boomlet stages are `new_set_input`, `waiting_receipt`, and `complete`.
+Boomletwo retains its last accepted message and receipt.
+The initial query and incomplete attempt pause Boomlet's consent operations and
+withdrawal.
 A completed attempt remains until the next admission or paired reset.
 
-All accepted state changes and exact outbound messages MUST be atomic and
-rollback-resistant before output. Reserve bounded space for one attempt, its
-recovery cache, and a paired reset. Keep reset receipts separately for retries.
-Derive `rotation_id` from the retained ST approval's nonce. Existing signing,
-replay, and rescue evidence remains in the withdrawal record.
+Follow SPEC Section 18.3 for crash recovery and retries. Reserve bounded space
+for one attempt, its recovery cache, and a paired reset. Keep reset receipts
+separately for retries.
+Increment the counter once per recorded rotation outcome, including identical
+countries and admitted cancellation, and once per paired reset. Confirmation
+retries and exact message retries never increment it. Existing signing, replay,
+and rescue evidence remains in the withdrawal record.
+
+During Boomlet's first setup, initialize `consent_counter := 0` and
+`under_duress := false`. Copy their current values to Boomletwo in setup's
+authenticated state transfer. On restart, load both from protected storage.
+Preserve the counter's monotonic value across restart, restore, setup changes,
+and re-pairing while identity keys are reused; missing or regressed state blocks
+that device's operations. Reinitialization requires fresh pair and ST identities.
+Reject overflow. Admission requires
+`consent_counter < 2^64 - 2`, reserving increments for both the outcome and reset.
 
 Use the pair established by setup's normal-key-authorized backup request,
 authenticated state transfer, and signed `BackupDone`. Boomlet retains the
@@ -80,107 +91,133 @@ Boomlet's flag, which Boomlet retains until reset.
 
 ## Current-set query and approval
 
-Provision the same random `consent_token` on both devices. Boomlet creates
-`consent_rotation_request_with_nonce`, a `MessageWithNonce<bytes32>` containing
-that token and a fresh nonce distinct from it, and one fresh permutation of 1–193.
-It sends both in the initial encrypted query:
+Boomlet generates `rotation_id := random_bytes(32)`, then creates
+`consent_rotation_request`, a `MessageWithNonce<u64>` containing
+the current `consent_counter` with `nonce: rotation_id`, and one fresh permutation
+of 1–193. It sends both in the initial encrypted query:
 
 ```text
 ConsentRotationChallenge = (
-  request: MessageWithNonce<bytes32>,
+  request: MessageWithNonce<u64>,
   duress_check_space: DuressCheckSpace
 )
 ConsentRotationAnswer = (
-  approval: SignedMessage<MessageWithNonce<bytes32>>,
+  approval: SignedMessage<MessageWithNonce<u64>>,
   duress_signal_index: DuressSignalIndex
 )
 ```
 
 ST authenticates Boomlet and displays “Change consent set. Enter current set to
-approve.” Submitting the five choices approves rotation. ST signs the request
-under `Boomerang/consent_rotation/v1/st_review` and encrypts approval and indices
-together. The approval's nonce binds that response and is `rotation_id`; retain
-it and the exact response before output. Boomletwo receives only approval, chosen
-set, and flag. No mnemonic, passphrase, or normal private key is needed.
+approve.” This prompt omits the counter. Submitting the five choices approves
+rotation. ST signs the request under `Boomerang/consent_rotation/v1/st_review`
+and encrypts approval and indices together. The approval uses `rotation_id` as
+its nonce to bind that response; retain the approved request and exact response
+before output. Boomletwo receives only approval, chosen set, and flag. No mnemonic,
+passphrase, or normal private key is needed.
 
 | Local selector | Command and input | Output |
 | --- | --- | --- |
 | 41 | BEGIN_ROTATION() | Encrypted `ConsentRotationChallenge`. |
-| 42 | SUBMIT_CURRENT_SET(first answer envelope) | New-set prompt or retained next message. |
 | 45 | RESUME() | Retained next message; Boomletwo returns its current receipt. |
 
-Selectors 43–44 are reserved; local commands supply no authority.
+Selectors 42–44 are reserved; local commands supply no authority.
 BEGIN_ROTATION requires an active source in IDLE or DIGGING, an available ST
-session, and no pending attempt, reset, or teardown. Retain one volatile query,
-exact envelope, and withdrawal binding; repeats return it. Withdrawal start,
-replacement, end, abandonment, or leaving DIGGING retires it. Loss before
-admission requires a fresh query and nonce.
+session, counter capacity for outcome and reset, and no pending attempt, reset,
+or teardown. Pause consent operations and the current withdrawal, preserving
+its binding and SAR duties. Retain one volatile query and exact envelope; repeats
+return it. Cancellation or query loss before admission releases this pause;
+query loss requires a fresh query and nonce.
 
-SUBMIT_CURRENT_SET rechecks those conditions, the ST signature, current
-predecessor, exact outstanding request, withdrawal binding, and five valid
-distinct indices. Resolve them using the retained permutation and compare all
-five countries. Atomically save approval, OR-latched duress, consumed response
-digest, exact selection prompt, and withdrawal pause before replying. Correct
-and valid wrong answers both authorize rotation. Invalid responses admit nothing.
-The predecessor token remains unchanged during input.
+On receiving the first ST answer, verify the ST signature, current counter,
+exact outstanding request, and five valid distinct indices. Resolve them using
+the retained permutation and compare all five countries. Atomically save approval,
+OR-latched duress, consumed response digest, exact new-set query, `new_set_input`,
+and continued withdrawal pause before replying. Correct and valid wrong answers both authorize
+rotation. Invalid responses admit nothing.
+The counter remains unchanged during input; the fresh nonce distinguishes queries
+at the same counter value.
 
 A retry matching the latest accepted digest returns the exact successor without
 reclassification. Earlier responses are stale; conflicting responses cannot
 replace an attempt. New admission requires any preceding attempt to be complete
-and no pending reset. Pairing or setup changes refresh the token and retire queries.
+and no pending reset. Pairing or setup changes retire queries.
 
 ## New set and confirmation
 
-Selection and confirmation use setup's `MessageWithNonce<DuressCheckSpace>`
-prompts and `MessageWithNonce<DuressSignalIndex>` answers, with `rotation_id` as
-nonce. Use one immutable prompt and fresh permutation per phase, and setup's
-five shuffled columns throughout. ST checks approved nonce and expected phase;
-Boomlet checks outstanding phase, nonce, and five valid distinct indices.
-Selection and confirmation never classify duress.
+Boomlet sends one `consent_set_query`, a
+`MessageWithNonce<DuressCheckSpace>` with `rotation_id` as nonce and one fresh
+permutation. ST authenticates the query and approved nonce, displays five
+independently shuffled columns, and holds the user's five distinct selected
+countries locally. It independently reshuffles the columns for confirmation and
+immediately repeats confirmation on mismatch, preserving that confirmation map.
 
-Consume each answer with its effects and exact successor; consume confirmation
-with the installed set and outgoing device message. Retain only the latest
-answer digest and successors. ST retains one display mapping and exact answer.
-Duplicate prompts preserve that mapping or return the cached answer; conflicting
-content fails. Recovery preserves the current permutation.
+Only after both entries match does ST send one `consent_set_answer`, a
+`MessageWithNonce<DuressSignalIndex>` with `rotation_id` as nonce. Its indices
+refer to the original query's permutation. Boomlet checks the outstanding
+`new_set_input` stage, nonce, and five valid distinct indices, resolves the final
+set, and installs it with the outgoing device message. It holds no candidate or
+confirmation stage during input. Selection and confirmation never classify
+duress; local mismatches leave Boomlet's counter, flag, and withdrawal pause intact.
+
+Matching the two entries relies on ST's trusted display and input implementation
+(SPEC Section 5.3). Boomlet validates the final authenticated answer but has no
+earlier entry against which to detect an otherwise valid ST encoding fault.
+
+After authenticating the new-set query for the approved `rotation_id`, ST derives
+`new_consent_counter := consent_rotation_request.content + 1` immediately before
+displaying the new-set selection screen. Boomlet releases that query only after
+durably admitting approval and OR-latching duress. Show the counter as pending during selection and
+confirmation, and as applied with the authenticated
+final result after Boomletwo's receipt. This counter applies to identical
+countries and cancellation too. Status and recovery follow the same restrictions
+and require an authenticated matching phase. Correct and valid wrong answers
+reach the same counter displays.
+
+Consume the final answer with the installed set and outgoing device message.
+Retain only the latest answer digest and successors. Duplicate queries preserve
+ST's current local entry and maps or return its exact final answer; conflicting
+content fails. ST records its final answer before output and freezes it thereafter.
+Before final emission, lost local input may restart selection and confirmation
+against authenticated pending status and the same query. If emission cannot be
+ruled out, recover the exact answer or cancel and finish the recorded outcome
+before starting a fresh rotation. Status alone cannot exclude an answer in transit.
 
 Cancellation uses `MessageWithNonce<u8>{content: 0, nonce: rotation_id}` under
 `cancel`, authenticated by ST's channel. Verify zero content and a matching
-outstanding query or input stage; serialize against the first response, later
-answers, and final message creation. Before admission, retire only the volatile
-query. After admission, send the unchanged set and latched flag. A saved outgoing
-device message is irrevocable; invalid messages preserve pending input.
+outstanding query or input stage; serialize against the current-set answer,
+confirmed new-set answer, and final message creation. Before admission, retire
+only the volatile query. After admission, send the unchanged set and latched flag.
+A saved outgoing device message is irrevocable; invalid messages preserve pending input.
 
-Save terminal `MessageWithNonce<u8>{content: 3 CHANGED or 4 UNCHANGED,
-nonce: rotation_id}` with the outgoing device message and release it after receipt.
-ST checks approved nonce and terminal context. Lost query state before admission
-requires a fresh first query. ST state loss after admission requires authenticated
-status before input or completion.
+Lost query state before admission requires a fresh first query; ST state loss
+after admission requires authenticated status before input or completion.
 
 ## Set delivery and receipt
 
 ```text
 ConsentSetChange = (
-  approval: SignedMessage<MessageWithNonce<bytes32>>,
+  approval: SignedMessage<MessageWithNonce<u64>>,
   duress_consent_set: list<u16>,
   under_duress: bool
 )
 ConsentReset = (
-  next_consent_token: bytes32,
+  consent_counter: u64,
   approved_withdrawal_id: bytes32,
   sar_receipt: CbcCmacEnvelope
 )
 ```
 
-A set is exactly five ascending, distinct integers in 1–193. The approval is
-signed by ST; its content is the predecessor token and its nonce identifies the
-attempt. The source signature attests to accepted input and the chosen outcome.
+Consent sets are unordered; comparisons ignore country order. Encode
+`ConsentSetChange.duress_consent_set` as exactly five ascending, distinct integers
+in 1–193. The approval is signed by ST; its content is the current counter and
+its nonce identifies the attempt. The source signature attests to accepted
+input and the chosen outcome.
 
 | Selector | Operation | Exact signed content |
 | --- | --- | --- |
 | 5 | `consent_set` | `ConsentSetChange`, including ST-signed approval. |
 | 6 | `consent_set_received` | SHA-256 of the exact consent-set envelope's canonical encoding. |
-| 12 | `reset` | `MessageWithNonce<ConsentReset>` with nonce `consent_token`. |
+| 12 | `reset` | `ConsentReset`, including the current counter. |
 | 13 | `reset_ack` | SHA-256 of the exact RESET envelope's canonical encoding. |
 
 Requests flow Boomlet to Boomletwo; receipts flow back. Identity signatures bind
@@ -188,21 +225,27 @@ the stated operation and protocol version. Both endpoints and their roles are
 bound by the paired directional channel; a receipt acknowledges the whole request,
 including its approval, set, and flag.
 
-Boomlet atomically installs the chosen set, advances `consent_token` to
-`rotation_id`, and saves the exact encrypted message, prepared ST terminal
-message, flag, and `waiting_receipt`. Erase prompts, candidate, and predecessor
-set; retain the latest answer digest for retries. Both outcomes use this sequence.
+Boomlet atomically installs the chosen set, increments `consent_counter` by one,
+and saves the exact encrypted message, fixed outcome (`rotated` or `cancelled`),
+flag, and `waiting_receipt`. Erase the query and predecessor
+set; retain the latest answer digest for retries. Completion and admitted
+cancellation use this sequence.
 
 Boomletwo verifies both signatures, the fixed pair, inactive role, valid set,
-available storage, and no pending reset. Require the approval's predecessor to
-equal its current `consent_token` and its nonce to differ from that token.
-Atomically install the set, OR-merge the flag, consume the predecessor by adopting
-the approval's nonce as `consent_token`, and save the exact request and receipt
-before output. Erase the predecessor set and remain inactive.
+available storage, and no pending reset. Require the approval's counter to equal
+its current `consent_counter`, with capacity for outcome and reset.
+Atomically install the set, OR-merge the flag, increment `consent_counter` by one,
+and save the exact request and receipt before output. Erase the predecessor set
+and remain inactive.
 
 Boomlet accepts a receipt only while `waiting_receipt`, from its paired backup,
-with the exact recorded envelope digest. Atomically retain it, enter `complete`,
-and create any paused withdrawal's SAR resumption gate.
+with the exact recorded envelope digest. Immediately before sending the ST
+acknowledgement, encrypt the existing `rotation_id: bytes32` under `completed`
+for a confirmed rotation or `cancelled` for admitted cancellation. Atomically
+save the receipt, `complete`, any paused withdrawal's SAR resumption gate, and
+the exact encrypted ST reply before output. Exact retries recover that reply.
+ST authenticates the context and requires the ID to match its approved rotation
+before displaying the outcome and applied counter.
 
 ## Withdrawal and reset
 
@@ -213,7 +256,7 @@ exact emitted messages and their SAR receipts. Retire unsent Pings without
 reusing reserved sequences, pending withdrawal input, and unconsumed Pong progress.
 
 After receipt, send a fresh next-sequence Ping carrying `under_duress`, retaining
-TxCommit. Persist a resumption gate bound to `consent_token`, that exact packet,
+TxCommit. Persist a resumption gate bound to `consent_counter`, that exact packet,
 and expected placeholder before output. Only its exact verified SAR receipt
 clears the gate. Preserve older duties and apply ordinary freshness and chain-view
 checks. Require fresh country input using the installed set. Keep local DIGGING
@@ -236,49 +279,56 @@ Abandonment before an approved withdrawal ID carries duress into the next withdr
 
 If an attempt record exists, require `complete` and perform paired RESET.
 Boomlet records withdrawal end, verified final SAR receipt, and exact RESET,
-retaining its flag. Boomletwo verifies the source signature, current-token nonce,
-distinct next token, inactive role, and a saved consent-set receipt. Using the
-restricted copied-source keys, verify the receipt's approved ID, SAR signer,
+retaining its flag and counter. RESET contains its current counter and is signed
+directly as `ConsentReset`. Boomletwo verifies the source signature, matching
+current counter with room to increment, inactive role, and a saved consent-set
+receipt. Using the restricted copied-source keys, verify the receipt's approved ID, SAR signer,
 context, and placeholder. Its plaintext must be zeros or `doxing_key_for_sar`;
 a true local flag requires the key-bearing value. The source signature attests
 to this exact final receipt for the ended withdrawal.
 
-Boomletwo atomically clears its flag and accepted consent-set record, installs
-the next token, and records exact RESET_ACK before output. Boomlet verifies the
-exact pending RESET digest, then atomically clears its flag and attempt, installs
-the next token from its own recorded RESET, and finishes teardown. Keep the reset
-receipt for read-only retries and preserve signing, replay, and rescue evidence.
+Boomletwo atomically clears its flag and accepted consent-set record, increments
+its counter by one, and records exact RESET_ACK before output. Boomlet verifies
+the exact pending RESET digest and that its counter still matches its recorded
+RESET, then atomically clears its flag and attempt, increments its counter by
+one, and finishes teardown. Keep the reset receipt for read-only retries and
+preserve signing, replay, and rescue evidence.
 With no attempt record, clear locally after final SAR delivery.
 Both flag values follow the same reset path. Rotation alone never clears duress.
 
 ## Recovery and activation
 
-RESUME returns retained bytes. Authenticate messages, then recognize exact
-recorded duplicates before fresh-state checks. An exact consent-set message
+RESUME returns retained bytes. An exact consent-set message
 returns its cached receipt without reinstalling or merging flags. An exact
-RESET returns cached RESET_ACK. Conflicting and superseded messages fail.
+RESET returns cached RESET_ACK.
 Old approvals, answers, device messages, and receipts cannot change another
 attempt or a flag after reset.
 
 | Interruption | Recovery |
 | --- | --- |
 | Before admission | A lost initial query requires a fresh nonce and current-set answer. |
-| After admission, during input | Current set and accepted duress remain; resume the pending prompt or cancel through ST. |
+| After admission, during input | Current set and accepted duress remain; recover the final ST answer, resume local entry if none was emitted, or cancel through ST. |
 | After source installs, before backup receives | Source has the chosen set, backup its predecessor; source stays paused. Retry the exact consent-set message. |
 | After backup saves, before source receives confirmation | Both have the chosen set; source stays paused. Retry the message to recover its cached receipt. |
 | During reset | Retry exact RESET; cached RESET_ACK cannot clear a later flag. |
 
-Niso stores no authoritative state. Restart recovers atomic records and wrong-answer
-duress. Timeout, invalid messages, or unavailable storage preserve the recorded
-stage. Permanent loss or rollback blocks uncertain authority.
+Niso stores no authoritative state. Restart recovers each device's atomic records
+and stored duress. Timeout, invalid messages, or unavailable storage preserve its
+recorded stage. Missing or regressed protected state blocks that device.
 
-Boomletwo remains inactive throughout rotation. Activation requires independently
-verified source exclusion and current consent, duress, signing, replay, and rescue
-state. Boomlet cannot release activation or retirement evidence while an attempt
-or SAR duty is unresolved. An old snapshot or consent-set receipt cannot prove
-that no later local duress or change exists. If current source state cannot be
-recovered, activation stays blocked, including after a crash during country input.
-This requirement precedes use of this draft; SPEC Section 18.5 leaves activation open.
+Boomletwo remains inactive during rotation. On activation it uses its own stored
+`duress_consent_set`, `consent_counter`, and `under_duress`. Its first consent query
+asks for the previous set through a fresh authenticated ST challenge that includes
+its counter. ST displays it through retries and recovery until that answer is
+durably accepted. Boomlet's current-set rotation query, ordinary withdrawal
+queries, and later backup consent queries omit the counter from display.
+Boomletwo checks the answer against its stored set and durably OR-latches a valid
+wrong answer before continuing. A correct answer preserves its stored flag.
+
+If the combined set-and-flag message was saved, use those values even if its ACK
+was lost; otherwise use the previous stored values. Activation can proceed with
+Boomlet permanently unavailable. Single-active-device protection and role
+transition remain separate activation requirements (SPEC Section 18.5).
 
 For ST recovery, ST sends `MessageWithNonce<bytes32>` containing its approved
 `rotation_id` and a fresh ST status nonce under `ui_status`. Boomlet verifies the
@@ -289,9 +339,9 @@ echoing the status nonce:
 RotationStatus = (status: u8, space: DuressCheckSpace)
 ```
 
-Status is 0 WAITING, 2 SELECTION, 3 CONFIRMATION, 4 CHANGED, or 5 UNCHANGED;
-1 is reserved. Input statuses carry the current permutation; others use the
-identity permutation as padding, which ST never displays. Input always uses
+Status is 0 WAITING, 2 NEW_SET_INPUT, 4 ROTATED, or 5 CANCELLED;
+1 and 3 are reserved. NEW_SET_INPUT carries the current permutation; others use
+the identity permutation as padding, which ST never displays. Input always uses
 the approved `rotation_id` as its nonce. Status requires a matching admitted
 attempt and follows the recorded stage and verified receipt; it never replaces
 a prompt or resumes consent. No matching attempt requires a fresh BEGIN_ROTATION,
@@ -310,18 +360,19 @@ Device signatures use `Boomerang/consent_rotation/v1/` plus the operation;
 encryption uses `canonical_encode("consent_rotation_" + operation, setup_instance_id)`.
 ST encryption uses `canonical_encode("consent_rotation_" + suffix)`.
 The approval signature uses its stated domain. The combined initial query and
-answer use dedicated `previous_challenge` and `previous_answer` contexts; ordinary
-withdrawal answers cannot authorize rotation. Other ST messages use channel
-authentication. ST selectors are 23 `previous_challenge`, 24 `previous_answer`,
-26 `selection_challenge`, 27 `selection_answer`, 28 `confirmation_challenge`,
-29 `confirmation_answer`,
-34 `cancel`, 35 `terminal_result`, 36 `ui_status`, and 37 `ui_status_response`.
-ST selectors 21–22, 25, and 30–33 are reserved. Device selectors 1–4 and 7–11
+answer use dedicated `current_set_challenge` and `current_set_answer` contexts;
+ordinary withdrawal answers cannot authorize rotation. Other ST messages use
+channel authentication. ST selectors are 23 `current_set_challenge`,
+24 `current_set_answer`,
+26 `new_set_query`, 27 `new_set_answer`,
+34 `cancel`, 35 `completed`, 36 `ui_status`, 37 `ui_status_response`, and
+38 `cancelled`. The `completed` and `cancelled` payloads are exactly `bytes32`.
+ST selectors 21–22, 25, and 28–33 are reserved. Device selectors 1–4 and 7–11
 are reserved.
 
 | Bound | Requirement |
 | --- | --- |
-| Input | Current set, new set, one confirmation; one prompt per phase and approved nonce. |
+| Input | One current-set answer and one confirmed new-set answer; selection and confirmation retries stay on ST. |
 | Automatic retries | Eight per object; preserve state on exhaustion. |
 | New ST status nonces | Eight per attempt; retain current reply on exhaustion. |
 | Envelopes | At most 2,048 bytes for devices, 1,536 for ST; nesting depth at most 12. |
