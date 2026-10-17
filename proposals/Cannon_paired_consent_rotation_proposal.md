@@ -123,8 +123,13 @@ passphrase, or normal private key is needed.
 Selectors 42–44 are reserved; local commands supply no authority.
 BEGIN_ROTATION requires an active source in IDLE or DIGGING, an available ST
 session, counter capacity for outcome and reset, and no pending attempt, reset,
-or teardown. Pause consent operations and the current withdrawal, preserving
-its binding and SAR duties. Retain one volatile query and exact envelope; repeats
+or teardown. In DIGGING, send any prepared Ping normally and service the request
+at the next iteration before its duress check and next Ping construction. If
+digging ends first, leave the request unperformed. IDLE requests start immediately.
+
+Rotation starts when Boomlet issues the initial ST challenge; generate it only
+at entry. Pause consent operations and the current withdrawal, preserving the
+iteration and SAR duties. Retain one volatile query and exact envelope; repeats
 return it. Cancellation or query loss before admission releases this pause;
 query loss requires a fresh query and nonce.
 
@@ -166,9 +171,9 @@ earlier entry against which to detect an otherwise valid ST encoding fault.
 After authenticating the new-set query for the approved `rotation_id`, ST derives
 `new_consent_counter := consent_rotation_request.content + 1` immediately before
 displaying the new-set selection screen. Boomlet releases that query only after
-durably admitting approval and OR-latching duress. Show the counter as pending during selection and
-confirmation, and as applied with the authenticated
-final result after Boomletwo's receipt. This counter applies to identical
+durably admitting approval and OR-latching duress. Show the counter as pending
+during selection and confirmation, and as applied with the authenticated final
+result after Boomletwo's receipt. This counter applies to identical
 countries and cancellation too. Status and recovery follow the same restrictions
 and require an authenticated matching phase. Correct and valid wrong answers
 reach the same counter displays.
@@ -245,23 +250,31 @@ for a confirmed rotation or `cancelled` for admitted cancellation. Atomically
 save the receipt, `complete`, any paused withdrawal's SAR resumption gate, and
 the exact encrypted ST reply before output. Exact retries recover that reply.
 ST authenticates the context and requires the ID to match its approved rotation
-before displaying the outcome and applied counter.
+before displaying the outcome and applied counter. For completion, admitted
+cancellation, or terminal recovery status, derive that counter from the retained
+approved `consent_rotation_request.content + 1`, even if selection was never
+displayed.
 
 ## Withdrawal and reset
 
 During DIGGING preserve the withdrawal's identifiers, approvals, phase, mystery,
-progress, signing history, replay state, and SAR duties. While paused, produce no
-new progress, withdrawal ST input, signing output, or fragment export. Process
-exact emitted messages and their SAR receipts. Retire unsent Pings without
-reusing reserved sequences, pending withdrawal input, and unconsumed Pong progress.
+progress, signing history, replay state, current iteration, and SAR duties.
+While paused, produce no new progress, withdrawal ST input, signing output, or
+fragment export. Continue handling emitted messages and their SAR receipts.
 
-After receipt, send a fresh next-sequence Ping carrying `under_duress`, retaining
-TxCommit. Persist a resumption gate bound to `consent_counter`, that exact packet,
-and expected placeholder before output. Only its exact verified SAR receipt
-clears the gate. Preserve older duties and apply ordinary freshness and chain-view
-checks. Require fresh country input using the installed set. Keep local DIGGING
-until this receipt, even if WT finishes meanwhile; rotation supplies no progress
-credit or deadline extension.
+After Boomletwo's receipt, resume the same iteration with fresh country input
+using the installed set. Durably OR-latch its result before constructing the
+next placeholder. Apply ordinary Pong processing once and send the next-sequence
+Ping carrying the resulting `under_duress`, retaining TxCommit. Persist a
+resumption gate bound to `consent_counter`, that exact packet, and expected
+placeholder before output. Its exact verified SAR receipt permits later iteration
+progress, signing, and export; an earlier Ping's receipt cannot clear the gate.
+Preserve older duties and ordinary freshness and chain-view checks.
+
+Once rotation has started, keep local DIGGING until this receipt, even if WT
+finishes meanwhile. Retain the reached collection for signing revalidation.
+Rotation supplies no progress credit or deadline extension. Both flag values
+follow this path.
 
 WT forwards each valid Ping's placeholder to the setup-bound SAR and relays
 `(approved_withdrawal_id,
@@ -306,10 +319,12 @@ attempt or a flag after reset.
 
 | Interruption | Recovery |
 | --- | --- |
+| Before DIGGING rotation starts | Send any prepared Ping normally; if digging ends before entry, leave the request unperformed. |
 | Before admission | A lost initial query requires a fresh nonce and current-set answer. |
 | After admission, during input | Current set and accepted duress remain; recover the final ST answer, resume local entry if none was emitted, or cancel through ST. |
 | After source installs, before backup receives | Source has the chosen set, backup its predecessor; source stays paused. Retry the exact consent-set message. |
 | After backup saves, before source receives confirmation | Both have the chosen set; source stays paused. Retry the message to recover its cached receipt. |
+| After backup receipt, before the next Ping's SAR receipt | Resume the saved iteration or retry its exact Ping; signing and export remain blocked, including after WT finishes. |
 | During reset | Retry exact RESET; cached RESET_ACK cannot clear a later flag. |
 
 Niso stores no authoritative state. Restart recovers each device's atomic records
