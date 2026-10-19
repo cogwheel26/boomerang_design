@@ -148,13 +148,38 @@
       "field_header_bytes": 2
     }
   ],
+  "tuple_constraints": [
+    {
+      "type": "tuple<SignedMessage<MessageWithNonce<u64>>, Collection<u16>, bool>",
+      "element": 1,
+      "exact_items": {
+        "constant": "duress_selection_count"
+      }
+    }
+  ],
   "context_rules": {
+    "ordered_tuple_content": {
+      "selector": "enclosing_protocol_context",
+      "variants": {
+        "ConsentRotationChallenge": "tuple<MessageWithNonce<u64>, DuressCheckSpace>",
+        "ConsentRotationAnswer": "tuple<SignedMessage<MessageWithNonce<u64>>, DuressSignalIndex>",
+        "ConsentSetChange": "tuple<SignedMessage<MessageWithNonce<u64>>, Collection<u16>, bool>",
+        "ConsentReset": "tuple<u64, bytes32, CbcCmacEnvelope<SignedMessage<CbcCmacEnvelope<bytes32>>>>",
+        "RotationStatus": "tuple<u8, DuressCheckSpace>"
+      },
+      "context_wrong_value": "reject"
+    },
     "signed_message_content": {
       "selector": [
         "SignedMessage.domain",
         "caller_expected_type"
       ],
       "variants": {
+        "Boomerang/consent_rotation/v1/st_review": "MessageWithNonce<u64>",
+        "Boomerang/consent_rotation/v1/consent_set": "tuple<SignedMessage<MessageWithNonce<u64>>, Collection<u16>, bool>",
+        "Boomerang/consent_rotation/v1/reset": "tuple<u64, bytes32, CbcCmacEnvelope<SignedMessage<CbcCmacEnvelope<bytes32>>>>",
+        "Boomerang/consent_rotation/v1/consent_set_received": "bytes32",
+        "Boomerang/consent_rotation/v1/reset_ack": "bytes32",
         "Boomerang/setup/peer_setup_record": "PeerSetupRecord",
         "Boomerang/setup/params_review_approval": "MessageWithNonce<bytes32>",
         "Boomerang/setup/agreement": "bytes32",
@@ -183,6 +208,12 @@
     "message_with_nonce_content": {
       "selector": "enclosing_protocol_context",
       "variants": {
+        "consent_rotation/request": "u64",
+        "consent_rotation/new_set_query": "DuressCheckSpace",
+        "consent_rotation/new_set_answer": "DuressSignalIndex",
+        "consent_rotation/cancel": "u8",
+        "consent_rotation/ui_status": "bytes32",
+        "consent_rotation/ui_status_response": "tuple<u8, DuressCheckSpace>",
         "setup/duress_challenge": "DuressCheckSpace",
         "setup/duress_response": "DuressSignalIndex",
         "setup/params_review": "bytes32",
@@ -229,6 +260,19 @@
     "selector": "cbc_cmac_context",
     "contexts_complete": true,
     "variants": {
+        "consent_rotation_consent_set": {"type": "SignedMessage<tuple<SignedMessage<MessageWithNonce<u64>>, Collection<u16>, bool>>", "signature_domain": "Boomerang/consent_rotation/v1/consent_set"},
+        "consent_rotation_consent_set_received": {"type": "SignedMessage<bytes32>", "signature_domain": "Boomerang/consent_rotation/v1/consent_set_received"},
+        "consent_rotation_reset": {"type": "SignedMessage<tuple<u64, bytes32, CbcCmacEnvelope<SignedMessage<CbcCmacEnvelope<bytes32>>>>>", "signature_domain": "Boomerang/consent_rotation/v1/reset"},
+        "consent_rotation_reset_ack": {"type": "SignedMessage<bytes32>", "signature_domain": "Boomerang/consent_rotation/v1/reset_ack"},
+        "consent_rotation_current_set_challenge": {"type": "tuple<MessageWithNonce<u64>, DuressCheckSpace>"},
+        "consent_rotation_current_set_answer": {"type": "tuple<SignedMessage<MessageWithNonce<u64>>, DuressSignalIndex>"},
+        "consent_rotation_new_set_query": {"type": "MessageWithNonce<DuressCheckSpace>"},
+        "consent_rotation_new_set_answer": {"type": "MessageWithNonce<DuressSignalIndex>"},
+        "consent_rotation_cancel": {"type": "MessageWithNonce<u8>"},
+        "consent_rotation_completed": {"type": "bytes32"},
+        "consent_rotation_cancelled": {"type": "bytes32"},
+        "consent_rotation_ui_status": {"type": "MessageWithNonce<bytes32>"},
+        "consent_rotation_ui_status_response": {"type": "MessageWithNonce<tuple<u8, DuressCheckSpace>>"},
       "backup_state": { "type": "BoomletBackupState" },
       "duress_challenge": { "type": "MessageWithNonce<DuressCheckSpace>" },
       "duress_response": { "type": "MessageWithNonce<DuressSignalIndex>" },
@@ -319,7 +363,7 @@
       "name": "DuressCheckSpace",
       "version": 1,
       "fields": [
-        { "id": 1, "name": "space", "type": "list<u16>", "required": true, "exact_items": { "constant": "duress_vocabulary_size" } }
+        { "id": 1, "name": "space", "type": "Collection<u16>", "required": true, "exact_items": { "constant": "duress_vocabulary_size" } }
       ]
     },
     {
@@ -418,8 +462,8 @@
       "name": "BoomerangParamsSeed",
       "version": 1,
       "fields": [
-        { "id": 1, "name": "ordered_peer_setup_records", "type": "list<SignedMessage<PeerSetupRecord>>", "required": true, "exact_items": { "constant": "peer_count" }, "ordering_rule": "boomlet_identity_pubkey_bytes" },
-        { "id": 2, "name": "wt_ids", "type": "list<WtId>", "required": true },
+        { "id": 1, "name": "ordered_peer_setup_records", "type": "Collection<SignedMessage<PeerSetupRecord>>", "required": true, "exact_items": { "constant": "peer_count" }, "ordering_rule": "boomlet_identity_pubkey_bytes" },
+        { "id": 2, "name": "wt_ids", "type": "Collection<WtId>", "required": true },
         { "id": 3, "name": "milestone_blocks", "type": "MilestoneBlocks", "required": true }
       ]
     },
@@ -429,8 +473,8 @@
       "version": 1,
       "fields": [
         { "id": 1, "name": "setup_instance_id", "type": "bytes32", "required": true },
-        { "id": 2, "name": "peer_ids", "type": "list<PeerId>", "required": true, "exact_items": { "constant": "peer_count" }, "ordering_rule": "corresponding_peer_setup_record_order" },
-        { "id": 3, "name": "wt_ids", "type": "list<WtId>", "required": true },
+        { "id": 2, "name": "peer_ids", "type": "Collection<PeerId>", "required": true, "exact_items": { "constant": "peer_count" }, "ordering_rule": "corresponding_peer_setup_record_order" },
+        { "id": 3, "name": "wt_ids", "type": "Collection<WtId>", "required": true },
         { "id": 4, "name": "milestone_blocks", "type": "MilestoneBlocks", "required": true },
         { "id": 5, "name": "boomerang_descriptor", "type": "text", "required": true, "text_profile": null }
       ]
@@ -499,13 +543,15 @@
         { "id": 8, "name": "tor_secret_key", "type": "bytes", "required": true },
         { "id": 9, "name": "selected_sar_id", "type": "SarId", "required": true },
         { "id": 10, "name": "doxing_key", "type": "bytes32", "required": true },
-        { "id": 11, "name": "duress_consent_set", "type": "list<u16>", "required": true, "exact_items": { "constant": "duress_selection_count" } },
+        { "id": 11, "name": "duress_consent_set", "type": "Collection<u16>", "required": true, "exact_items": { "constant": "duress_selection_count" } },
         { "id": 12, "name": "peer_setup_record_signed_by_boomlet", "type": "SignedMessage<PeerSetupRecord>", "required": true },
         { "id": 13, "name": "boomerang_params", "type": "BoomerangParams", "required": true },
         { "id": 14, "name": "setup_checkpoint", "type": "bytes32", "required": true },
         { "id": 15, "name": "sar_setup_response_signed_by_sar", "type": "SignedMessage<SarSetupResponse>", "required": true },
         { "id": 16, "name": "replay_state", "type": "value", "required": true, "context_rule": "boomlet_backup_replay_state" },
-        { "id": 17, "name": "backup_complete", "type": "bool", "required": true }
+        { "id": 17, "name": "backup_complete", "type": "bool", "required": true },
+        { "id": 18, "name": "consent_counter", "type": "u64", "required": true },
+        { "id": 19, "name": "under_duress", "type": "bool", "required": true }
       ]
     },
     {
@@ -554,7 +600,7 @@
       "fields": [
         { "id": 1, "name": "approved_withdrawal_id", "type": "bytes32", "required": true },
         { "id": 2, "name": "event_block_height", "type": "u32", "required": true },
-        { "id": 3, "name": "prev_pings", "type": "list<SignedMessage<Ping>>", "required": true, "exact_items": { "constant": "peer_count", "offset": -1 } }
+        { "id": 3, "name": "prev_pings", "type": "Collection<SignedMessage<Ping>>", "required": true, "exact_items": { "constant": "peer_count", "offset": -1 } }
       ]
     },
     {
@@ -562,7 +608,7 @@
       "name": "DuressSignalIndex",
       "version": 1,
       "fields": [
-        { "id": 1, "name": "indices", "type": "list<u16>", "required": true, "exact_items": { "constant": "duress_selection_count" } }
+        { "id": 1, "name": "indices", "type": "Collection<u16>", "required": true, "exact_items": { "constant": "duress_selection_count" } }
       ]
     },
     {

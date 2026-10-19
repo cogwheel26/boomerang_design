@@ -1,4 +1,4 @@
-# Self-contained Ping checks
+# Self-contained ping checks
 
 These finite checks evaluate the DIGGING threshold policies in
 [the proposal](boomlet_rollover.md). They assume a valid authenticated checkpoint
@@ -67,14 +67,14 @@ assert all(h[0] == observations for h in histories)
 assert len({(h[2], h[3]) for h in histories}) == 4
 print('BOUNDARY one packet observation fits four different security histories')
 
-# Exact checkpoint progress is not equivalent to Ping sequence. Each valid
-# no-advance Pong can produce another Ping without increasing the counter.
+# Exact checkpoint progress is not equivalent to ping sequence. Each valid
+# no-advance pong can produce another ping without increasing the counter.
 ping_sequence = 12
 counter = 3
 for _ in range(5):
     ping_sequence += 1
 assert ping_sequence == 17 and counter == 3
-print('BOUNDARY five additional Pings need not add any counter progress')
+print('BOUNDARY five additional pings need not add any counter progress')
 ```
 
 The threshold search covers positive uniform supports with upper bound at most

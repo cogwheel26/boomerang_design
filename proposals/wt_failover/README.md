@@ -81,7 +81,7 @@ Returning to a previously used WT creates a different head.
 
 Every state-advancing WT signature covers a tuple containing the active head
 and its protocol content. This includes transaction approval, commit
-acknowledgment, Pong, reached collection, and fragment or broadcast statements.
+acknowledgment, pong, reached collection, and fragment or broadcast statements.
 The expected signer comes from the stored active index. Immutable registration
 receipts remain setup facts and are checked separately from current authority.
 
@@ -99,7 +99,7 @@ content includes the head explicitly. Protocol version separates these signed
 shapes from other profiles.
 
 A receiver rejects a WT message with a different head, context, or signer.
-Peer-authored approvals, commits, Pings, and signed fragments remain WT-neutral.
+Peer-authored approvals, commits, pings, and signed fragments remain WT-neutral.
 A current submission requires the originating Boomlet's authenticated channel,
 or exact membership in that Boomlet's signed switch snapshot during reconstruction.
 A historical signature alone cannot authorize a current submission.
@@ -114,7 +114,7 @@ The designated Boomletwo and one-time backup remain governed by SPEC Section
 13.10. The target stays inactive, and public archives cannot authorize it.
 
 The [Boomletwo proposal](boomlet_rollover.md) evaluates self-contained DIGGING
-checkpoints encrypted to that same target and authenticated by existing Ping
+checkpoints encrypted to that same target and authenticated by existing ping
 signatures. It has no continuously online ST or backup requirement. The proposed
 mutable-state export cannot change private setup policy, select a different
 target or include secret MuSig2 nonces. Exact formats remain proposal work.
@@ -123,18 +123,18 @@ Backup activation must preserve exclusive authority and state after the supplied
 checkpoint. Source exclusion and later-state recovery remain unresolved; a
 checkpoint or peer report alone cannot enable signing or WT voting.
 
-### 3.4 Peer WT discovery and self-inclusive Pong
+### 3.4 Peer WT discovery and self-inclusive pong
 
 Boomletwo can authenticate existing `WtReady` content against the WT head in a
 source-signed checkpoint and derive that WT from the immutable roster. One
 matching record suffices without new peer votes. It identifies the checkpoint's
 WT; current authority still requires a justified decision history.
 
-A candidate Pong format carries all five signed Pings, including the recipient's
+A candidate pong format carries all five signed pings, including the recipient's
 own, while retaining its exact SAR acknowledgment separately. Normal Boomlet
-compares its own returned Ping with its retained bytes; recovery verifies the
+compares its own returned ping with its retained bytes; recovery verifies the
 source signature. The other-four freshness predicate is unchanged. WT can sign
-one shared Pong body, and detached recovery ciphertext avoids duplicating large
+one shared pong body, and detached recovery ciphertext avoids duplicating large
 private snapshots inside every collection. This candidate requires a complete
 version-selected wire definition before adoption.
 
@@ -164,7 +164,7 @@ freshness and milestone checks used throughout the ceremony.
 
 Resolve any live MuSig2 nonce under SPEC Section 15.13 before freezing; retain a
 produced fragment. Also finish and bind any required duress answer to its pending
-placeholder. If the corresponding commit or Ping cannot be formed, stall. Switch
+placeholder. If the corresponding commit or ping cannot be formed, stall. Switch
 preparation draws no new challenge and cannot erase an existing duty.
 
 Boomlet constructs a manifest containing:
@@ -174,8 +174,8 @@ Boomlet constructs a manifest containing:
 - exact local phase, relevant ceremony identifiers, and the conditional recovery
   policy in Section 7;
 - durable `digging_initialized` state;
-- for DIGGING and later phases, accepted-Pong status and height, inherited
-  predecessor height, current Ping digest and sequence, and public reached state;
+- for DIGGING and later phases, accepted-pong status and height, inherited
+  predecessor height, current ping digest and sequence, and public reached state;
 - a digest of the local resume package;
 - an explicit `NO_PLACEHOLDER` record or one exact outstanding placeholder
   commitment, including its approved ID, IV, padded-object digest, and gate
@@ -194,7 +194,7 @@ The resume package contains the public evidence needed for its phase:
 | Setup | Parameter agreement, completed checkpoint certificate, and pending local setup receipts |
 | No active withdrawal | Completed setup evidence and explicit absence of an active ceremony |
 | Pre-DIGGING | Reviewed transaction commitment, local authorization state, and exact committed artifacts or their authenticated retention references |
-| DIGGING | Accepted approval-set binding, local padded commit, current signed padded Ping, exact outstanding placeholder obligations, and accepted public progress summaries |
+| DIGGING | Accepted approval-set binding, local padded commit, current signed padded ping, exact outstanding placeholder obligations, and accepted public progress summaries |
 | Reached or signing | DIGGING evidence, reached collection, and signing-session disposition |
 | Fragment collection | Immutable fragment, transaction binding, and retained public progress evidence needed by peers still completing the withdrawal |
 
@@ -283,7 +283,7 @@ committed package and transports the exact placeholder to the setup-bound SAR.
 For an initiator commit the original complete approval set, exact WT approval,
 and all four matching approval-set attestations are required before routing.
 For a non-initiator commit, also retain its verified initiator acknowledgment.
-Retained Ping evidence binds the initialized withdrawal and current sequence.
+Retained ping evidence binds the initialized withdrawal and current sequence.
 The host cannot replace this gate evidence with a claimed phase. Missing gates
 stall preparation, including withdrawal closure.
 
@@ -361,7 +361,7 @@ retries, total admitted ballots, and durable transactions.
 PREPARE is provisional. Only five matching COMMIT signatures decide a value.
 Decision COMMIT has a separate domain and meaning from withdrawal `TxCommit`.
 It cannot substitute for transaction approval, a commit set, SAR acknowledgment,
-or Pong.
+or pong.
 
 ### 6.2 Certificates
 
@@ -598,38 +598,38 @@ be byte-identical to the committed packages and locally recorded authorization.
 
 No approval, duress answer, or new commit may be created through this exception.
 All SPEC checks remain mandatory except the two listed age checks. In particular,
-future-height, Ping, Pong, ST, signing-session, service, chain-safety and exact
+future-height, ping, pong, ST, signing-session, service, chain-safety and exact
 SAR-envelope checks receive no exception. Missing evidence stalls.
 
 ## 8. DIGGING continuation
 
-### 8.1 Outstanding obligations and recovery Ping
+### 8.1 Outstanding obligations and recovery ping
 
 Initial activation preparation discharges the frozen placeholder under Section
 5.2. Installation retains that discharge, including after candidate loss and
 decision recovery. An already acknowledged placeholder requires no replay.
-Recovery Pings create the next ordinary SAR obligation under the installed head.
+Recovery pings create the next ordinary SAR obligation under the installed head.
 
-A required duress challenge from an accepted ordinary Pong must finish before
-creating another Ping. Preserve these challenges and outstanding placeholder
+A required duress challenge from an accepted ordinary pong must finish before
+creating another ping. Preserve these challenges and outstanding placeholder
 records through cancellation and repeated switches. A newer safe placeholder
 cannot replace an unacknowledged duress placeholder.
 
-Each initialized Boomlet then creates at most one recovery Ping per new head
-without receiving another Pong first. It uses the next unused sequence, retained
+Each initialized Boomlet then creates at most one recovery ping per new head
+without receiving another pong first. It uses the next unused sequence, retained
 height and reached flag, and fresh placeholder encryption over current local
 plaintext. Persist the signed padded bytes and sequence update before export;
-a crash retransmits that same Ping. Waiting for prior acknowledgments prevents
+a crash retransmits that same ping. Waiting for prior acknowledgments prevents
 repeated switches from accumulating outstanding recovery placeholders.
 
-Recovery-Ping creation changes neither mystery, counter, nor local height and
+Recovery-ping creation changes neither mystery, counter, nor local height and
 draws no new duress challenge. A newly initialized lagging peer sends its normal
-initial Ping. Every other peer's recovery Ping is newer than anything it emitted
-before its snapshot froze, including after partial old-Pong delivery.
+initial ping. Every other peer's recovery ping is newer than anything it emitted
+before its snapshot froze, including after partial old-pong delivery.
 
-### 8.2 Pong spacing and validation
+### 8.2 pong spacing and validation
 
-The five manifests report accepted-Pong status, last accepted event height, and
+The five manifests report accepted-pong status, last accepted event height, and
 any inherited predecessor height. Each Boomlet checks its own report against
 durable state and derives the maximum reported predecessor height `F`.
 
@@ -639,21 +639,21 @@ first_new_pong.event_block_height >= F + MIN_PONG_SPACING_BLOCKS
 
 `F` is a predecessor height, not a next-eligible height; applying recovery
 repeatedly must not compound the same wait. Preserve it across a switch with no
-intervening accepted Pong and across cancellation. The first-Pong exemption
-applies only when every report says no accepted Pong, no inherited floor exists,
+intervening accepted pong and across cancellation. The first-pong exemption
+applies only when every report says no accepted pong, no inherited floor exists,
 and local state agrees. Unknown history or unsafe heights stalls. A malicious
 report cannot lower an honest peer's stored floor; inflated heights can cause
 denial of service and remain subject to chain checks.
 
-After enforcing this floor, validate and apply Pongs under SPEC Sections
+After enforcing this floor, validate and apply pongs under SPEC Sections
 15.8 through 15.10, with the installed head and exact outstanding SAR
-acknowledgment. Activation and recovery-Ping creation never increment counters.
+acknowledgment. Activation and recovery-ping creation never increment counters.
 A valid increment accepted before the freeze remains; peers that missed it
-invent none. Old-head Pongs cannot advance state.
+invent none. Old-head pongs cannot advance state.
 
 ### 8.3 Reached evidence
 
-The candidate obtains five fresh post-activation reached Pings, discharges their
+The candidate obtains five fresh post-activation reached pings, discharges their
 placeholders, and distributes a current-head SPEC reached collection with each
 recipient's exact acknowledgment. This also applies when all peers had reached
 before the switch.
@@ -672,7 +672,7 @@ turn a signing withdrawal into a restartable pre-DIGGING attempt.
 
 Boomlet atomically retains its exact fragment before export, together with the
 approved IDs, transaction commitment, initialized flag, signing disposition,
-current Ping and replay state, and pending security duties. Niso stores a copy
+current ping and replay state, and pending security duties. Niso stores a copy
 and forwards a Boomlet-authenticated current-head submission. A crash after
 export retransmits the same fragment; it never authorizes another signing pass.
 
@@ -695,9 +695,9 @@ An initialized peer that lacks the final transaction may use an authenticated
 holder's exact complete transaction to finish its ordinary validation, even if
 its installed head differs; transaction verification is WT-neutral. A closed
 peer supplies its immutable fragment and complete transaction evidence instead
-of creating a new Ping. If any honest peer still needs to sign, no valid complete
+of creating a new ping. If any honest peer still needs to sign, no valid complete
 transaction can exist, so every honest exported peer still retains the public
-state needed for fresh reached Pings.
+state needed for fresh reached pings.
 
 Four archive slots are reserved before admitting withdrawals. Retained local
 fragments survive later withdrawals and WT changes until permanent retirement
@@ -726,7 +726,7 @@ records and bounds. SPEC decoding and cross-profile rejection rules apply.
 
 Boomlet keeps the roster, active head and index, frozen local manifest, exact
 exported control statements, promised ballot, highest prepared certificate,
-final decision, recovery-Ping replay state, required ceremony secrets, and
+final decision, recovery-ping replay state, required ceremony secrets, and
 bounded tombstones. Persistent writes precede corresponding outputs.
 
 Niso retains public packages, vote collections, setup evidence, and fragments.
@@ -747,12 +747,12 @@ Protected caches apply only to identical artifacts in an unchanged frozen contex
 | Candidate readiness | One signed deterministic commitment |
 | Frozen obligation discharge | At most one exact SAR acknowledgment verification per Boomlet; reuse an already verified acknowledgment |
 | Recovery ballot | Up to one RECOVER, PREPARE, and COMMIT signature per peer, plus recovery-certificate verification |
-| DIGGING continuation | Up to five fresh padded Pings and SAR exchanges, plus unresolved placeholder replay |
+| DIGGING continuation | Up to five fresh padded pings and SAR exchanges, plus unresolved placeholder replay |
 | Pre-DIGGING closure | Existing intent and PREPARE carry closure authorization and discharge attestation |
 | New withdrawal after closure | Fresh transaction reviews, approvals, and commits |
 | Completion | Stream final transaction once and retain own immutable fragment; a WT receipt records dissemination |
 
-Each padded Ping has two Boomlet signatures. Certificate verification, hashing,
+Each padded ping has two Boomlet signatures. Certificate verification, hashing,
 encryption, channel operations, interface traffic, and durable writes add further
 cost. Bound and measure complete workloads, maximum package sizes, journal bytes,
 memory, latency, and write endurance on the intended hardware. Concrete admission
@@ -776,7 +776,7 @@ references abbreviate the common exchange defined in Sections 4 through 6.
 | [03_setup_failover.puml](03_setup_failover.puml) | Interrupted setup checkpoints and an idle completed setup |
 | [04_predigging_failover.puml](04_predigging_failover.puml) | Closure before any mystery initialization and selection of preservation for mixed states |
 | [05_mixed_digging_failover.puml](05_mixed_digging_failover.puml) | Exact commit handoff to lagging peers while initialized peers retain their delay |
-| [06_digging_failover.puml](06_digging_failover.puml) | Partial Pong delivery, outstanding placeholders, recovery Pings, spacing, and reached evidence |
+| [06_digging_failover.puml](06_digging_failover.puml) | Partial pong delivery, outstanding placeholders, recovery pings, spacing, and reached evidence |
 | [07_decision_recovery.puml](07_decision_recovery.puml) | Cancellation, higher promises, certificate selection, and candidate failure during a decision |
 | [08_signing_and_broadcast_failover.puml](08_signing_and_broadcast_failover.puml) | Ready-to-sign, live nonce handling, retained fragments, aggregation, and broadcast |
 

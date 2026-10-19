@@ -18,7 +18,7 @@ wire catalog still marks some context type registries as incomplete.
 | `BoomerangParams.peer_ids.item_count` | Required number of peer identities | 5 exact |
 | `BoomerangParams.wt_ids.item_count` | Maximum number of WT identities in the finalized parameters | 5 exact |
 | `BoomletBackupState.duress_consent_set.item_count` | Required number of selected country indices | 5 exact |
-| `Pong.prev_pings.item_count` | Required number of signed Pings from peers other than the recipient | 4 exact |
+| `Pong.prev_pings.item_count` | Required number of signed pings from peers other than the recipient | 4 exact |
 | `DuressSignalIndex.indices.item_count` | Required number of returned original-list indices | 5 exact |
 | `list.<context>.item_count` | Required or maximum item count for each protocol list that is selected by context rather than declared as a schema field | `OPEN` |
 
@@ -68,7 +68,7 @@ Each value includes the list tag, four-byte count, and all encoded items.
 | `BoomerangParams.peer_ids.max_encoded_bytes` | Maximum canonical size of the five peer identities | 570 exact |
 | `BoomerangParams.wt_ids.max_encoded_bytes` | Maximum canonical size of the finalized WT identity list | `OPEN` |
 | `BoomletBackupState.duress_consent_set.max_encoded_bytes` | Maximum canonical size of the five selected country indices | 20 exact |
-| `Pong.prev_pings.max_encoded_bytes` | Maximum canonical size of four signed Pings | 833 exact |
+| `Pong.prev_pings.max_encoded_bytes` | Maximum canonical size of four signed pings | 833 exact |
 | `DuressSignalIndex.indices.max_encoded_bytes` | Complete canonical size of five encoded indices | 20 exact |
 | `list.<context>.max_encoded_bytes` | Maximum canonical size of each protocol list that is selected by context rather than declared as a schema field | `OPEN` |
 
@@ -105,8 +105,8 @@ header, field IDs, and encoded field values.
 | 24 | `TxApproval.max_encoded_bytes` | Complete canonical size of a transaction approval | 84 exact |
 | 25 | `WtTxApproval.max_encoded_bytes` | Complete canonical size of a WT transaction approval | 49 exact |
 | 26 | `TxCommit.max_encoded_bytes` | Complete canonical size of a transaction commitment | 49 exact |
-| 27 | `Ping.max_encoded_bytes` | Complete canonical size of a Ping | 63 exact |
-| 28 | `Pong.max_encoded_bytes` | Maximum canonical size of a Pong | 884 exact |
+| 27 | `Ping.max_encoded_bytes` | Complete canonical size of a ping | 63 exact |
+| 28 | `Pong.max_encoded_bytes` | Maximum canonical size of a pong | 884 exact |
 | 29 | `DuressSignalIndex.max_encoded_bytes` | Complete canonical size of a returned duress selection | 29 exact |
 
 ## Context-selected field encoded sizes
@@ -251,7 +251,7 @@ do not add depth.
 | 25 | `WtTxApproval.max_nesting_depth` | Deepest valid path from this schema | 1 exact |
 | 26 | `TxCommit.max_nesting_depth` | Deepest valid path from this schema | 1 exact |
 | 27 | `Ping.max_nesting_depth` | Deepest valid path from this schema | 1 exact |
-| 28 | `Pong.max_nesting_depth` | Deepest valid path across registered signed Pings | 4 exact |
+| 28 | `Pong.max_nesting_depth` | Deepest valid path across registered signed pings | 4 exact |
 | 29 | `DuressSignalIndex.max_nesting_depth` | Deepest valid path through the five-index list | 2 exact |
 | N/A | `global.max_nesting_depth` | Deepest permitted path across every v1 canonical object and context | `OPEN`, at least 5 |
 

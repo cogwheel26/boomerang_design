@@ -1,10 +1,11 @@
 # Paired consent rotation proposal
 
 [Complete sequence](Cannon_paired_consent_rotation_sequence.puml).
+[Integrated sequence](../diagrams/ancillary/consent_rotation_diagram.puml).
 Decisions are recorded in [ADR 0009](../adr/0009-niso-relayed-consent-rotation.md) and
 [ADR 0010](../adr/0010-consent-counter-display.md).
 
-These SPEC extensions remain proposed and unadopted. Encoding, signatures,
+Adopted in [SPEC Section 16.7](../spec/SPEC.md#167-consent-rotation). Encoding, signatures,
 directional channels, and CBC-CMAC follow SPEC Sections 8–9.
 
 ## Behavior
@@ -22,7 +23,7 @@ saves the set and flag before confirming receipt. Boomlet requires that receipt
 before resuming consent or reporting completion.
 
 Every successful replacement MUST include the current-set check through trusted
-ST. A valid wrong answer MUST durably latch duress before any reply and continue
+ST. A valid wrong answer MUST set `under_duress` to true and persist it before any reply and continue
 through the same selection, confirmation, and delivery flow as a correct answer:
 
 ```text
@@ -32,13 +33,13 @@ user_is_in_duress := under_duress
 
 Correct answers, cancellation, confirmation, retries, restart, and further
 rotation cannot clear the flag. Wrong ordinary withdrawal answers can also set
-it. Subsequent commitments and Pings carry the key-bearing SAR placeholder while
+it. Subsequent commitments and pings carry the key-bearing SAR placeholder while
 it is true. Idle duress carries into the next withdrawal. A valid mistaken answer
 can cause false duress.
 
 ST immediately repeats confirmation until it matches the selected set. Install
 the confirmed set as a new consent state even when its countries equal the
-current set. Cancellation after admission sends the current set and latched flag
+current set. Cancellation after admission sends the current set and persisted flag
 and requires the same receipt. After receipt both devices agree and consent may
 resume, subject to the withdrawal's SAR resumption gate.
 
@@ -68,7 +69,7 @@ countries and admitted cancellation, and once per paired reset. Confirmation
 retries and exact message retries never increment it. Existing signing, replay,
 and rescue evidence remains in the withdrawal record.
 
-During Boomlet's first setup, initialize `consent_counter := 0` and
+First enrollment at setup Step 26 initializes `consent_counter := 0` and
 `under_duress := false`. Copy their current values to Boomletwo in setup's
 authenticated state transfer. On restart, load both from protected storage.
 Preserve the counter's monotonic value across restart, restore, setup changes,
@@ -80,7 +81,6 @@ Reject overflow. Admission requires
 Use the pair established by setup's normal-key-authorized backup request,
 authenticated state transfer, and signed `BackupDone`. Boomlet retains the
 backup public key; Boomletwo retains the setup, source, and ST identities.
-Require distinct source and backup keys, including x-only representations.
 Rotation cannot change those identities.
 
 Boomletwo signs replies with its original identity key. Its inactive applet
@@ -123,8 +123,8 @@ passphrase, or normal private key is needed.
 Selectors 42–44 are reserved; local commands supply no authority.
 BEGIN_ROTATION requires an active source in IDLE or DIGGING, an available ST
 session, counter capacity for outcome and reset, and no pending attempt, reset,
-or teardown. In DIGGING, send any prepared Ping normally and service the request
-at the next iteration before its duress check and next Ping construction. If
+or cleanup. In DIGGING, send any prepared ping normally and service the request
+at the next iteration before its duress check and next ping construction. If
 digging ends first, leave the request unperformed. IDLE requests start immediately.
 
 Rotation starts when Boomlet issues the initial ST challenge; generate it only
@@ -136,7 +136,7 @@ query loss requires a fresh query and nonce.
 On receiving the first ST answer, verify the ST signature, current counter,
 exact outstanding request, and five valid distinct indices. Resolve them using
 the retained permutation and compare all five countries. Atomically save approval,
-OR-latched duress, consumed response digest, exact new-set query, `new_set_input`,
+updated `under_duress`, consumed response digest, exact new-set query, `new_set_input`,
 and continued withdrawal pause before replying. Correct and valid wrong answers both authorize
 rotation. Invalid responses admit nothing.
 The counter remains unchanged during input; the fresh nonce distinguishes queries
@@ -171,7 +171,7 @@ earlier entry against which to detect an otherwise valid ST encoding fault.
 After authenticating the new-set query for the approved `rotation_id`, ST derives
 `new_consent_counter := consent_rotation_request.content + 1` immediately before
 displaying the new-set selection screen. Boomlet releases that query only after
-durably admitting approval and OR-latching duress. Show the counter as pending
+durably admitting approval and persisting updated `under_duress`. Show the counter as pending
 during selection and confirmation, and as applied with the authenticated final
 result after Boomletwo's receipt. This counter applies to identical
 countries and cancellation too. Status and recovery follow the same restrictions
@@ -191,7 +191,7 @@ Cancellation uses `MessageWithNonce<u8>{content: 0, nonce: rotation_id}` under
 `cancel`, authenticated by ST's channel. Verify zero content and a matching
 outstanding query or input stage; serialize against the current-set answer,
 confirmed new-set answer, and final message creation. Before admission, retire
-only the volatile query. After admission, send the unchanged set and latched flag.
+only the volatile query. After admission, send the unchanged set and persisted flag.
 A saved outgoing device message is irrevocable; invalid messages preserve pending input.
 
 Lost query state before admission requires a fresh first query; ST state loss
@@ -263,12 +263,12 @@ While paused, produce no new progress, withdrawal ST input, signing output, or
 fragment export. Continue handling emitted messages and their SAR receipts.
 
 After Boomletwo's receipt, resume the same iteration with fresh country input
-using the installed set. Durably OR-latch its result before constructing the
-next placeholder. Apply ordinary Pong processing once and send the next-sequence
-Ping carrying the resulting `under_duress`, retaining TxCommit. Persist a
+using the installed set. Update and persist `under_duress` using that input before constructing the
+next placeholder. Apply ordinary pong processing once and send the next-sequence
+ping carrying the resulting `under_duress`, retaining TxCommit. Persist a
 resumption gate bound to `consent_counter`, that exact packet, and expected
 placeholder before output. Its exact verified SAR receipt permits later iteration
-progress, signing, and export; an earlier Ping's receipt cannot clear the gate.
+progress, signing, and export; an earlier ping's receipt cannot clear the gate.
 Preserve older duties and ordinary freshness and chain-view checks.
 
 Once rotation has started, keep local DIGGING until this receipt, even if WT
@@ -276,17 +276,17 @@ finishes meanwhile. Retain the reached collection for signing revalidation.
 Rotation supplies no progress credit or deadline extension. Both flag values
 follow this path.
 
-WT forwards each valid Ping's placeholder to the setup-bound SAR and relays
+WT forwards each valid ping's placeholder to the setup-bound SAR and relays
 `(approved_withdrawal_id,
 duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0)` through Niso,
 including after digging. Verify the approved ID, SAR signer, context, and exact
 placeholder. After digging, WT replaces the source's reached evidence with its
-latest true Ping and redistributes it for signing revalidation. Receipts create
-no Pong, progress, or reopening of digging.
+latest true ping and redistributes it for signing revalidation. Receipts create
+no pong, progress, or reopening of digging.
 
-At withdrawal end freeze duress input and send a fresh final Ping for either
+At withdrawal end freeze duress input and send a fresh final ping for either
 flag value. Persist the packet and expected placeholder; require its exact SAR
-receipt before clearing the flag. WT retains delivery through teardown.
+receipt before clearing the flag. WT retains delivery through cleanup.
 Block new withdrawals and rotations until delivery and reset finish.
 Abandonment before an approved withdrawal ID carries duress into the next withdrawal.
 
@@ -304,7 +304,7 @@ Boomletwo atomically clears its flag and accepted consent-set record, increments
 its counter by one, and records exact RESET_ACK before output. Boomlet verifies
 the exact pending RESET digest and that its counter still matches its recorded
 RESET, then atomically clears its flag and attempt, increments its counter by
-one, and finishes teardown. Keep the reset receipt for read-only retries and
+one, and finishes cleanup. Keep the reset receipt for read-only retries and
 preserve signing, replay, and rescue evidence.
 With no attempt record, clear locally after final SAR delivery.
 Both flag values follow the same reset path. Rotation alone never clears duress.
@@ -319,12 +319,12 @@ attempt or a flag after reset.
 
 | Interruption | Recovery |
 | --- | --- |
-| Before DIGGING rotation starts | Send any prepared Ping normally; if digging ends before entry, leave the request unperformed. |
+| Before DIGGING rotation starts | Send any prepared ping normally; if digging ends before entry, leave the request unperformed. |
 | Before admission | A lost initial query requires a fresh nonce and current-set answer. |
 | After admission, during input | Current set and accepted duress remain; recover the final ST answer, resume local entry if none was emitted, or cancel through ST. |
 | After source installs, before backup receives | Source has the chosen set, backup its predecessor; source stays paused. Retry the exact consent-set message. |
 | After backup saves, before source receives confirmation | Both have the chosen set; source stays paused. Retry the message to recover its cached receipt. |
-| After backup receipt, before the next Ping's SAR receipt | Resume the saved iteration or retry its exact Ping; signing and export remain blocked, including after WT finishes. |
+| After backup receipt, before the next ping's SAR receipt | Resume the saved iteration or retry its exact ping; signing and export remain blocked, including after WT finishes. |
 | During reset | Retry exact RESET; cached RESET_ACK cannot clear a later flag. |
 
 Niso stores no authoritative state. Restart recovers each device's atomic records
@@ -337,7 +337,7 @@ asks for the previous set through a fresh authenticated ST challenge that includ
 its counter. ST displays it through retries and recovery until that answer is
 durably accepted. Boomlet's current-set rotation query, ordinary withdrawal
 queries, and later backup consent queries omit the counter from display.
-Boomletwo checks the answer against its stored set and durably OR-latches a valid
+Boomletwo checks the answer against its stored set and sets `under_duress` to true and persists it for a valid
 wrong answer before continuing. A correct answer preserves its stored flag.
 
 If the combined set-and-flag message was saved, use those values even if its ACK

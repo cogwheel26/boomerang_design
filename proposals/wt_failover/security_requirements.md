@@ -22,12 +22,12 @@ The originating Boomlet retains its fragment until permanent setup retirement.
 External storage receipts authorize no cleanup. Profile limits bound load but can
 reduce availability, and repeated switches expose service and timing metadata.
 
-### Self-contained Ping recovery
+### Self-contained ping recovery
 
 The [Boomletwo candidate](boomlet_rollover.md) keeps the designated backup
-offline. Its checkpoint proves state at one Ping, not current state or source
+offline. Its checkpoint proves state at one ping, not current state or source
 exclusion. Recovery cannot lower the remaining progress floor, replay historical
-Pongs or bypass inherited protocol gates.
+pongs or bypass inherited protocol gates.
 
 ### Chain observation and recovery limits
 

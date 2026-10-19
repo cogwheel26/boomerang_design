@@ -40,7 +40,7 @@ else Coordination is needed for signing or fragment collection
     alt This peer still needs a signature
       ref over B,C
         06_digging_failover.puml
-        Use the obligation and recovery-Ping portions\nto obtain five fresh reached Pings under the installed head.
+        Use the obligation and recovery-ping portions\nto obtain five fresh reached pings under the installed head.
       end ref
       C -> B: Current-head reached collection
       N -> B: Hydrated PSBT for the same approved transaction

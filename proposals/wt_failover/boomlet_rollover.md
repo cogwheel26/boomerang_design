@@ -1,6 +1,6 @@
-# Boomletwo recovery from self-contained Pings
+# Boomletwo recovery from self-contained pings
 
-A self-contained Ping can carry the state needed to interpret and resume a
+A self-contained ping can carry the state needed to interpret and resume a
 DIGGING checkpoint. Boomletwo can remain offline while peers, WT and Niso retain
 the packet. ST participates in its ordinary user interactions and an eventual
 recovery review, with no continuous recording duty.
@@ -13,8 +13,8 @@ does not authorize activation. Recovery assumes no source cooperation.
 ## High-level flow
 
 1. Encrypt a bounded recovery checkpoint to the designated Boomletwo and bind it
-   into an ordinary signed Ping.
-2. Have Niso, WT and peers retain the Ping bundle while normal DIGGING continues.
+   into an ordinary signed ping.
+2. Have Niso, WT and peers retain the ping bundle while normal DIGGING continues.
 3. After source loss, verify the checkpoint, setup binding, SAR duty and recorded WT head.
 4. Establish source exclusion and account for later security state before enabling recovery.
 5. Restore progress under a conservative threshold and resume ordinary protocol gates;
@@ -25,19 +25,19 @@ does not authorize activation. Recovery assumes no source cooperation.
 The SPEC Section 13.10 backup fixes the only eligible Boomletwo and immutable
 setup policy. Recovery cannot select another target or change that policy.
 
-A recovery-capable Ping bundle contains:
+A recovery-capable ping bundle contains:
 
-- the ordinary Ping header and exact encrypted SAR placeholder;
+- the ordinary ping header and exact encrypted SAR placeholder;
 - a bounded checkpoint encrypted and authenticated directly to the designated
   Boomletwo under the SPEC cryptographic profile;
-- a commitment to that ciphertext inside the Ping's existing signed content.
+- a commitment to that ciphertext inside the ping's existing signed content.
 
 The ciphertext is a detached part of the same bundle. The commitment lets peers
-forward the signed Ping without copying a large private checkpoint into every
+forward the signed ping without copying a large private checkpoint into every
 collection. The bundle itself includes the bytes, not only a URL or hash. Any
 holder can supply it, but no holder gains recovery authority.
 
-Bind the encryption to the profile, setup, target, approved withdrawal ID, Ping
+Bind the encryption to the profile, setup, target, approved withdrawal ID, ping
 sequence and checkpoint format. The header, checkpoint and placeholder must
 agree. Apply SPEC IV and retry rules, and authenticate retained ciphertext before
 decryption.
@@ -47,10 +47,10 @@ if the selected delay policy uses it, reached flag, height and spacing floors,
 peer sequence and reached-state checks, active WT head and index, exact current
 SAR duty, accepted duress state and required challenge state. It also binds the
 approved transaction and the evidence needed for its current phase. All private
-fields stay encrypted. A Ping sequence is not a counter: valid no-advance Pongs
-still generate Pings in the base protocol.
+fields stay encrypted. A ping sequence is not a counter: valid no-advance pongs
+still generate pings in the base protocol.
 
-Construct the new placeholder and the checkpoint before signing the Ping. The
+Construct the new placeholder and the checkpoint before signing the ping. The
 checkpoint represents the state associated with that output, with explicit next
 sequence and pending acknowledgment. It must not embed the signature, ciphertext
 or digest of the complete packet containing itself. Required header fields and
@@ -58,28 +58,28 @@ placeholder bytes provide the binding without a recursive hash definition.
 Store only bounded state and references to supplied evidence, not nested earlier
 checkpoint packets. Exact field layout and size limits remain conformance work.
 
-The Ping signature covers the added commitment. Its WT-neutral recovery context
+The ping signature covers the added commitment. Its WT-neutral recovery context
 survives a WT change; current authority still requires the head-bound WT checks.
 
-## 2. Including the recipient's own Ping in Pong
+## 2. Including the recipient's own ping in pong
 
-If “self-inclusive” also means returning a peer's own Ping to it, the Pong can
-contain one ordered collection of all five signed Pings. WT can sign that common
-Pong content once, while recipient encryption and each recipient's exact SAR
+If “self-inclusive” also means returning a peer's own ping to it, the pong can
+contain one ordered collection of all five signed pings. WT can sign that common
+pong content once, while recipient encryption and each recipient's exact SAR
 acknowledgment remain separate. This is a proposed change from the base's five
-recipient-specific four-Ping collections.
+recipient-specific four-ping collections.
 
-Require exactly one Ping from each setup peer in canonical peer order, including
+Require exactly one ping from each setup peer in canonical peer order, including
 the recipient in its own slot. Missing, repeated or substituted identities fail.
 
-Boomlet compares its own returned Ping with retained bytes. Boomletwo instead
+Boomlet compares its own returned ping with retained bytes. Boomletwo instead
 verifies the source signature and checkpoint binding. SPEC validation applies to
-the other four Pings.
+the other four pings.
 
-Counter advancement still tests only the other four peers. An old self Ping and
-historical Pong earn no new increment. Exact SAR discharge remains mandatory.
+Counter advancement still tests only the other four peers. An old self ping and
+historical pong earn no new increment. Exact SAR discharge remains mandatory.
 
-The change saves common WT signing work but adds an own-Ping header to each
+The change saves common WT signing work but adds an own-ping header to each
 recipient's collection. Detached checkpoints avoid multiplying private-state
 payloads across those collections. These are proposed wire changes, requiring
 consistent version-selected handlers; they cannot be mixed with the base shape.
@@ -125,29 +125,29 @@ value or whether a candidate draw would finish early.
 An authenticated reached checkpoint proves that the old threshold was met at
 that point. It does not prove that later rescue duties are absent or authorize
 signing by itself. A new delay must not silently regress an already published
-reached flag in the same Ping stream; any such policy needs explicit incarnation
+reached flag in the same ping stream; any such policy needs explicit incarnation
 semantics. The formulas above apply to an unreached checkpoint.
 
 Starting a fresh counter at zero neither preserves the realized delay nor solves
 authority or obligation recovery. No threshold policy completes activation.
 
-## 4. What a saved Ping proves
+## 4. What a saved ping proves
 
 | Claim | Supported by a valid packet? |
 | --- | --- |
 | The designated source authenticated these bytes for this setup and withdrawal | Yes, under its signature and encryption checks |
 | The source had accepted at least the checkpoint's recorded progress | Yes, under the base honest-device assumption |
 | This packet names the WT head at that checkpoint | Yes |
-| This is the last Ping or the currently installed WT head | No |
+| This is the last ping or the currently installed WT head | No |
 | No later duress challenge, placeholder, vote or signing output exists | No |
 | The source is destroyed or unable to continue | No |
 
 A signed packet authenticates one snapshot. It cannot turn missing duties,
 tombstones or votes into harmless lost progress.
 
-For example, the host may retain a safe checkpoint, suppress a later Ping with
+For example, the host may retain a safe checkpoint, suppress a later ping with
 an undelivered duress placeholder, and present the safe checkpoint at recovery.
-The source could also have emitted a WT COMMIT after its last Ping; four peers
+The source could also have emitted a WT COMMIT after its last ping; four peers
 can conceal that vote and its final certificate. Recovering “no pending vote”
 from the old packet could then create a conflicting decision.
 
@@ -179,7 +179,7 @@ not their completeness or truthfulness. When the lost device belonged to the
 only honest peer, every survivor can lie. Discovery cannot supply the missing
 source vote or establish exclusive activation.
 
-## 6. Activation requirements beyond the Ping
+## 6. Activation requirements beyond the ping
 
 Source-loss handling must remain safe when the original is isolated rather than
 destroyed. A new incarnation or peer promise cannot fence it. The threshold
@@ -194,8 +194,8 @@ Before enabling signing or WT voting on Boomletwo, a complete design must supply
 - one-time activation, replay protection and fresh local signing nonces;
 - all inherited protocol gates, chain assumptions and a conservative progress floor.
 
-Historical Pongs cannot be replayed to earn fresh progress. Recovery must not
-convert offline elapsed time, Ping count, checkpoint selection or speculative
+Historical pongs cannot be replayed to earn fresh progress. Recovery must not
+convert offline elapsed time, ping count, checkpoint selection or speculative
 height catch-up into extra counter increments. The exact fresh-progress and
 incarnation rules require specification before using the numerical delay bound
 as a claim about elapsed time. The base authenticated-chain issue remains open.
@@ -206,8 +206,8 @@ activation command is authorized solely by a checkpoint or peer reports.
 ## 7. Cost and verification
 
 The candidate adds one bounded private-state encryption and signed commitment
-to a Ping, with no extra source signature. A full five-Ping Pong can share its
-WT signature across recipients. Normal Boomlet self-Ping validation can use
+to a ping, with no extra source signature. A full five-ping pong can share its
+WT signature across recipients. Normal Boomlet self-ping validation can use
 exact retained-byte comparison; recovery performs source verification and one
 checkpoint decryption. ST has no recurring recording role, and Boomletwo has no
 normal-operation power or connectivity requirement.

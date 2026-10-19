@@ -646,15 +646,14 @@ revalidates descriptor membership, transaction identity, and
 Boomlet to Iso. Iso reconstructs the normal key, verifies its local signing
 package, and completes the peer's MuSig2 signature with the Boomlet under BIP327
 nonce discipline. Back on Niso, the Boomlet exports the signed fragment and
-clears all active withdrawal state, including the `mystery`; WT aggregates the
+finishes cleanup after final SAR delivery and any paired reset; WT aggregates the
 five fragments, verifies the complete transaction, and broadcasts the exact
 `tx_id` committed by the approved withdrawal.
 
 Any invalid signature, identity, context, sequence, height relation, or
 transition stalls the active ceremony while retaining its bindings. A retry
 may retransmit an identical authenticated object; it may not repurpose
-nonces, IVs, sequences, or signing secrets. Explicit abandonment clears
-volatile attempt state while retaining long-lived state and replay memory
+nonces, IVs, sequences, or signing secrets. Explicit abandonment clears volatile state while retaining long-lived state and replay memory
 ([SPEC §17–18](spec/SPEC.md)).
 
 Fallback provides eventual access to funds but introduces forced determinism.
@@ -679,8 +678,8 @@ renders the vocabulary in five
 independently shuffled columns, and the user selects one entry per column
 ([SPEC §16.2](spec/SPEC.md)). The Boomlet rejects stale nonces, duplicate
 responses, wrong counts, duplicate indices, and out-of-range indices; among
-structurally valid answers, equality with the consent set means safe, and any
-other five-element set means duress.
+structurally valid answers, a wrong set durably sets `under_duress` to true.
+Correct later answers preserve it.
 
 ST is a battery-powered, air-gapped trusted display-and-input device that uses
 QR transport and has a deliberately small display
@@ -691,7 +690,7 @@ selection. An attacker who learns it can force later checks to evaluate as
 safe. Protocol-traffic concealment does not provide physical privacy.
 
 Both answers produce the same artifact. The `placeholder` plaintext is 32 zero
-bytes when safe or `doxing_key_for_sar` when duress, freshly encrypted
+bytes if `under_duress` is false or `doxing_key_for_sar` otherwise, freshly encrypted
 for the setup-bound SAR under a context bound to `approved_withdrawal_id`
 ([SPEC §16.3](spec/SPEC.md)). Because that identifier transitively binds the
 withdrawal and setup instance, a `placeholder` cannot be replayed across

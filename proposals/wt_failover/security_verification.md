@@ -12,7 +12,7 @@ latest-state recovery, source exclusion or real chain progress.
 | SV-02 | Medium | Cached signature validation does not bound repeated copying and decoding | Checkpoint schema, padding, retained-byte limits and recovery admission remain conformance work; experimental capsule budgets are not current limits |
 | SV-03 | High | Colluding Niso, WT and four peers can report increasing fictitious heights | Open blocker for the real-chain delay guarantee; authenticated chain observation is required |
 | SV-04 | Medium | Honest peers can lock different five-intent combinations and prevent completion | Explicit availability and forced-fallback risk; discarding locks would weaken decision safety |
-| SV-05 | Medium | Checkpoint format, self-inclusive Pong dispatch and activation safeguards are not implementation-ready | Open conformance blocker; exact schemas, rejection rules, resource costs and independent vectors are required |
+| SV-05 | Medium | Checkpoint format, self-inclusive pong dispatch and activation safeguards are not implementation-ready | Open conformance blocker; exact schemas, rejection rules, resource costs and independent vectors are required |
 | SV-06 | Critical | A replacement path can preserve key exclusivity while weakening backup availability, private policy or coercion resistance | Preserve the designated backup and ordinary gates; independent redraw needs a conservative floor, while later-state recovery and source exclusion remain unresolved |
 
 ## Checkpoint security review
@@ -21,7 +21,7 @@ The candidate stays within SPEC Section 18.5's designated backup boundary. The
 [finite checks](boomlet_rollover_model.md) verify both conservative threshold
 policies and reproduce the unsafe raw redraw. They also show that one authentic
 checkpoint fits histories with a later duty, hidden COMMIT or usable source.
-Historical Pongs, Ping counts and offline time earn no progress. Exclusion and
+Historical pongs, ping counts and offline time earn no progress. Exclusion and
 complete-state recovery remain prerequisites for signing or WT voting.
 
 ## WT security argument
@@ -67,7 +67,7 @@ Collision resistance binds existing `WtReady` content to the checkpoint's WT
 head, setup, predecessor, switch and roster index. Any holder can supply those
 bytes. This authenticates the WT at that checkpoint; it does not establish the
 head's currentness. Later decisions need their ordinary proofs and safe recovery
-of the source's voting history, including any vote emitted after its last Ping.
+of the source's voting history, including any vote emitted after its last ping.
 
 ## Reproducible evidence and limits
 
@@ -102,7 +102,7 @@ than the ordinary withdrawal path.
 ## Remaining attack boundaries
 
 For SV-03, hold real height at 100 while compromised observers claim 101, 102
-and 103 in otherwise valid Pings and current-head Pongs. With one-block spacing
+and 103 in otherwise valid pings and current-head pongs. With one-block spacing
 and catch-up, local comparisons permit three counter increments. Genuine SAR
 acknowledgments may arrive without another Bitcoin block. Observer agreement
 and nondecreasing reports cannot establish real progress. The missing control

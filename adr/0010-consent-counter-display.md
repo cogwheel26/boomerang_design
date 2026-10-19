@@ -1,6 +1,6 @@
 # ADR 0010. Consent Counter Display During Rotation and Backup Activation
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Recorded:** 2026-10-14
 
 ## Context
@@ -16,7 +16,7 @@ know an answer, giving them reason to demand the current answer.
 
 Omit the counter from Boomlet's current-set rotation query. During input, begin
 display only after ST authenticates the new-set query for its approved rotation,
-which Boomlet releases after durably accepting the first answer and latching any
+which Boomlet releases after durably accepting the first answer and recording any
 duress. Show the next counter as pending during selection and confirmation.
 Display it as applied with authenticated completion after Boomletwo's receipt,
 including identical countries and cancellation. Status and recovery follow the
@@ -33,14 +33,14 @@ new set and duress flag together and require Boomletwo's durable acknowledgment.
 
 New set entry gives the user a version reference after the first duress check.
 A coercer cannot inspect the initial query's counter before that opportunity
-to latch duress. Activation shows which stored version the backup checks without
+to record duress. Activation shows which stored version the backup checks without
 another country-entry round during rotation. Authorization and replay protection
 retain the internal counter.
 
 ## Consequences
 
 Any valid five-country answer reaches selection and reveals the counter; a wrong
-answer must already have latched duress. The pending counter also reveals its
+answer must already have set `under_duress`. The pending counter also reveals its
 predecessor by subtraction. Advancement can reflect identical countries,
 cancellation, or reset, so it does not prove the countries changed.
 

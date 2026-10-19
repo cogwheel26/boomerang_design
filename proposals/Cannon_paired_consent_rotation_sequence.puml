@@ -17,7 +17,7 @@ the acting device's original identity key and its retained peer identity. Peer n
 sender and receiver roles and key direction. Decryption authenticates before returning content.
 endlegend
 
-hnote over Boomlet, Boomletwo #Lavender:  During Boomlet's first setup: consent_counter := 0 (u64); under_duress := false \n Copy their current values to Boomletwo in setup's authenticated state transfer \n Retain monotonic counter for identity lifetime \n Load protected state on restart; inactive Boomletwo uses its original identity key and confines the copied source key to SAR verification
+hnote over Boomlet, Boomletwo #Lavender:  First enrollment at setup Step 26 initializes consent_counter := 0 and under_duress := false \n Copy their current values to Boomletwo in setup's authenticated state transfer \n Retain monotonic counter for identity lifetime \n Load protected state on restart; inactive Boomletwo uses its original identity key and confines the copied source key to SAR verification
 hnote over Boomlet, Boomletwo #LavenderBlush:  Retain duress through the current withdrawal, or the next withdrawal after IDLE rotation. \n Clear only after withdrawal end, exact final SAR receipt and paired reset; missing receipts preserve the flag and block new operations.
 
 group Enter current set and approve rotation
@@ -25,8 +25,8 @@ group Enter current set and approve rotation
 User o-> Niso:  <b>ConsentRotationNisoInput1 \n magic: "consent_rotation_start"
 ' Step 2
 Niso o-> Boomlet:  <b>ConsentRotationNisoBoomletMessage1 \n BEGIN_ROTATION()
-hnote over Boomlet #LavenderBlush:  In DIGGING, send any prepared Ping normally; enter at the next iteration before its duress check and next Ping construction. \n If digging ends before entry, leave the request unperformed. IDLE starts immediately.
-hnote over Boomlet #Pink:  Assert active source in IDLE or DIGGING; ST available; no pending attempt, reset or teardown
+hnote over Boomlet #LavenderBlush:  In DIGGING, send any prepared ping normally; enter at the next iteration before its duress check and next ping construction. \n If digging ends before entry, leave the request unperformed. IDLE starts immediately.
+hnote over Boomlet #Pink:  Assert active source in IDLE or DIGGING; ST available; no pending attempt, reset or cleanup
 hnote over Boomlet #Lavender:  rotation_id := random_bytes(32) \n consent_rotation_request := MessageWithNonce{content: consent_counter, nonce: rotation_id} \n duress_check_space := DuressCheckSpace{space: random_permutation([1..193])} \n consent_rotation_challenge := ConsentRotationChallenge{ \n request: consent_rotation_request, duress_check_space: duress_check_space} \n consent_rotation_challenge_encrypted_by_boomlet_0_for_st := encrypt_for_st(context: canonical_encode("consent_rotation_current_set_challenge"), \n content: consent_rotation_challenge)
 hnote over Boomlet #LavenderBlush:  Pause consent operations and any DIGGING withdrawal through rotation; preserve the iteration and SAR duties.
 ' Step 3
@@ -124,10 +124,10 @@ end group
 hnote over Boomlet, ST #LavenderBlush:  ST recovery authenticates the pending new-set query before restoring or restarting local entry; counter display keeps the same gate.
 
 opt Resume DIGGING iteration after receipt
-hnote over Boomlet #LavenderBlush:  Obtain fresh country input using the installed set and durably OR-latch its result before constructing the next placeholder.
+hnote over Boomlet #LavenderBlush:  Obtain fresh country input using the installed set and update and persist under_duress using that input before constructing the next placeholder.
 hnote over Boomlet #Lavender:  user_is_in_duress := under_duress
-hnote over Boomlet #LavenderBlush:  Apply ordinary Pong processing once; send the next-sequence Ping carrying user_is_in_duress and save its SAR resumption gate before output.
-hnote over Boomlet #Pink:  Keep local DIGGING until that Ping's exact SAR receipt, even if WT finishes during rotation. \n Persist it before later iteration progress, signing or export; an earlier Ping's receipt cannot clear the gate.
+hnote over Boomlet #LavenderBlush:  Apply ordinary pong processing once; send the next-sequence ping carrying user_is_in_duress and save its SAR resumption gate before output.
+hnote over Boomlet #Pink:  Keep local DIGGING until that ping's exact SAR receipt, even if WT finishes during rotation. \n Persist it before later iteration progress, signing or export; an earlier ping's receipt cannot clear the gate.
 end
 
 hnote over Boomlet, Boomletwo #Pink:  Both flag values use identical prompts, message lengths, writes and fixed deadlines; sets, flags and receipts stay encrypted.

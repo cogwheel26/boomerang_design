@@ -1,6 +1,6 @@
 # WT failover and Boomletwo recovery progress
 
-The current recovery candidate uses self-contained Ping checkpoints with an
+The current recovery candidate uses self-contained ping checkpoints with an
 offline designated Boomletwo. It has no continuously online ST or backup
 requirement. An independent mystery draw needs a conservative floor; a checkpoint
 alone does not establish latest state or exclude a returning original device.
@@ -27,7 +27,7 @@ observations with different later duties, votes and source availability.
 These checks count valid progress units; they do not prove elapsed block time,
 latest-state recovery, source exclusion or complete activation. Existing WT
 models retain their separate scopes. The wire catalog does not yet allocate
-checkpoint fields or a five-Ping Pong format.
+checkpoint fields or a five-ping pong format.
 
 ## Required work
 
@@ -38,7 +38,7 @@ checkpoint fields or a five-Ping Pong format.
 - [ ] Select the mystery policy and define recovery progress and incarnation
   rules, including already-reached state and fresh local signing sessions.
 - [ ] Finish the bounded checkpoint schema, fixed padding, detached bundle,
-  distribution and retention policy, and version-selected Pong changes.
+  distribution and retention policy, and version-selected pong changes.
 - [ ] Resolve authenticated chain observation and quantify fallback exposure
   from any additional recovery delay.
 - [ ] Compose the complete mechanism with WT recovery, duress and signing;

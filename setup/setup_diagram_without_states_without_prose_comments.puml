@@ -55,7 +55,7 @@ group Duress setup
 
 ' Step 9
 User o-> Iso:  <b>SetupIsoInput1 \n network \n account \n key_index \n entropy_bytes \n passphrase \n doxing_password \n sar_id
-hnote over Iso #Lavender:  coin_type := 0 if network is mainnet else 1 \n mnemonic := mnemonic_from_entropy(entropy_bytes) \n master_xpriv_0 := derive_master_xpriv(mnemonic, passphrase) \n purpose_xpriv_0 := derive_child_xpriv(master_xpriv_0, 52102, hardened=true) \n coin_xpriv_0 := derive_child_xpriv(purpose_xpriv_0, coin_type, hardened=true) \n account_xpriv_0 := derive_child_xpriv(coin_xpriv_0, account, hardened=true) \n external_xpriv_0 := derive_child_xpriv(account_xpriv_0, 0, hardened=false) \n normal_privkey_0 := derive_child_xpriv(external_xpriv_0, key_index, hardened=false) \n normal_pubkey_0 := derive_public_key(normal_privkey_0) \n doxing_password_bytes := utf8(doxing_password) \n doxing_key := tagged_sha256("Boomerang/doxing_key", doxing_password_bytes)
+hnote over Iso #Lavender:  coin_type := 0 if network is mainnet else 1 \n mnemonic := mnemonic_from_entropy(entropy_bytes) \n master_xpriv_0 := derive_master_xpriv(mnemonic, passphrase) \n purpose_xpriv_0 := derive_child_xpriv(master_xpriv_0, 52102, hardened: true) \n coin_xpriv_0 := derive_child_xpriv(purpose_xpriv_0, coin_type, hardened: true) \n account_xpriv_0 := derive_child_xpriv(coin_xpriv_0, account, hardened: true) \n external_xpriv_0 := derive_child_xpriv(account_xpriv_0, 0, hardened: false) \n normal_privkey_0 := derive_child_xpriv(external_xpriv_0, key_index, hardened: false) \n normal_pubkey_0 := derive_public_key(normal_privkey_0) \n doxing_password_bytes := utf8(doxing_password) \n doxing_key := tagged_sha256("Boomerang/doxing_key", doxing_password_bytes)
 
 ' Step 10
 Iso o-> Boomlet:  <b>SetupIsoBoomletMessage1 \n normal_pubkey_0 \n doxing_key \n sar_id
@@ -120,6 +120,7 @@ ST o-> Iso:  <b>SetupStIsoMessage3 \n duress_signal_index_with_nonce_encrypted_b
 ' Step 26
 Iso o-> Boomlet:  <b>SetupIsoBoomletMessage4 \n duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_0
 hnote over Boomlet #Lavender:  duress_signal_index_with_nonce := cbc_cmac_decrypt( \n keys: channel_keys(boomlet_0_identity_privkey, "boomlet", st_0_identity_pubkey, "st", sender_public_key: \n st_0_identity_pubkey, receiver_public_key: boomlet_0_identity_pubkey), \n context: canonical_encode("duress_response"), \n envelope: duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_0)
+hnote over Boomlet #Lavender:  consent_counter := 0 \n under_duress := false
 
 ' Step 27
 Boomlet o-> Iso:  <b>SetupBoomletIsoMessage4 \n magic: "setup_duress_finished"
@@ -311,7 +312,7 @@ Iso o-> User:  <b>SetupIsoOutput2 \n magic: "setup_boomletwo_identity_pubkey_rec
 
 ' Step 76
 User o-> Iso:  <b>SetupIsoInput3 \n milestone_block_collection \n network \n account \n key_index \n mnemonic \n passphrase \n static_doxing_data \n doxing_password
-hnote over Iso #Lavender:  coin_type := 0 if network is mainnet else 1 \n master_xpriv_0 := derive_master_xpriv(mnemonic, passphrase) \n purpose_xpriv_0 := derive_child_xpriv(master_xpriv_0, 52102, hardened=true) \n coin_xpriv_0 := derive_child_xpriv(purpose_xpriv_0, coin_type, hardened=true) \n account_xpriv_0 := derive_child_xpriv(coin_xpriv_0, account, hardened=true) \n external_xpriv_0 := derive_child_xpriv(account_xpriv_0, 0, hardened=false) \n normal_privkey_0 := derive_child_xpriv(external_xpriv_0, key_index, hardened=false) \n normal_pubkey_0 := derive_public_key(normal_privkey_0) \n backup_request := BoomletBackupRequest{ \n backup_boomlet_pubkey: boomletwo_Identity_pubkey, \n backup_normal_pubkey: normal_pubkey_0 \n } \n backup_request_signed_by_normal_0 := sign_message(normal_privkey_0, "Boomerang/setup/backup_request", \n backup_request)
+hnote over Iso #Lavender:  coin_type := 0 if network is mainnet else 1 \n master_xpriv_0 := derive_master_xpriv(mnemonic, passphrase) \n purpose_xpriv_0 := derive_child_xpriv(master_xpriv_0, 52102, hardened: true) \n coin_xpriv_0 := derive_child_xpriv(purpose_xpriv_0, coin_type, hardened: true) \n account_xpriv_0 := derive_child_xpriv(coin_xpriv_0, account, hardened: true) \n external_xpriv_0 := derive_child_xpriv(account_xpriv_0, 0, hardened: false) \n normal_privkey_0 := derive_child_xpriv(external_xpriv_0, key_index, hardened: false) \n normal_pubkey_0 := derive_public_key(normal_privkey_0) \n backup_request := BoomletBackupRequest{ \n backup_boomlet_pubkey: boomletwo_Identity_pubkey, \n backup_normal_pubkey: normal_pubkey_0 \n } \n backup_request_signed_by_normal_0 := sign_message(normal_privkey_0, "Boomerang/setup/backup_request", \n backup_request)
 
 ' Step 77
 Iso o-> Boomlet:  <b>SetupIsoBoomletMessage5 \n backup_request_signed_by_normal_0

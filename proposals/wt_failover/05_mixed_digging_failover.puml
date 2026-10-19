@@ -35,13 +35,13 @@ else Final ACTIVATE
   alt Every local DIGGING entry guard holds
     B -> B: Sample mystery once; initialize counter, height and sequence
     A -> A: Retain discharge and completed pre-freeze challenge
-    A -> C: Fresh recovery Ping with retained reached state
-    B -> C: Normal initial Ping for the preserved approved withdrawal
+    A -> C: Fresh recovery ping with retained reached state
+    B -> C: Normal initial ping for the preserved approved withdrawal
     P -> P: Each peer retains its verified frozen discharge
-    P -> C: Initial or recovery Pings according to each peer's state
+    P -> C: Initial or recovery pings according to each peer's state
     ref over A,S
       06_digging_failover.puml
-      Continue from the current-Ping collection into ordinary Pong validation.
+      Continue from the current-ping collection into ordinary pong validation.
     end ref
   else Missing evidence or invalid local prerequisite
     B -> B: Stall entry while retaining its current state

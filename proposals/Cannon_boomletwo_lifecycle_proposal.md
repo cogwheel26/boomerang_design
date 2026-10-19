@@ -181,9 +181,7 @@ or cause unbounded writes. Measure endurance and availability limits.
 
 Keep physical management identity distinct from the copied peer key and bind
 it through import; a copied-key signature alone cannot identify a device.
-Reject unsupported profiles and downgrade paths; legacy
-backups need explicit admission or migration. Versions and counters need
-protected state, not only wire fields.
+Reject unsupported profiles. Counters need protected state, not only wire fields.
 
 ### BW-SR-15 Emitted outputs and migration
 
@@ -217,12 +215,12 @@ rollback and storage assumptions separately.
 | BW-T04 | Lose `BackupDone`, retry, conflict imports, and race targets; keep one reservation and successor. | 03, 04, 11 |
 | BW-T05 | Hide later duress, WT, consent, or signing state behind a valid old snapshot; recover duties or block. | 05, 07, 15 |
 | BW-T06 | Restore pre-retirement state or replay a receipt after replacement; excluded authority stays unusable. | 09, 11, 14 |
-| BW-T07 | Try historical-Pong credit, redraws, nonce reuse, transaction substitution, and fragment loss; preserve gates. | 05, 06, 15 |
+| BW-T07 | Try historical-pong credit, redraws, nonce reuse, transaction substitution, and fragment loss; preserve gates. | 05, 06, 15 |
 | BW-T08 | Try stale consent and target substitution; inspect records for secret disclosure. | 07, 08, 12, 14 |
 | BW-T09 | Compare safe and duress handling under retries, capacity pressure, and failures; preserve acknowledgment observations. | 05, 08, 13 |
 | BW-T10 | Exceed input, retry, storage, and counter bounds; preserve authority and required evidence, and measure costs. | 04, 13 |
 | BW-T11 | Withhold receipt or acknowledgment and attempt cancellation; preserve authority and conditional completion. | 04, 09, 16 |
-| BW-T12 | Replenish, import a legacy backup, and conceal an old signed spend during migration; enforce eligibility and old-setup exposure. | 11, 14, 15 |
+| BW-T12 | Replenish and conceal an old signed spend during migration; enforce eligibility and old-setup exposure. | 11, 14, 15 |
 
 An unmet requirement blocks adoption or requires an explicit revision of the
 security claim.

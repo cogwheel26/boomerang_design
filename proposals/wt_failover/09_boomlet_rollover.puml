@@ -20,25 +20,25 @@ end note
 group Normal DIGGING
   B -> B: Validate ordinary progress and preserve exact SAR duty
   B -> B: Create target-encrypted checkpoint and exact placeholder
-  B -> B: Bind checkpoint digest in existing signed Ping
-  B -> N: Signed Ping bundle with detached encrypted checkpoint
+  B -> B: Bind checkpoint digest in existing signed ping
+  B -> N: Signed ping bundle with detached encrypted checkpoint
   N -> W: Ordinary authenticated submission with recovery bundle
   W -> P: Retain checkpoint evidence under the candidate distribution policy
-  W -> W: Collect five Pings and exact recipient SAR acknowledgments
-  W -> B: Candidate shared five-Ping Pong and own SAR acknowledgment
-  B -> B: Match own returned Ping; verify the other four\nKeep ordinary counter and SAR guards
+  W -> W: Collect five pings and exact recipient SAR acknowledgments
+  W -> B: Candidate shared five-ping pong and own SAR acknowledgment
+  B -> B: Match own returned ping; verify the other four\nKeep ordinary counter and SAR guards
 end
 
 ... Original Boomlet is lost; no further source interaction ...
 
 group Inspect a recovery checkpoint
   U -> T: Start recovery using designated setup backup
-  N -> T: Retained Ping bundle and required public evidence
+  N -> T: Retained ping bundle and required public evidence
   P -> T: Existing WT activation record and available decision evidence
   T -> T: Verify source signature and exact encrypted checkpoint\nBind setup, target, withdrawal, sequence and placeholder
   T -> T: Identify WT at the checkpoint using retained head\nDo not treat peer claims as latest-state authority
   note over N,T
-    A valid old Ping can omit a later duress duty or WT vote.
+    A valid old ping can omit a later duress duty or WT vote.
     Source loss claims do not prove that an isolated source cannot return.
   end note
 end
@@ -53,7 +53,7 @@ end
 
 note over B,T
   No source retirement message or continuous ST service is assumed.
-  Historical Pongs and Ping counts cannot earn new counter increments.
+  Historical pongs and ping counts cannot earn new counter increments.
   This checkpoint mechanism alone is not a complete activation protocol.
 end note
 @enduml

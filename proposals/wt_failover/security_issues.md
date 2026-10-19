@@ -16,7 +16,7 @@ authorization and setup export boundaries are inherited. Protocol and device imp
 | 6. Historical freshness exception is too broad | Medium | Enumerate the two historical commit and gate age exceptions; retain every other authorization, chain, head and SAR check | README 7.4 |
 | 7. Parsing, ballot and storage exhaustion | Medium | Fixed ceilings, trusted admission, one obligation slot, fixed journal and archives, successor-only ballots, protected duplicate results | Resource limits |
 | 8. Threat-model integration is required | Medium | Incorporate profile-specific assumptions, attack paths, audit mappings and operational duties during adoption | security_requirements.md |
-| 9. Host substitutes recovery bytes after authentication | High | Authenticate the exact retained ciphertext before decryption and bind it to the signed Ping and designated target | Rollover 1; verification SV-01 |
+| 9. Host substitutes recovery bytes after authentication | High | Authenticate the exact retained ciphertext before decryption and bind it to the signed ping and designated target | Rollover 1; verification SV-01 |
 | 10. Oversized or repeatedly replayed checkpoints exhaust resources | Medium | Fixed schema, padding, byte limits and one-time recovery admission; exact encoding remains open | Rollover 1, 7; verification SV-02 |
 | 11. Colluding observers fabricate chain progress | High | Specify authenticated chain observation for the honest Boomlet; current real-chain delay guarantee remains blocked | README 1; verification SV-03 |
 | 12. Conflicting intent locks prevent recovery | Medium | Preserve first locks and document fallback; later cooperation alone cannot reconcile them | README 6.6; verification SV-04 |

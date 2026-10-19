@@ -1,6 +1,6 @@
 # Executable security model
 
-The current self-contained-Ping checks are in
+The current self-contained-ping checks are in
 [boomlet_rollover_model.md](boomlet_rollover_model.md). The handoff and capsule
 experiments below check general ordering hazards, not the current recovery
 candidate. Their version string is a test fixture, not an additional selected

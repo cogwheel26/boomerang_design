@@ -48,8 +48,8 @@ resume package where its phase needs it. `closed_ids` has at most four distinct
 withdrawal IDs, ordered by bytes. `fragment_digests` has exactly five entries in
 setup peer order. `WtPrepared.signatures` has exactly five BIP340 signatures in
 setup peer order. All identity indices are zero-based and checked against the
-stored setup. An initial phase uses zero heights and sequence, absent Ping and
-inherited floor, and false reached and accepted-Pong flags. The phase determines
+stored setup. An initial phase uses zero heights and sequence, absent ping and
+inherited floor, and false reached and accepted-pong flags. The phase determines
 whether initialized, identifiers, and retained evidence are mandatory.
 
 | Enum | Values |
@@ -122,7 +122,7 @@ There is no generic "unwrap and accept" handler.
 | SAR finalization forwarding statement | `WtSarSetupResponse` |
 | Transaction approval | `WtTxApproval` |
 | Acknowledgment of initiator or non-initiator commit | `SignedMessage<TxCommit>` |
-| Pong | `Pong` |
+| pong | `Pong` |
 | Reached collection | Exactly five `SignedMessage<Ping>` objects in setup order |
 | Fragment receipt | `WtFragmentReceipt` |
 | Completion or broadcast receipt | `WtCompletionReceipt` |
@@ -130,9 +130,9 @@ There is no generic "unwrap and accept" handler.
 The setup response uses `Boomerang/setup/wt_sar_response`. Withdrawal objects
 use their corresponding ordinary withdrawal domains; reached
 collections use `Boomerang/withdrawal/reached_collection`. WT fragment and
-completion domains are listed above. A Pong or reached delivery pairs the signed
+completion domains are listed above. A pong or reached delivery pairs the signed
 WT object with the recipient's SAR acknowledgment inside the recipient's
-head-authenticated transport. The signed Ping or commit and the exact inner SAR
+head-authenticated transport. The signed ping or commit and the exact inner SAR
 envelope together determine which obligation may be discharged. Bare broadcast
 status has no state-changing meaning.
 
@@ -159,7 +159,7 @@ Candidate types are `registration_request`, `registration_response`,
 `prepare`, `commit`, `recover`, `prepared_certificate`, `decision_certificate`,
 and `public_evidence`. Before a common attempt exists, `intent` uses the signed
 local intent digest as its attempt ID; subsequent operations use `switch_id`.
-Candidate registration cannot deliver a Pong, live approval, or commit response.
+Candidate registration cannot deliver a pong, live approval, or commit response.
 Candidate `sar_setup_request` transports the existing end-to-end SAR setup
 request. Candidate `sar_setup_response` transports the existing SAR-encrypted
 `SignedMessage<SarSetupResponse>` directly. Boomlet verifies the inner SAR
@@ -171,7 +171,7 @@ Ordinary registration and payment receipts are immutable setup facts bound to
 their service and invoice. They do not gain state-advancing authority by being
 presented over candidate transport. Setup checkpoint signatures remain peer
 statements over completed setup evidence. Their WT-specific local prerequisites
-use the current selected service. Peer-authored approvals, commits, Pings, and
+use the current selected service. Peer-authored approvals, commits, pings, and
 fragments remain WT-neutral; current use requires their origin's authenticated
 submission or exact membership in a frozen committed package.
 
@@ -198,7 +198,7 @@ Its public bytes retain the 16,384-byte bound.
 Each package is a canonical `list<WtResumeEntry>` with at most 32 entries. Kinds are 0 setup agreement, 1 checkpoint,
 2 service receipt, 3 reviewed transaction, 4 approval set, 5 predecessor WT
 approval, 6 approval-set attestations, 7 padded commit, 8 initiator acknowledgment,
-9 padded Ping, 10 SAR acknowledgment, 11 reached collection, 12 signed fragment,
+9 padded ping, 10 SAR acknowledgment, 11 reached collection, 12 signed fragment,
 13 complete transaction, 14 completion receipt, and 15 signing disposition.
 Sort by kind and then origin peer; reject duplicates for the same kind and origin.
 Origin is derived from the validated artifact, never an untrusted extra signer.
@@ -215,11 +215,11 @@ vectors, malformed-field rejection, every setup and withdrawal phase, exact
 receipt replay, and power-loss boundaries. The proposed profile is unavailable
 for deployment until those conformance and device requirements are satisfied.
 
-## Self-contained Ping candidate
+## Self-contained ping candidate
 
 The [Boomletwo candidate](boomlet_rollover.md) requires target-encrypted checkpoint
-fields, a detached ciphertext, a five-Ping Pong schema and an activation handler.
+fields, a detached ciphertext, a five-ping pong schema and an activation handler.
 The current catalog defines none of them. Adoption requires fixed fields, padding,
 bounds, incarnation rules and version-selected dispatch; one profile cannot
-accept both four-Ping and five-Ping shapes. Counter freshness still uses the
+accept both four-ping and five-ping shapes. Counter freshness still uses the
 other four peers. Checkpoint evidence alone grants no progress or authority.

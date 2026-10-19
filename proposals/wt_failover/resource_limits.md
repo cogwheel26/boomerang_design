@@ -101,7 +101,7 @@ transfer, or a counter reset. Exact retransmission, certificate learning, and
 finishing the already reserved operation remain available when their required
 storage is healthy. Further new work after setup limits are exhausted requires
 a fresh setup and fund rollover. Recovery must preserve consumed counts.
-The self-contained-Ping candidate needs a separate byte and endurance budget
+The self-contained-ping candidate needs a separate byte and endurance budget
 for encrypted checkpoints, without increasing ordinary signature counts.
 Its complete snapshot inventory and holder-retention guarantees are not yet
 specified; existing public-package limits cannot be treated as proof of capacity
