@@ -63,7 +63,7 @@ else Coordination is needed for signing or fragment collection
     C -> N: Complete signed transaction and head-bound CompletionReceipt
     N -> B: Exact complete transaction and receipt
     B -> B: Verify complete transaction, all five fragments and own SAR duty
-    B -> B: Atomically mark COMPLETED_RETAINED; retain own fragment and closed IDs
+    B -> B: Mark COMPLETED_RETAINED; retain own fragment and closed IDs
     B -> B: Erase completed private delay state and consumed session secrets
     note over N,C
       An untrusted holder receipt cannot authorize fragment erasure.

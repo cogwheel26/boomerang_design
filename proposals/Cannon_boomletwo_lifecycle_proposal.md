@@ -102,7 +102,7 @@ concurrent requests and delayed receipts.
 
 ### BW-SR-04 Atomic import and exact recovery
 
-Reserve the target before export and atomically commit inactive import with its
+Reserve the target before export and commit inactive import with its
 original receipt. Exact retries recover that result without another grant;
 lost replies, partial writes, and ambiguous state cannot free the slot or make
 a second target eligible.

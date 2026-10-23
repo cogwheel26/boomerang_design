@@ -3,7 +3,7 @@ Boomerang wire catalog
 Summary
 Catalog status structural_contexts_incomplete
 Schemas 30
-Fields 116
+Fields 115
 
 Structural profile constants
 peer_count 5
@@ -751,7 +751,7 @@ Deepest structural path  1 containers  BackupDone
 
 Schema BoomletBackupState  ID 23  version 1
 +----------------+--------------------+------------------------+----------------------+
-| tag 0x40       | schema_id 23       | schema_version 1       | field_count 19       |
+| tag 0x40       | schema_id 23       | schema_version 1       | field_count 18       |
 | 1 byte         | 2 bytes            | 2 bytes                | 2 bytes              |
 +----------------+--------------------+------------------------+----------------------+
 | field_id 1       | setup_instance_id: bytes32                                       |
@@ -806,13 +806,10 @@ Schema BoomletBackupState  ID 23  version 1
 |                  | context rule boomlet_backup_replay_state                         |
 |                  | selected by active_protocol_state                                |
 +------------------+------------------------------------------------------------------+
-| field_id 17      | backup_complete: bool                                            |
-| 2 bytes          | value 1 bytes; field total 3 bytes                               |
-+------------------+------------------------------------------------------------------+
-| field_id 18      | consent_counter: u64                                             |
+| field_id 17      | consent_counter: u64                                             |
 | 2 bytes          | value 9 bytes; field total 11 bytes                              |
 +------------------+------------------------------------------------------------------+
-| field_id 19      | under_duress: bool                                               |
+| field_id 18      | under_duress: bool                                               |
 | 2 bytes          | value 1 bytes; field total 3 bytes                               |
 +------------------+------------------------------------------------------------------+
 Known nesting lower bound  4 containers  BoomletBackupState ->

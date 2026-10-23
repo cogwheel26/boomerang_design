@@ -13,7 +13,7 @@ hnote over Boomlet #Lavender: duress_check_space := DuressCheckSpace{space: rand
 !endprocedure
 
 !procedure $WITHDRAWAL_DURESS_CHALLENGE_OPEN($st_entity, $boomlet_entity, $challenge_envelope)
-hnote over ST #Lavender: duress_check_space_with_nonce := C-OPEN($st_entity, $boomlet_entity, canonical_encode("withdrawal_duress_challenge"), $challenge_envelope) \n duress_check_space := duress_check_space_with_nonce.content \n duress_display_columns := independently_shuffle_with_index_maps(duress_check_space.space, columns=5)
+hnote over ST #Lavender: duress_check_space_with_nonce := C-OPEN($st_entity, $boomlet_entity, canonical_encode("withdrawal_duress_challenge"), $challenge_envelope) \n duress_check_space := duress_check_space_with_nonce.content \n duress_display_columns := independently_shuffle_with_index_maps(duress_check_space.space, columns: 5)
 !endprocedure
 
 !procedure $WITHDRAWAL_DURESS_RESPONSE_CREATE($st_entity, $boomlet_entity, $response_envelope)
@@ -21,7 +21,7 @@ hnote over ST #Lavender: duress_signal_index := \n original_indices_from_display
 !endprocedure
 
 !procedure $WITHDRAWAL_DURESS_RESPONSE_OPEN($boomlet_entity, $st_entity, $response_envelope)
-hnote over Boomlet #White: <b>LOCAL</b> duress_signal_index_with_nonce := C-OPEN($boomlet_entity, $st_entity, canonical_encode("withdrawal_duress_response"), $response_envelope) \n <b>CHECK</b> GW-DURESS-RESPONSE(duress_signal_index_with_nonce, duress_check_nonce) \n <b>LOCAL</b> consume outstanding duress check \n duress_signal := duress_check_space.space[duress_signal_index_with_nonce.content.indices] \n doxing_key_for_sar := tagged_sha256("Boomerang/doxing_key_for_sar", doxing_key || sar_pubkey_bytes) \n duress_placeholder_plaintext := Evaluate(duress_signal, duress_consent_set, doxing_key_for_sar) [either \n all-zero 32-byte padding or doxing_key_for_sar]
+hnote over Boomlet #White: <b>LOCAL</b> duress_signal_index_with_nonce := C-OPEN($boomlet_entity, $st_entity, canonical_encode("withdrawal_duress_response"), $response_envelope) \n <b>CHECK</b> GW-DURESS-RESPONSE(duress_signal_index_with_nonce, duress_check_nonce) \n <b>LOCAL</b> consume outstanding duress check \n duress_signal := duress_check_space.space[duress_signal_index_with_nonce.content.indices] \n doxing_key_for_sar := tagged_sha256("Boomerang/doxing_key_for_sar", doxing_key || sar_pubkey_bytes) \n under_duress := under_duress | (duress_signal != duress_consent_set) \n duress_placeholder_plaintext := Evaluate(under_duress, doxing_key_for_sar) [either \n all-zero 32-byte padding or doxing_key_for_sar]
 !endprocedure
 
 !procedure $WITHDRAWAL_SAR_PROCESS_PLACEHOLDER($boomlet_entity, $boomlet_public_key, $response_envelope)

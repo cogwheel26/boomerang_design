@@ -23,7 +23,7 @@ consent set has been enrolled.
    permutation, and its nonce equals `consent_enrollment_nonce`.
 5. Boomlet verifies the paired channel, enrollment phase, exact outstanding nonce,
    and five distinct indices in 1–193. It resolves the countries as an unordered set,
-   durably installs `duress_consent_set`, and enters `ST_ENROLLED` before returning
+   installs `duress_consent_set`, and enters `ST_ENROLLED` before returning
    `magic: "setup_duress_finished"` to Iso. Iso continues its existing setup flow.
 
 ST is responsible for confirming that both entries match. Boomlet receives only
@@ -37,7 +37,7 @@ contexts are `canonical_encode("setup_consent_set_query")` and
 enrollment; withdrawal and rotation messages cannot satisfy this exchange.
 
 Keep one immutable pending query. Losing it before acceptance requires a fresh
-nonce and permutation. An accepted answer installs the set once; retain its
+nonce and permutation. An accepted answer installs the set; retain its
 digest and completion reply for recovery under SPEC Section 18.3. Duplicate
 answers recover that reply before fresh-phase checks. Enrollment cannot overwrite
 an enrolled set or restart later setup phases.
@@ -62,8 +62,8 @@ A compromised ST could already fabricate two matching responses. Independent
 confirmation shuffling preserves the need to repeat country names.
 
 If paired consent rotation is also adopted, initialize `consent_counter := 0`
-and `under_duress := false` only during first installation, and copy their current
-values in the authenticated backup transfer. Enrollment retries never reset them.
+and `under_duress := false`, and copy their current values in the authenticated
+backup transfer. Enrollment retries never reset them.
 
 Adoption requires a matching protocol profile and replaces the `INSTALLED` to
 `ST_ENROLLED` prerequisite with one authenticated, locally confirmed ST answer.

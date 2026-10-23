@@ -271,8 +271,7 @@ an empty or dummy set cannot encode this mode.~~
 
 Erase a reachable trustworthy backup or revoke it through every future activation
 path. Rotate locally, then provision a replacement backup through a lifecycle
-transition that excludes the former target. Clearing `backup_complete` locally
-does not establish that exclusion.
+transition that excludes the former target.
 
 **Message sequence**
 

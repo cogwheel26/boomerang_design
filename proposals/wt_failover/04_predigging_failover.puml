@@ -28,7 +28,7 @@ end ref
 alt Final ABORT
   B -> B: Persist cancellation; retain original ceremony and obligations
 else Final ACTIVATE and all five establish DIGGING never initialized
-  B -> B: Atomically install head, tombstone old IDs,\nretire pending reviews and old authorization state
+  B -> B: Install head, tombstone old IDs,\nretire pending reviews and old authorization state
   N -> B: Propose transaction for a new withdrawal
   B -> U: Fresh nonce-bound transaction review for initiator
   U -> B: Initiator ST signature over reviewed transaction identity

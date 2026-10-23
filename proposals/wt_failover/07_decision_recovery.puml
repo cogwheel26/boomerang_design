@@ -20,7 +20,7 @@ alt A complete final decision certificate is available
   A -> P: Relay final certificate for convergence
 else No final certificate is available
   A -> A: Admit next successor within trusted allowance
-  A -> A: Atomically persist higher ballot and exact highest-certificate report
+  A -> A: Persist higher ballot and exact highest-certificate report
   A -> P: RECOVER(target ballot, prepared certificate or NONE)
   P -> P: Each peer persists its higher promise and exact report
   P -> A: Four RECOVER reports with prepared certificates or NONE

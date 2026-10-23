@@ -72,7 +72,7 @@ loop S-CONSENT  exactly two fresh nonce-bound enrollment rounds
     Store the first resolved set; require the second resolved set to equal it.
   end note
 end
-note over Boomlet #Lavender: INSTALLED -> ST_ENROLLED; persist duress_consent_set
+note over Boomlet #Lavender: INSTALLED -> ST_ENROLLED
 Iso --> User: S-INSTALL-4  mnemonic
 end
 

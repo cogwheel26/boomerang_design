@@ -637,7 +637,7 @@ Not through the primary Boomerang branch, which requires signatures under all
 five Boomerang keys. The fallback branches change the required set on the
 agreed schedule. They require five normal keys from `milestone_block_1`, four
 from `milestone_block_2`, and so on down to one from `milestone_block_5`. Once
-a fallback height passes, that branch needs only its stated number of normal
+a fallback block height passes, that branch needs only its stated number of normal
 keys. This is the recoverability trade the design makes, and it is why
 operators are expected to roll funds into a fresh setup before fallback
 becomes an attractive predictable target; see the

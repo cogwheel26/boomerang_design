@@ -142,7 +142,7 @@ version-selected wire definition before adoption.
 
 ### 4.1 Trigger
 
-After sending a complete valid WT request, Niso tracks the height of the last
+After sending a complete valid WT request, Niso tracks the block height of the last
 accepted state-specific response. A profile-defined silence threshold permits
 proposing a switch. Generic heartbeats, duplicates, malformed traffic, or
 responses missing required peer or SAR evidence do not refresh that progress
@@ -151,13 +151,13 @@ a proposal. A timeout is advisory and changes no trusted authority.
 
 For a request with a SAR acknowledgment, the host's monotonic elapsed timer must
 exceed `SAR_ACK_DELAY + WT_SAR_PROCESSING_BUDGET + ROUND_TRIP_ROUTING_BUDGET +
-CHAIN_OBSERVATION_BUDGET` before a silence prompt. Height silence alone cannot
+CHAIN_OBSERVATION_BUDGET` before a silence prompt. Block-height silence alone cannot
 establish that elapsed interval; rapid blocks cannot shorten a SAR deadline.
 The [resource profile](resource_limits.md) fixes timer admission and retry rules.
 Untrusted host time can suggest review but cannot advance the frozen journal.
 
-Height decreases, contradictory RPC observations, or material disagreement with
-the WT produce `CHAIN_VIEW_UNSAFE`. Otherwise the height policy supplies the
+Block height decreases, contradictory RPC observations, or material disagreement with
+the WT produce `CHAIN_VIEW_UNSAFE`. Otherwise the block-height policy supplies the
 freshness and milestone checks used throughout the ceremony.
 
 ### 4.2 Snapshot and ST review
@@ -174,8 +174,8 @@ Boomlet constructs a manifest containing:
 - exact local phase, relevant ceremony identifiers, and the conditional recovery
   policy in Section 7;
 - durable `digging_initialized` state;
-- for DIGGING and later phases, accepted-pong status and height, inherited
-  predecessor height, current ping digest and sequence, and public reached state;
+- for DIGGING and later phases, accepted-pong status and block height, inherited
+  predecessor block height, current ping digest and sequence, and public reached state;
 - a digest of the local resume package;
 - an explicit `NO_PLACEHOLDER` record or one exact outstanding placeholder
   commitment, including its approved ID, IV, padded-object digest, and gate
@@ -218,13 +218,13 @@ identities and recovery consequence. For a pre-DIGGING peer, the review covers
 closure if nobody initialized DIGGING or preservation otherwise. The SPEC ST
 authentication and nonce rules apply. Any manifest change requires a fresh review.
 
-Before exporting its signed switch intent, Boomlet atomically stores the exact
+Before exporting its signed switch intent, Boomlet stores the exact
 intent, manifest, retention commitments, and frozen state. The intent signs the
 same nonce-bound review message under a distinct signature domain. Queued WT
 messages, ST answers, signing, and ordinary state advancement wait while frozen.
 The sole withdrawal-side exception is verification and durable discharge of the
 exact frozen placeholder under Section 5.2; it changes neither the signed
-snapshot nor the ordinary phase, counters, heights, or sequences.
+snapshot nor the ordinary phase, counters, block heights, or sequences.
 Crashes reproduce the same intent.
 
 ### 4.3 Common attempt
@@ -290,7 +290,7 @@ stall preparation, including withdrawal closure.
 The SPEC SAR checks apply to the response. A candidate envelope may transport
 the WT-neutral acknowledgment, and Niso may extract the same response from a
 late old-WT packet. Old WT authentication authorizes nothing else. Discharge is
-atomically journaled and exact duplicates cause no second write.
+journaled and exact duplicates cause no second write.
 
 The frozen five-record vector determines:
 
@@ -401,7 +401,7 @@ its ballot justification before signing.
    COMMIT requires the current ballot, its matching PREPARE, and the complete
    prepared certificate. Another live candidate or SAR response is unnecessary.
 5. Any peer assembles and distributes the final DecisionCertificate. Each Boomlet
-   installs the new head and roster index atomically before accepting candidate
+   installs the new head and roster index before accepting candidate
    traffic or applying the continuation in Sections 7 through 9.
 
 Votes and certificates are durably disseminated among peers. The candidate cannot
@@ -416,7 +416,7 @@ cannot persist a promise. The original ST review authorizes finishing that
 reviewed candidate or canceling the attempt. A bounded automatic recovery allowance needs no second
 ST approval; extending that allowance requires trusted local admission.
 
-1. Before exporting RECOVER, Boomlet atomically persists a higher promised ballot
+1. Before exporting RECOVER, Boomlet persists a higher promised ballot
    and its exact report containing the highest prepared certificate locally
    accepted under Section 6.3, or NONE. That write forbids creating lower-ballot
    PREPARE or COMMIT votes.
@@ -560,7 +560,7 @@ every activation vote cover the common closure scope and obligation vector.
 An unresolved or missing scope, prepared placeholder, or signing archive stalls
 closure. If any peer has initialized DIGGING, preserve that withdrawal.
 
-After final ACTIVATE, atomically tombstone the abandoned withdrawal ID and any
+After final ACTIVATE, tombstone the abandoned withdrawal ID and any
 approved ID, invalidate its pending transaction and duress-review nonces, and
 retire its local active state before unlocking. Any replacement follows a fresh
 SPEC withdrawal; switch approval does not approve its transaction. Historical
@@ -577,7 +577,7 @@ stalls new attempts.
 ### 7.4 Mixed DIGGING entry
 
 If any peer has initialized DIGGING, all initialized peers retain their approved
-transaction, both withdrawal IDs, mystery, counter, heights, sequences, reached
+transaction, both withdrawal IDs, mystery, counter, block heights, sequences, reached
 state, and duress obligations. A lagging peer enters DIGGING exactly once after:
 
 1. Its own durable state establishes acceptance of the same approval set and
@@ -598,7 +598,7 @@ be byte-identical to the committed packages and locally recorded authorization.
 
 No approval, duress answer, or new commit may be created through this exception.
 All SPEC checks remain mandatory except the two listed age checks. In particular,
-future-height, ping, pong, ST, signing-session, service, chain-safety and exact
+future block-height, ping, pong, ST, signing-session, service, chain-safety and exact
 SAR-envelope checks receive no exception. Missing evidence stalls.
 
 ## 8. DIGGING continuation
@@ -617,32 +617,32 @@ cannot replace an unacknowledged duress placeholder.
 
 Each initialized Boomlet then creates at most one recovery ping per new head
 without receiving another pong first. It uses the next unused sequence, retained
-height and reached flag, and fresh placeholder encryption over current local
+block height and reached flag, and fresh placeholder encryption over current local
 plaintext. Persist the signed padded bytes and sequence update before export;
 a crash retransmits that same ping. Waiting for prior acknowledgments prevents
 repeated switches from accumulating outstanding recovery placeholders.
 
-Recovery-ping creation changes neither mystery, counter, nor local height and
+Recovery-ping creation changes neither mystery, counter, nor local block height and
 draws no new duress challenge. A newly initialized lagging peer sends its normal
 initial ping. Every other peer's recovery ping is newer than anything it emitted
 before its snapshot froze, including after partial old-pong delivery.
 
 ### 8.2 pong spacing and validation
 
-The five manifests report accepted-pong status, last accepted event height, and
-any inherited predecessor height. Each Boomlet checks its own report against
-durable state and derives the maximum reported predecessor height `F`.
+The five manifests report accepted-pong status, last accepted event block height, and
+any inherited predecessor block height. Each Boomlet checks its own report against
+durable state and derives the maximum reported predecessor block height `F`.
 
 ```text
 first_new_pong.event_block_height >= F + MIN_PONG_SPACING_BLOCKS
 ```
 
-`F` is a predecessor height, not a next-eligible height; applying recovery
+`F` is a predecessor block height, not a next-eligible block height; applying recovery
 repeatedly must not compound the same wait. Preserve it across a switch with no
 intervening accepted pong and across cancellation. The first-pong exemption
 applies only when every report says no accepted pong, no inherited floor exists,
-and local state agrees. Unknown history or unsafe heights stalls. A malicious
-report cannot lower an honest peer's stored floor; inflated heights can cause
+and local state agrees. Unknown history or unsafe block heights stalls. A malicious
+report cannot lower an honest peer's stored floor; inflated block heights can cause
 denial of service and remain subject to chain checks.
 
 After enforcing this floor, validate and apply pongs under SPEC Sections
@@ -670,7 +670,7 @@ public progress state needed by unfinished peers. Retain pending duress state
 and placeholder obligations until those duties finish. Export alone cannot
 turn a signing withdrawal into a restartable pre-DIGGING attempt.
 
-Boomlet atomically retains its exact fragment before export, together with the
+Boomlet retains its exact fragment before export, together with the
 approved IDs, transaction commitment, initialized flag, signing disposition,
 current ping and replay state, and pending security duties. Niso stores a copy
 and forwards a Boomlet-authenticated current-head submission. A crash after
@@ -705,7 +705,7 @@ of the setup identity, or stay indefinitely when retirement cannot be establishe
 Public copies at Niso, WT, and another peer improve availability; the honest
 originator's own retained bytes are the recovery anchor. Full archive slots
 stall new withdrawals while leaving replay and pending recovery usable. Setup
-retirement atomically disables every protocol operation for that identity
+retirement disables every protocol operation for that identity
 before erasing archives, and requires completed local rescue duties and trusted
 approval of permanent setup abandonment with the verified rollover or fallback
 spend. Retirement forbids reuse of that identity and descriptor for new funding. It cannot be inferred from a WT broadcast claim.

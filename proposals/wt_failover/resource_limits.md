@@ -75,7 +75,7 @@ vote or restore permission to emit an old one.
 
 The journal reserves one current report, own current votes, the highest complete
 prepared certificate, original prerequisites, and one final certificate. Higher
-valid certificates replace the retained certificate atomically. Older reports
+valid certificates replace the retained certificate. Older reports
 and votes can be discarded only after the higher promise makes reissuance
 impossible. Retain the exact signed intent in the live journal. Each replay-ledger entry is
 at most 112 internal bytes: intent digest, first admitted switch ID, predecessor
@@ -124,7 +124,7 @@ MIN_SWITCH_SILENCE_MS = SAR_ACK_DELAY_MS
 
 The host can issue a silence prompt only after a fully submitted valid request
 has waited strictly longer than this sum, as well as satisfying the ordinary
-height silence rule. Unknown or contradictory timing restarts advisory
+block-height silence rule. Unknown or contradictory timing restarts advisory
 observation; it grants no trusted state transition. A deployment with no
 measured finite timing bounds cannot enable automatic silence prompts.
 The same conservative lower bound applies to requests whose SAR duty was

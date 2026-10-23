@@ -14,7 +14,7 @@ participant "Bound SARs" as S
 
 opt Partial delivery of an old pong round
   Old -> A: Valid old-head pong and own exact SAR acknowledgment
-  A -> A: Apply ordinary counter and bounded height rules
+  A -> A: Apply ordinary counter and bounded block-height rules
   Old -x B: pong unavailable
   B -> B: Retain outstanding ping and previous counter
 end
@@ -27,7 +27,7 @@ end
 
 ref over A,C
   02_common_switch.puml
-  Five reviewed snapshots preserve DIGGING and report predecessor heights.
+  Five reviewed snapshots preserve DIGGING and report predecessor block heights.
   Discharge every frozen placeholder before initial PREPARE.
   Install the candidate only after a final ACTIVATE certificate.
 end ref
@@ -48,7 +48,7 @@ else Final ACTIVATE
     B -> C: Recovery ping with next sequence and retained reached flag
     P -> C: Three corresponding fresh recovery pings
     note over A,P
-      Recovery creation leaves counters and heights unchanged.
+      Recovery creation leaves counters and block heights unchanged.
       Crash retries send identical retained ping bytes.
     end note
     C -> S: Forward every new exact placeholder
@@ -62,12 +62,12 @@ else Final ACTIVATE
     A -> A: Verify five reached pings and own exact acknowledgment before signing
     B -> B: Verify five reached pings and own exact acknowledgment before signing
   else At least one peer is still digging
-    C -> C: Respect maximum inherited predecessor height plus spacing
+    C -> C: Respect maximum inherited predecessor block height plus spacing
     C -> A: Head-scoped pong with four peer pings and own SAR acknowledgment
     C -> B: Head-scoped pong with four peer pings and own SAR acknowledgment
     C -> P: Recipient-specific pongs and own acknowledgments
-    A -> A: Verify strict sequences, heights, scope, spacing and exact acknowledgment
-    B -> B: Verify strict sequences, heights, scope, spacing and exact acknowledgment
+    A -> A: Verify strict sequences, block heights, scope, spacing and exact acknowledgment
+    B -> B: Verify strict sequences, block heights, scope, spacing and exact acknowledgment
     A -> A: Apply ordinary counter predicate and bounded catch-up
     B -> B: Apply ordinary counter predicate and bounded catch-up
     ref over A,ST

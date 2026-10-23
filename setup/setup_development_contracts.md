@@ -28,7 +28,7 @@ apply. An invalid guard result stalls the setup attempt under SPEC Section 18.
 | `EMPTY -> INSTALLED` | Successful key generation, aggregate-key validation, and applet initialization on an empty Boomlet. |
 | `INSTALLED -> ST_ENROLLED` | Two fresh nonce-bound consent rounds resolve to the same five-element set. |
 | `ST_ENROLLED -> PARAMS_REVIEWED` | Boomlet verifies ST's signature over the exact outstanding nonce-bound setup commitment. |
-| `PARAMS_REVIEWED -> PARAMETERS_AGREED` | Boomlet verifies one identical signed `boomerang_params_fingerprint` from every active peer. |
+| `PARAMS_REVIEWED -> PARAMETERS_AGREED` | Boomlet verifies one identical signed `boomerang_params_fingerprint` from every peer. |
 | `PARAMETERS_AGREED -> WT_READY` | Boomlet verifies its local `WtSetupReceipt` and the five matching `wt_ready` checkpoint signatures. |
 | `WT_READY -> SAR_READY` | Boomlet verifies the WT wrapper, its own SAR response, and the five matching `sar_ready` checkpoint signatures. |
 | `SAR_READY -> BACKUP_READY` | Boomlet verifies `BackupDone`, the five matching `backup_ready` checkpoint signatures, and durably stores the final checkpoint. |
@@ -55,7 +55,7 @@ apply. An invalid guard result stalls the setup attempt under SPEC Section 18.
 
 | Guard | Owner | Acceptance conditions |
 | --- | --- | --- |
-| `G-SAR-REGISTRATION` | Phone and SAR | Confidential exchange authenticates the selected `SarId`. Payment verifies against the SAR invoice associated with `doxing_data_identifier` and `PROTOCOL_VERSION`. Require `first_dynamic_doxing_data_upload.doxing_data_identifier == doxing_data_identifier`, a valid upload CMAC, and sequence number zero. An existing `dynamic_update_auth_key` must match in constant time. SAR atomically commits the static envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_dynamic_doxing_data_upload`, and `dynamic_doxing_data_upload_receipt_signed_by_sar` before `SetupSarPhoneMessage2`. Phone verifies the receipt under SPEC Section 10 before success. |
+| `G-SAR-REGISTRATION` | Phone and SAR | Confidential exchange authenticates the selected `SarId`. Payment verifies against the SAR invoice associated with `doxing_data_identifier` and `PROTOCOL_VERSION`. Require `first_dynamic_doxing_data_upload.doxing_data_identifier == doxing_data_identifier`, a valid upload CMAC, and sequence number zero. An existing `dynamic_update_auth_key` must match in constant time. SAR commits the static envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_dynamic_doxing_data_upload`, and `dynamic_doxing_data_upload_receipt_signed_by_sar` before `SetupSarPhoneMessage2`. Phone verifies the receipt under SPEC Section 10 before success. |
 | `G-SETUP-CONSENT-RESPONSE` | ST and Boomlet | ST accepts one displayed value from each of five columns. Boomlet requires an outstanding challenge for the current enrollment round, exact nonce equality, exactly five distinct indices in range, and one response only. The confirmation round must resolve to the first stored set. |
 | `G-LOCAL-PEER-RECORD` | Niso and ST | Boomlet signature and identity are valid; the Tor address derived by Niso equals the address inside the record; ST sees the Boomlet identity established during pairing. |
 

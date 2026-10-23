@@ -57,7 +57,7 @@ group Candidate preparation
   end
   B -> B: Require discharged duty or frozen NO_PLACEHOLDER
   note over B,S
-    Duplicate acknowledgment changes no phase, height or counter.
+    Duplicate acknowledgment changes no phase, block height or counter.
     Missing gate evidence, bytes or acknowledgment blocks PREPARE.
   end note
   note over P,C
@@ -82,7 +82,7 @@ group Ballot zero
   B -> B: Verify final five-vote DecisionCertificate
   B -> P: Relay complete DecisionCertificate
   B -> C: Complete ACTIVATE DecisionCertificate
-  B -> B: Atomically install new head and candidate index
+  B -> B: Install new head and candidate index
   P -> P: Each peer installs after verifying the final certificate
   C -> C: Begin coordination under the certified head
 end

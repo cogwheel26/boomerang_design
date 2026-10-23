@@ -116,7 +116,7 @@ Payload meaning cannot affect acceptance, retention, receipts, retries, or withd
 ### DRD-SR-03 Durable append
 
 SAR keeps separate histories for each `(doxing_data_identifier, device_id)` and
-appends each accepted authenticated upload atomically. Exact retries return
+appends each accepted authenticated upload. Exact retries return
 the original receipt. No accepted upload replaces another.
 
 ### DRD-SR-04 Device IDs and Phone replacement
@@ -376,7 +376,7 @@ already described in the main specification.
 
 | Property | Required result |
 | --- | --- |
-| First registration | Payment receipts, `doxing_data_identifier`, static envelope, `dynamic_update_auth_key`, and `first_dynamic_doxing_data_upload` share `SetupPhoneSarMessage2`. SAR checks the invoice associated with `doxing_data_identifier` and `PROTOCOL_VERSION`, then atomically commits the static envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_dynamic_doxing_data_upload`, and `dynamic_doxing_data_upload_receipt_signed_by_sar` before replying in `SetupSarPhoneMessage2`. |
+| First registration | Payment receipts, `doxing_data_identifier`, static envelope, `dynamic_update_auth_key`, and `first_dynamic_doxing_data_upload` share `SetupPhoneSarMessage2`. SAR checks the invoice associated with `doxing_data_identifier` and `PROTOCOL_VERSION`, then commits the static envelope, `PROTOCOL_VERSION`, `dynamic_update_auth_key`, `first_dynamic_doxing_data_upload`, and `dynamic_doxing_data_upload_receipt_signed_by_sar` before replying in `SetupSarPhoneMessage2`. |
 | Registration retry | Phone retries the complete original request after a lost reply. SAR returns the original receipt and preserves the static envelope, `dynamic_update_auth_key`, `PROTOCOL_VERSION`, and accepted history. A different `dynamic_update_auth_key` or static envelope is rejected. |
 | Authentication | Wrong keys, changed authenticated fields, and context mismatches are rejected. |
 | Exact retry | Repeated delivery returns the original signed receipt without another append, including after SAR crash recovery and under concurrent delivery. |

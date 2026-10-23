@@ -549,9 +549,8 @@
         { "id": 14, "name": "setup_checkpoint", "type": "bytes32", "required": true },
         { "id": 15, "name": "sar_setup_response_signed_by_sar", "type": "SignedMessage<SarSetupResponse>", "required": true },
         { "id": 16, "name": "replay_state", "type": "value", "required": true, "context_rule": "boomlet_backup_replay_state" },
-        { "id": 17, "name": "backup_complete", "type": "bool", "required": true },
-        { "id": 18, "name": "consent_counter", "type": "u64", "required": true },
-        { "id": 19, "name": "under_duress", "type": "bool", "required": true }
+        { "id": 17, "name": "consent_counter", "type": "u64", "required": true },
+        { "id": 18, "name": "under_duress", "type": "bool", "required": true }
       ]
     },
     {

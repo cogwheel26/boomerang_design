@@ -167,7 +167,7 @@ The following symbolic parameters are part of the implementation profile:
 | `DURESS_CHECK_INTERVAL_IN_BLOCKS` | Mean duress-check interval parameter | Positive integer |
 | `REQUIRED_MINIMUM_DISTANCE_IN_BLOCKS_BETWEEN_PING_AND_PONG` | Minimum block spacing between successive pong rounds; the first pong is exempt | At least 1 |
 | `FRESHNESS_TOLERANCES` | Complete mapping of per-message block-height tolerances | Every value is non-negative and fixed by the implementation profile |
-| `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum permitted lag of an included peer ping relative to the current local Niso height for counter advancement | Non-negative integer |
+| `TOLERANCE_IN_BLOCKS_FROM_CREATING_PING_BY_OTHER_PEERS_TO_REVIEWING_THE_PING_IN_PEER_BOOMLET` | Maximum permitted lag of an included peer ping relative to the current local Niso block height for counter advancement | Non-negative integer |
 | `JUMP_IN_BLOCKS_IF_LAST_SEEN_BLOCK_LAGS_BEHIND_NISO_EVENT_BLOCK_HEIGHT_IN_BOOMLET` | Maximum local `last_seen_block` catch-up per valid pong round | Positive integer |
 
 Canonical size-limit requirements are defined in Section 8.3.
@@ -188,26 +188,43 @@ duress cadence, and block-height jump limits are not yet selected.
 
 Boomlet stores:
 
-- identity private key and public key;
-- MuSig2 private share and public share;
-- normal public key;
-- ST identity public key;
-- Tor secret key;
-- selected SAR identity and `doxing_key`;
-- `duress_consent_set`;
-- signed local `PeerSetupRecord`;
-- active `setup_instance_id`;
-- `boomerang_params`;
-- `setup_checkpoint`;
-- backup-complete flag;
+- `normal_pubkey`: local recoverable normal public key;
+- `doxing_key`: local key material for SAR-specific rescue keys;
+- `sar_id`: local peer's selected SAR identity;
+- `boomlet_identity_private_key`: local identity signing and channel derivation key;
+- `boomlet_identity_public_key`: local Boomlet identity public key;
+- `boomlet_musig2_private_share`: local MuSig2 private signing share;
+- `boomlet_musig2_public_share`: local MuSig2 public share;
+- `st_identity_public_key`: paired ST identity public key;
+- `duress_consent_set`: local five-country consent set;
+- `consent_counter`: local monotonic consent counter;
+- `under_duress`: whether local duress has been recorded;
+- `tor_secret_key`: local Tor service identity secret;
+- `peer_setup_record_signed_by_boomlet`: signed local peer setup record;
+- `setup_instance_id`: shared setup identifier;
+- `boomerang_params`: setup parameters, including `PeerId` values for all peers;
+- `setup_checkpoint`: shared setup phase checkpoint hash;
+- `backup_boomlet_pubkey`: local peer's authorized Boomletwo identity public key;
 - replay memory needed to reject completed setup instances and active withdrawal replays.
 
-During an active setup or withdrawal, Boomlet also holds ceremony state
-shown in the diagrams, including outstanding ST challenge nonces, candidate
-`duress_check_space`, transaction review state, `withdrawal_id`,
-`approved_withdrawal_id`, verified approval and commit collections, current
-placeholder plaintext, the active withdrawal `mystery`, ping counters,
-reached-peer state, and signing-session state.
+During an active setup or withdrawal, Boomlet also holds:
+
+- `duress_check_space`: local candidate country permutation;
+- nonces for outstanding local ST interactions;
+- `backup_complete`: whether setup backup has completed;
+- shared transaction identifier and outstanding local ST review;
+- `withdrawal_id`: shared current withdrawal identifier;
+- `ordered_peer_tx_approvals`: verified signed `TxApproval` values from every
+  peer in setup order;
+- `approved_withdrawal_id`: shared identifier binding all five approvals;
+- `duress_placeholder_plaintext`: current local value encrypted for SAR;
+- verified signed `TxCommit` values from every peer;
+- `mystery`: local secret digging threshold;
+- `counter`: local digging progress count;
+- `ping_seq_num`: sequence number of the next local ping;
+- `reached_mystery_flag`: whether the local mystery has been reached;
+- `reached_peers`: verified reached pings from other peers;
+- MuSig2 nonces and partial signatures for the local peer.
 
 Identity and MuSig2 private material MUST NOT be exported in plaintext or made
 available to Iso, Niso, or the host. The only permitted export is the
@@ -218,9 +235,14 @@ defined in Section 13.10.
 
 Iso takes and reconstructs:
 
-- mnemonic, passphrase, and normal private key;
-- network and descriptor-verification inputs;
-- temporary setup-relay, backup-verification, and signing state.
+- `network`: Bitcoin network used for descriptor verification;
+- `passphrase`: local mnemonic seed passphrase;
+- `mnemonic`: local recoverable normal-key mnemonic;
+- `normal_privkey`: reconstructed local normal private key;
+- temporary setup messages;
+- all peers' `PeerId` values, milestone block heights, and supplied descriptor;
+- temporary backup authorization and verification data;
+- temporary PSBT, nonces, and partial signatures.
 
 Iso is not assumed to retain durable setup or withdrawal state when it is not
 actively in use. It MAY lose state between ceremonies and during any interval of
@@ -234,16 +256,15 @@ abandonment when session-secret safety demands it.
 
 Niso stores:
 
-- Bitcoin RPC configuration;
-- Tor identity material provided by Boomlet;
-- peer reachability records;
-- active setup relay state, including signed peer records, WT identifiers,
-  milestones, setup IDs, fingerprints, checkpoints, and payment messages until
-  they are relayed or no longer needed;
-- active withdrawal relay state, including PSBTs, transaction IDs, approval and
-  commit collections, pings, pongs, reached-ping collections, and locally
-  observed block heights;
-- the latest locally observed block height.
+- Bitcoin RPC connection settings;
+- `tor_secret_key`: local Tor service identity supplied by Boomlet;
+- peer addresses and availability;
+- setup relay state, including signed `PeerSetupRecord` values for all
+  peers, WT identifiers, milestones, setup IDs, fingerprints, checkpoints, and
+  payment messages until relayed or no longer needed;
+- latest locally observed Bitcoin block height;
+- withdrawal relay state, including PSBTs, transaction IDs, approval and commit
+  collections, pings, pongs, reached-ping collections, and local block heights.
 
 Niso is not trusted to authorize spending. Boomlet and ST independently verify
 critical data.
@@ -252,30 +273,32 @@ critical data.
 
 WT stores:
 
-- registered setup agreements and peer identity keys;
-- selected per-peer SAR routing information received during setup finalization;
-- active ceremony `setup_instance_id`, `withdrawal_id`, and post-approval
-  `approved_withdrawal_id`;
+- `setup_instance_id`: active setup identifier;
+- registered setup agreements and public identity keys for all peers;
+- payment and service receipts;
+- selected per-peer SAR routing information from setup finalization;
+- `withdrawal_id`: current withdrawal identifier;
+- `approved_withdrawal_id`: post-approval withdrawal identifier;
 - approvals, approval-set attestations, commitments, latest pings, pongs, and
   reached pings;
-- payment and service receipts;
 - replay and deduplication state.
 
 ### 7.5 SAR state
 
 SAR stores:
 
-- `doxing_data_identifier`;
-- the static rescue-data AES-CBC/CMAC envelope;
-- `PROTOCOL_VERSION` and `dynamic_update_auth_key` associated with that
-  `doxing_data_identifier`;
-- append-only histories indexed by `(doxing_data_identifier, device_id)`,
-  containing each accepted `DynamicRescueUpload` and its original signed
-  `DynamicRescueReceipt`, uniquely keyed by `upload_id` within each history;
+- `sar_private_key`: SAR identity signing and channel derivation key;
+- `sar_pubkey`: SAR identity public key;
+- `doxing_data_identifier`: rescue-data registration identifier;
+- `PROTOCOL_VERSION`: protocol profile associated with the registration;
 - payment or registration status;
-- replay tuples for duress placeholders:
-  `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}`;
-- its identity keypair.
+- AES-CBC/CMAC envelope for static rescue data;
+- `dynamic_update_auth_key`: upload authentication key for the registration;
+- append-only histories of accepted `DynamicRescueUpload` records and original
+  signed `DynamicRescueReceipt` values, grouped by
+  `(doxing_data_identifier, device_id)` and keyed by `upload_id`;
+- processed `(approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv)`
+  replay tuples.
 
 ## 8. Canonical data model
 
@@ -1012,7 +1035,6 @@ BoomletBackupState {
   setup_checkpoint: bytes32,
   sar_setup_response_signed_by_sar: SignedMessage<SarSetupResponse>,
   replay_state: value,
-  backup_complete: bool,
   consent_counter: u64,
   under_duress: bool
 }
@@ -1717,15 +1739,15 @@ IDLE
 ```
 
 Any invalid signature, envelope, nonce, setup ID, transaction ID, withdrawal ID,
-sequence, height relation, or state transition returns the relevant Section 18
+sequence, block-height relation, or state transition returns the relevant Section 18
 failure class and stalls the active ceremony. A stalled ceremony stops advancing
 but remains bound to its active setup, withdrawal identifiers, transcript, and
 replay state until a valid retry or recovery input is accepted, or until the
 user or operator explicitly abandons it under Section 18.2.
 
 Withdrawal uses two IDs. The initiator-created `withdrawal_id` binds the setup, transaction, initiator identity, and initiator approval nonce after initiator review and during approval fan-out. After all peer approvals are verified, `approved_withdrawal_id` binds the exact unanimous approval set and identifies every following commitment, duress, ping, pong, reached-ping, signing, export, and replay scope.
-`initiator` and `non-initiator` are withdrawal roles. Any active setup peer MAY
-be the initiator; active setup peer order remains the order of
+`initiator` and `non-initiator` are withdrawal roles. Any peer in the current setup MAY
+be the initiator; setup peer order remains the order of
 `peer_ids_collection`.
 
 ## 15. Withdrawal protocol
@@ -1755,7 +1777,7 @@ Withdrawal MAY begin only if:
 
 - Boomlet has a locally stored final `setup_checkpoint`;
 - selected inputs are controlled by the Boomerang descriptor;
-- current height is at least `milestone_block_0`;
+- current block height is at least `milestone_block_0`;
 - the unsigned transaction is satisfiable under the 5-of-5 Boomerang branch;
 - no other withdrawal ceremony or unresolved consent rotation is active;
 - fallback-path spending is not being presented as Boomerang spending.
@@ -1828,25 +1850,44 @@ Each non-initiator Boomlet verifies the same visible approval state and, during
 authenticated decryption of the PSBT envelope, additionally verifies:
 
 - PSBT envelope sender and recipient;
-- reconstructed `withdrawal_id` equals `tagged_sha256("Boomerang/withdrawal_id", canonical_encode(setup_instance_id, psbt.derive_tx_id(), initiator approval signer identity key, initiator approval nonce))`.
+- equality of the received `withdrawal_id` and the value reconstructed under
+  Section 15.3 from the active setup ID, PSBT-derived `tx_id`, initiator approval
+  signer identity, and initiator approval nonce.
 
-Boomlet decrypts the PSBT and returns it to Niso after these checks. Niso verifies
-the reconstructed `withdrawal_id` from the PSBT before displaying the complete
-transaction to User. After user approval, Boomlet performs the same nonce-bound ST tx-ID review and signs its own `TxApproval` with a fresh peer `approval_nonce` and the initiator's `withdrawal_id`. Non-initiator approval relay messages also carry `withdrawal_id` outside the encrypted approval for context selection. Non-initiator approvals do not repeat `tx_id`; peers recover the approving identity from the signed-message wrapper and recover the transaction binding through the initiator's reconstructable `withdrawal_id`.
+After these checks, Boomlet decrypts the PSBT and returns it to Niso. Niso
+verifies the reconstructed `withdrawal_id` before displaying the complete
+transaction to User. After user approval, Boomlet performs the same nonce-bound
+ST `tx_id` review and signs its own `TxApproval` with a fresh peer
+`approval_nonce` and the initiator's `withdrawal_id`.
 
-WT collects one valid approval from every peer and sorts the approvals in active setup peer order:
+Non-initiator approval relay messages carry `withdrawal_id` outside the encrypted
+approval for context selection. Peers recover the approving identity from the
+signed-message wrapper and the transaction binding through `withdrawal_id`;
+non-initiator approvals omit `tx_id`.
+
+WT MUST collect and verify exactly one `TxApproval` from each setup peer for
+the expected `withdrawal_id`, then sort the approvals in setup peer order:
 
 ```text
 ordered_peer_tx_approvals :=
   WT-sorted Collection<SignedMessage<TxApproval>> [0 <= i <= 4]
-  in active setup peer order, where ordered_peer_tx_approvals[i]
+  in setup peer order, where ordered_peer_tx_approvals[i]
   is signed by peer_ids_collection[i].boomlet_identity_pubkey
 
 ordered_non_initiator_peer_tx_approvals :=
   ordered_peer_tx_approvals with the initiator's approval omitted
 ```
 
-Receivers verify the WT-supplied ordering before hashing: the collection MUST contain exactly one approval per expected active setup peer, no missing approvals, no duplicates, no wrong signer, no wrong `withdrawal_id`, and no ordering mismatch. Non-initiator receivers that receive `ordered_non_initiator_peer_tx_approvals` reconstruct `ordered_peer_tx_approvals` by inserting the stored initiator approval at the initiator's active setup peer position before computing the approved ID. No peer may commit before it has verified unanimous approval for one reconstructed `withdrawal_id` in the active setup. Approval-collection messages carry the signed approvals; every receiver computes the ID locally after verification. After verification, every participant computes:
+Niso and Boomlet MUST independently verify approval signatures, exactly one
+approval per setup peer, the expected `withdrawal_id`, setup peer order, and
+peer and WT approval freshness against the applicable local and WT block heights.
+Non-initiators verify `ordered_non_initiator_peer_tx_approvals` in setup order
+with the initiator omitted, then insert the stored signed initiator approval
+at its setup peer position.
+
+Boomlet MUST verify all five approvals for the reconstructed `withdrawal_id`
+before committing. Each receiver computes `approved_withdrawal_id` locally from
+the complete verified set:
 
 ```text
 approved_withdrawal_id :=
@@ -1962,7 +2003,7 @@ when active withdrawal state is cleared under Sections 15.14 and 18.2.
 `counter` is the successful digging-game progress count.
 `niso_i_event_block_height` is the latest Niso-supplied block height accepted
 at `DIGGING` entry after the surrounding commit/SAR freshness checks. Boomlet
-does not obtain an independent chain height for this initialization.
+does not obtain an independent block height for this initialization.
 
 ### 15.7 Ping
 
@@ -1987,7 +2028,7 @@ WT verifies:
 - both signatures;
 - approved withdrawal ID;
 - strict sequence increase;
-- allowed height range;
+- allowed block-height range;
 - monotonic reached flag.
 
 A correctly authenticated, sequence-current ping MUST NOT be rejected solely
@@ -1995,7 +2036,11 @@ because its `last_seen_block` is old. Lagging pings remain protocol-valid so a
 pong can drive bounded `last_seen_block` catch-up, even though they may be
 ineligible for counter advancement at a recipient Boomlet.
 
-WT forwards every placeholder to SAR and obtains an encrypted SAR placeholder acknowledgment before using the ping in a pong.
+WT forwards every valid ping's placeholder to the setup-bound SAR, including
+after digging ends. Before using a ping in a pong, WT obtains its exact encrypted
+SAR acknowledgment. WT also relays `(approved_withdrawal_id, encrypted signed
+SAR receipt)` through Niso to the originating Boomlet. Receipt-only delivery
+creates no pong or digging progress.
 
 ### 15.8 pong
 
@@ -2019,7 +2064,7 @@ Pong {
 ```
 
 `prev_pings` is recipient-specific and complete: for peer `i`, WT includes the
-signed pings from every active peer `j != i`, ordered by `peer_ids_collection`
+signed pings from every peer `j != i`, ordered by `peer_ids_collection`
 with peer `i` omitted. WT encrypts a recipient-specific pong for each Boomlet
 and includes that peer's encrypted SAR placeholder acknowledgment.
 
@@ -2028,12 +2073,12 @@ Each Boomlet verifies:
 - WT signature and envelope;
 - approved withdrawal ID;
 - `event_block_height` freshness;
-- `prev_pings` contains exactly one signed ping from every active peer `j != i`;
+- `prev_pings` contains exactly one signed ping from every peer `j != i`;
 - included peer ping sequence monotonicity;
 - included peer ping reached-flag monotonicity;
 - its own encrypted SAR placeholder acknowledgment.
 
-### 15.9 Counter advancement and height catch-up
+### 15.9 Counter advancement and block-height catch-up
 
 For each otherwise valid pong, Boomlet evaluates counter advancement before
 updating `last_seen_block`. It increments `counter` only when:
@@ -2042,7 +2087,7 @@ updating `last_seen_block`. It increments `counter` only when:
 - `niso_i_event_block_height` is strictly greater than `last_seen_block`, so
   the local chain view has advanced since the
   previous ping;
-- each included previous peer ping from every active peer `j != i` satisfies:
+- each included previous peer ping from every peer `j != i` satisfies:
 
 ```text
 prev_ping_j.last_seen_block >=
@@ -2057,7 +2102,7 @@ flag is used only for monotonicity checks and for WT's final all-peers-reached
 termination condition; it MUST NOT make an otherwise valid current peer ping
 ineligible for another Boomlet's counter advancement.
 
-- no local height decrease, WT height decrease, sequence regression, or
+- no local block height decrease, WT block height decrease, sequence regression, or
   material RPC/WT chain-view disagreement is active.
 
 If these conditions hold:
@@ -2067,7 +2112,7 @@ counter := counter + 1
 ```
 
 Independently of whether the counter advanced, every otherwise valid pong
-performs bounded height catch-up:
+performs bounded block-height catch-up:
 
 ```text
 if last_seen_block < niso_i_event_block_height:
@@ -2098,7 +2143,7 @@ mystery MUST continue the ping-pong loop, including fresh pings and
 duress-placeholder handling, until WT distributes a valid
 `reached_pings_collection`; reaching locally is not a terminal digging state.
 
-Any detected local height decrease, WT height decrease, or material RPC/WT
+Any detected local block height decrease, WT block height decrease, or material RPC/WT
 disagreement returns `CHAIN_VIEW_UNSAFE` and stalls the active Boomerang
 ceremony.
 
@@ -2147,6 +2192,8 @@ explicit abandonment before any new ceremony can begin.
 
 ### 15.13 MuSig2 signing
 
+Signing and export MUST satisfy the gates in Section 16.7.
+
 1. User moves Boomlet to Iso.
 2. Iso reconstructs the normal key.
 3. Boomlet provides PSBT, descriptor, public share, and fresh public nonce.
@@ -2163,7 +2210,7 @@ Nonce material MUST be unique to the session and erased after use.
 
 1. User returns Boomlet to Niso.
 2. Boomlet exports the signed PSBT fragment.
-3. Boomlet clears active withdrawal state.
+3. Boomlet clears active withdrawal state under Section 16.7.
 4. Niso sends the fragment to WT.
 5. WT aggregates all peer fragments, verifies the complete transaction, and broadcasts it.
 6. The broadcast transaction MUST have the `tx_id` committed by the reconstructed `withdrawal_id` and the approved withdrawal approval set.
@@ -2198,10 +2245,12 @@ duress_check_space_with_nonce :=
 3. ST maps the challenge through `DURESS_DISPLAY_VOCABULARY`, creates five independently shuffled display copies, and stores display-to-original-index maps.
 4. User selects one country from each column.
 5. ST returns five original-list indices with the exact nonce.
-6. Boomlet rejects no outstanding duress check, wrong phase, duplicate response, nonce mismatch, wrong count, duplicate indices, or out-of-range indices.
-7. Boomlet resolves the indices to integers and compares the unordered set with `duress_consent_set`.
-
-Equality means safe. Any other valid five-element set means duress.
+6. Boomlet verifies the outstanding nonce and phase and checks for five distinct
+   in-range indices.
+7. Boomlet resolves the indices and compares all five countries with
+   `duress_consent_set`, ignoring order. Before continuing, it consumes
+   the response and updates `under_duress`, setting it to true on mismatch and
+   otherwise preserving it.
 
 ### 16.3 Placeholder
 
@@ -2209,7 +2258,7 @@ Equality means safe. Any other valid five-element set means duress.
 `doxing_key_for_sar`.
 
 ```text
-placeholder_plaintext :=
+duress_placeholder_plaintext :=
   zero_bytes_32              if under_duress == false
   doxing_key_for_sar         if under_duress == true
 ```
@@ -2351,6 +2400,236 @@ activation and still returns the same externally indistinguishable
 acknowledgment behavior. A mismatched context or unauthenticated placeholder
 envelope MUST be rejected.
 
+### 16.7 Consent rotation
+
+User sends `consent_rotation_start` to Niso, which sends `BEGIN_ROTATION()` to
+Boomlet and relays messages within the pair provisioned under Section 13.10.
+Signed ST approval authorizes consent maintenance.
+
+`rotation_state` contains ST approval, stage, query, latest accepted
+answer digest and successors, outcome, exact device packet, and final ST reply.
+Stages are `new_set_input`, `waiting_receipt`, and `complete`. Boomlet retains
+the completed record until it records the next ST approval or completes paired
+reset. It stores the paused iteration, outstanding SAR deliveries, and
+resumption gate. Boomletwo retains its accepted message and receipt. Both
+devices keep reset receipts separately and reserve bounded space for one
+attempt, its recovery caches, and reset. ST records its approved request and
+frozen answers before output.
+
+`consent_counter` remains monotonic across restart, restore, setup changes, and
+re-pairing while identities are reused. Missing or regressed protected state
+blocks operations. Reinitialization requires fresh pair and ST identities.
+
+Boomletwo replies with its original identity key. While inactive, it confines
+the copied source identity key to SAR verification; it MUST NOT expose arbitrary
+source-key signing or encryption. These roles and imported consent state survive
+restart.
+
+1. `BEGIN_ROTATION()` requires an active source in IDLE or DIGGING, available ST,
+   no incomplete attempt, and `consent_counter < 2^64 - 2`.
+   Boomlet starts immediately in IDLE. In DIGGING, it finishes and sends any
+   ping already under construction, then starts rotation at the beginning of
+   the next iteration before input and ping construction, including while
+   waiting for peers after reaching mystery. If digging ends before entry,
+   it leaves the request unperformed. It pauses consent and withdrawal when
+   issuing the first challenge. Local commands supply no authority.
+2. Boomlet generates `rotation_id := random_bytes(32)` and sends
+   `ConsentRotationChallenge` containing that nonce, current counter, and a
+   fresh permutation. ST authenticates it, collects country input under
+   Section 16.2, and displays the rotation purpose and current-set prompt without
+   the counter. ST signs the exact request and returns approval and indices in
+   `ConsentRotationAnswer`.
+3. Boomlet verifies the ST signature, exact outstanding request, current counter,
+   and five distinct in-range indices. It compares all five resolved countries
+   with `duress_consent_set`, updates `under_duress` under Section 16.2, and
+   constructs the new-set query using `rotation_id` and a fresh permutation.
+   It records ST approval, `under_duress`, consumed answer digest,
+   the exact encrypted query, and `new_set_input` before output.
+   Invalid input preserves pending state. The counter remains unchanged during input.
+4. Boomlet sends the saved query. ST authenticates it for the approved attempt
+   and presents five independently shuffled columns for the user to select
+   five distinct countries, then independently reshuffles for confirmation.
+   On mismatch, ST immediately repeats confirmation using its retained map.
+   Both entries remain on ST. After a match, ST records and freezes one indexed
+   answer with the same nonce against the original permutation before output.
+   Selection and confirmation do not classify duress. Boomlet verifies stage,
+   nonce, and indices.
+5. Boomlet installs the chosen set, increments `consent_counter`, and
+   saves the flag, outcome, exact signed encrypted `consent_set` packet, latest
+   answer digest, and `waiting_receipt`, erasing the predecessor set and query.
+   An unchanged set still increments `consent_counter`.
+6. Boomletwo verifies both signatures, fixed pair, inactive role, equality of
+   the approved and local `consent_counter`, valid set, storage capacity, counter
+   headroom, and no pending reset. It installs the set, combines the
+   local and received `under_duress` flags with OR, increments `consent_counter`,
+   and saves the exact request and digest receipt before output, erasing the old
+   set and remaining inactive.
+7. Boomlet accepts only its paired backup's receipt for the exact saved envelope
+   while `waiting_receipt`. It saves the receipt, `complete`, any SAR
+   resumption gate, and the encrypted ST `completed` or `cancelled` reply before
+   output. ST verifies the operation and approved `rotation_id`. While paused,
+   Boomlet produces no new withdrawal input, progress, signing output, or
+   fragment export, but continues outstanding SAR delivery.
+
+After the backup receipt for a DIGGING rotation, Boomlet resumes with fresh
+input using the installed set, updates `under_duress` under Section 16.2,
+processes the saved pong, and sends the next-sequence ping. Before output,
+it saves a gate bound to `consent_counter`, that exact packet, and its expected
+placeholder. Only its exact verified SAR receipt permits later progress,
+signing, or export. Boomlet stays in DIGGING until that receipt, even if WT
+finishes. WT accepts valid pings and updates and redistributes the reached
+collection with each source's latest reached ping, without reopening digging
+or crediting progress. Boomlet revalidates that collection before signing or
+export.
+
+ST shows the approved counter plus one as pending only after authenticating the
+new-set query and as applied only after authenticated completion or terminal
+status. This includes identical sets and cancellation after Boomlet records ST
+approval, even if selection was skipped. Ordinary withdrawal queries hide the
+counter.
+
+ST cancels with an authenticated `MessageWithNonce<u8>` containing zero and
+nonce `rotation_id`. Boomlet verifies the outstanding query or input stage and
+serializes cancellation against answer acceptance and packet creation.
+Before Boomlet records ST approval, it discards only the volatile query and
+releases the pause. Afterward, it follows steps 5–7 with the unchanged set,
+stored `under_duress`, and cancelled outcome. A saved device packet fixes the
+outcome.
+
+At withdrawal end, Boomlet freezes country input and saves a fresh final ping
+and its expected placeholder before sending the ping. It requires the exact
+SAR receipt for either flag value. WT continues delivery through cleanup;
+Boomlet blocks new withdrawals and rotations until cleanup completes.
+Abandonment before an approved withdrawal ID preserves `under_duress` for the
+next withdrawal.
+
+If `rotation_state` exists, Boomlet requires stage `complete` and initiates
+paired reset by saving the ended withdrawal, verified final SAR receipt, and
+exact signed `ConsentReset` with the current `consent_counter`. Otherwise, it
+clears `under_duress` and finishes cleanup after final SAR delivery.
+
+Boomletwo verifies Boomlet's signature, its inactive role, the current
+`consent_counter` with room to increment, and the saved consent-set receipt.
+Using its copied Boomlet identity key, it verifies the final SAR receipt's
+approved ID, signer, context, and placeholder. The plaintext MUST be
+`zero_bytes_32` or `doxing_key_for_sar`; Boomletwo requires `doxing_key_for_sar`
+when its `under_duress` is true. It clears `under_duress` and the
+accepted consent-set record, increments `consent_counter`, and saves the exact
+reset acknowledgment before output.
+
+Boomlet verifies the acknowledgment's digest against its pending reset and
+requires `consent_counter` to be unchanged. It then clears
+`under_duress` and `rotation_state`, increments `consent_counter`, and finishes
+cleanup.
+
+Boomlet and Boomletwo return the cached successor for an exact retransmission
+of an accepted message before checks for a new transition, without repeating
+classification, installation, or counter advancement. `RESUME()` returns stored
+bytes. Older or conflicting input cannot replace an attempt or change
+`under_duress` after reset. Before recording ST approval, Boomlet keeps one
+immutable volatile query and returns it on repetition. Query loss releases the
+pause and requires a fresh nonce; Boomlet discards queries on setup or pairing
+changes. After recording ST approval, Boomlet retries the exact pending
+`consent_set` packet, resumption ping, or reset under Section 18.3. Devices
+preserve recorded state on timeout, invalid input, or unavailable storage.
+
+ST requires authenticated status and the same query for recovery. On repeated
+queries, it keeps its local input and display maps or returns the frozen answer.
+ST rejects conflicting content and restarts local entry only if no final answer
+was emitted. Otherwise, ST recovers that answer or cancels and completes the
+recorded outcome before another rotation. Status alone cannot exclude an answer
+in transit.
+
+For `ui_status`, ST sends `MessageWithNonce<bytes32>` containing the approved
+rotation ID and a fresh status nonce. Boomlet requires a matching `rotation_state`
+and echoes that nonce in `MessageWithNonce<RotationStatus>`. Status codes are
+0 WAITING, 2 NEW_SET_INPUT, 4 ROTATED and 5 CANCELLED; 1 and 3 are reserved.
+Only NEW_SET_INPUT carries the current permutation; other codes carry an
+undisplayed identity permutation. Status follows the saved stage and verified
+receipt and grants no input or resumption authority. Without a matching attempt,
+recovery requires a fresh `BEGIN_ROTATION()`; Boomlet still rejects unresolved
+work. Silence cannot establish whether Boomlet recorded ST approval. Boomlet
+caches one exact status reply with its nonce, returning that reply for the same
+nonce and replacing it for another nonce. ST retains one outstanding
+request, retries its exact envelope, and accepts only a reply with the matching
+nonce; after state loss, it uses a fresh request. Replayed older requests can
+consume the status budget.
+
+Devices allow eight automatic retries per object and eight fresh status nonces
+per attempt. Counts survive restart and `RESUME()`; exhaustion preserves recorded
+state and the cached reply. Correct and valid wrong answers and both flag values
+MUST have identical prompts, counts, canonical and framed lengths, routing,
+comparison work, durable writes, queues, deadlines, retries and failures,
+including recovery and reset. Devices encrypt sets, flags, signatures, and
+receipts and fix release deadlines on arrival before parsing; missed deadlines
+produce uniform failure without a late reply. Sections 16.3–16.6 apply to status,
+logs, metrics, and diagnostics.
+Rotation preserves mystery, progress and deadlines and grants no authority to
+replace devices, rebind, activate or sign, or revoke released signing output.
+
+Consent rotation uses these ordered canonical tuples:
+
+```text
+ConsentRotationChallenge = (
+  request: MessageWithNonce<u64>,
+  duress_check_space: DuressCheckSpace
+)
+ConsentRotationAnswer = (
+  approval: SignedMessage<MessageWithNonce<u64>>,
+  duress_signal_index: DuressSignalIndex
+)
+ConsentSetChange = (
+  approval: SignedMessage<MessageWithNonce<u64>>,
+  duress_consent_set: Collection<u16>,
+  under_duress: bool
+)
+ConsentReset = (
+  consent_counter: u64,
+  approved_withdrawal_id: bytes32,
+  sar_receipt: CbcCmacEnvelope<SignedMessage<CbcCmacEnvelope<bytes32>>>
+)
+RotationStatus = (status: u8, space: DuressCheckSpace)
+```
+
+`ConsentSetChange.duress_consent_set` encodes five ascending, distinct integers
+in 1..193; set comparison is unordered. ST approval uses signature domain
+`"Boomerang/consent_rotation/v1/st_review"`. Device signatures use
+`"Boomerang/consent_rotation/v1/" + operation`. Receipt contents are SHA-256
+of the complete request envelope's canonical bytes. `ConsentReset.sar_receipt`
+uses the SAR signature domain and encryption context from Section 16.4.
+
+ST and device operations use message type `"consent_rotation_" + operation`.
+Device contexts include `setup_instance_id`; ST contexts omit a scope ID.
+Reusing `rotation_id` across phases requires distinct operation contexts and
+one immutable query per phase.
+
+| Namespace | Selector | Operation | Content or result |
+| --- | --- | --- | --- |
+| Local | 41 | `BEGIN_ROTATION()` | Encrypted `ConsentRotationChallenge` |
+| Local | 45 | `RESUME()` | Retained successor or backup receipt |
+| ST | 23 | `current_set_challenge` | `ConsentRotationChallenge` |
+| ST | 24 | `current_set_answer` | `ConsentRotationAnswer` |
+| ST | 26 | `new_set_query` | `MessageWithNonce<DuressCheckSpace>` |
+| ST | 27 | `new_set_answer` | `MessageWithNonce<DuressSignalIndex>` |
+| ST | 34 | `cancel` | `MessageWithNonce<u8>` |
+| ST | 35 | `completed` | `bytes32` rotation ID |
+| ST | 36 | `ui_status` | `MessageWithNonce<bytes32>` |
+| ST | 37 | `ui_status_response` | `MessageWithNonce<RotationStatus>` |
+| ST | 38 | `cancelled` | `bytes32` rotation ID |
+| Device | 5 | `consent_set` | `SignedMessage<ConsentSetChange>` |
+| Device | 6 | `consent_set_received` | `SignedMessage<bytes32>` |
+| Device | 12 | `reset` | `SignedMessage<ConsentReset>` |
+| Device | 13 | `reset_ack` | `SignedMessage<bytes32>` |
+
+Local selectors 42–44, ST selectors 21–22, 25, 28–33, and device selectors 1–4,
+7–11 are reserved. Frames contain `operation: u8 || envelope_length: uint16_be
+|| envelope_bytes || zero_padding`, totaling 4,096 bytes between devices or
+2,048 bytes for ST. Framing is excluded from signatures and receipt digests.
+Reject unknown selectors, versions, enum values, and nonzero padding; enforce
+Section 8 limits before allocation or decoding. Rotation envelopes are limited
+to 2,048 bytes between devices and 1,536 bytes for ST, with nesting depth at
+most 12.
+
 ## 17. Replay resistance and binding
 
 The protocol uses the narrowest replay mechanism appropriate to each scope:
@@ -2402,7 +2681,7 @@ Implementations expose only these protocol-level classes:
 
 - `CHAIN_VIEW_UNSAFE`
 
-  A chain height decreases or observed chain views disagree materially.
+  A block height decreases or observed chain views disagree materially.
 
 - `USER_ABORT`
 
@@ -2594,7 +2873,7 @@ A conforming implementation MUST provide tests for:
   append-only retention, rejection of changed canonical bytes for an accepted
   upload identity, and uploads from a replacement Phone without new registration;
 - ping sequence and reached-flag monotonicity;
-- counter advancement requiring one signed ping from every other active peer,
+- counter advancement requiring one signed ping from every other peer,
   including
   already reached peers, to fall within the accepted boundary, while a valid
   no-advance pong still performs bounded `last_seen_block` catch-up and emits a
@@ -2616,7 +2895,9 @@ A conforming implementation MUST provide tests for:
   multi-device history after duress activation;
 - duress placeholder context binding, including rejection across a different
   `approved_withdrawal_id` or setup session and acceptance of the canonical
-  context without ping sequence or commitment phase fields.
+  context without ping sequence or commitment phase fields;
+- consent rotation and recovery under Section 16.7, including paired reset
+  and safe and duress flow equivalence.
 
 Protocol vectors MUST include exact canonical bytes, normal-key derivation
 inputs and outputs, keys, IVs, ciphertexts, tags, signatures, identifiers, and

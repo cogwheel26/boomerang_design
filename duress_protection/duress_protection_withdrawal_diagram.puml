@@ -74,13 +74,13 @@ note over Boomlet: **Boomlet** \n [...] \n shared_boomlet_sar_privkey \n doxing_
 
 
 
-group User In Duress [user_in_duress = true]
+group User In Duress [user_in_duress == true]
 hnote over Boomlet: doxing_key_for_sar := tagged_sha256("Boomerang/doxing_key_for_sar", doxing_key || canonical_public_key_bytes(sar_identity_pubkey))
 hnote over Boomlet: encrypted_duress_payload := AES_encrypt(shared_boomlet_sar_privkey, doxing_key_for_sar)
 hnote over Boomlet: WithdrawalMessage 01 := [...] + encrypted_duress_payload
 end
 
-group User Not In Duress [user_in_duress = false]
+group User Not In Duress [user_in_duress == false]
 hnote over Boomlet: encrypted_duress_payload := AES_encrypt(shared_boomlet_sar_privkey, [0; 32])
 hnote over Boomlet: WithdrawalMessage 01 := [...] + encrypted_duress_payload
 end

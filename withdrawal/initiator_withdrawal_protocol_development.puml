@@ -20,7 +20,7 @@ autonumber "<b>[WI00]"
 note over User, SARs
   <b>Scope</b>
   Peer 0 denotes the initiator role for this ceremony, not a fixed setup index.
-  Peer-indexed collections contain exactly one entry per active setup peer in setup order.
+  Peer-indexed collections contain exactly one entry per setup peer in setup order.
   Guards and detailed-message coverage are in withdrawal_development_contracts.md.
 end note
 
@@ -51,7 +51,7 @@ Boomlet -> WT: WI-APPROVE-1  withdrawal_id, Enc_WT(Sig_Boomlet(TxApproval_0)), E
 note over WT #Pink: Accept under G-INITIATOR-APPROVAL-AT-WT; create Sig_WT(WtTxApproval)
 WT -> Peers: WI-APPROVE-2  WtTxApproval, initiator TxApproval, recipient-encrypted PSBT
 Peers -> WT: WI-APPROVE-3  Enc_WT(Sig_Boomlet_i(TxApproval_i)) x4
-note over WT #Pink: Accept under G-TX-APPROVAL-COLLECTION; canonicalize in active setup peer order
+note over WT #Pink: Accept under G-TX-APPROVAL-COLLECTION; canonicalize in setup peer order
 WT -> Boomlet: WI-APPROVE-4  ordered five TxApprovals and WtTxApproval via Niso
 note over Niso #Pink: Prevalidate under G-APPROVAL-SET-AT-PEER
 note over Boomlet #Pink
@@ -93,41 +93,42 @@ note over Boomlet #Pink
   Revalidate complete set and exact own acknowledgment under G-COMMIT-COLLECTION.
   COMMITTED -> DIGGING.
   Draw one fresh private mystery only on DIGGING entry.
-  Initialize counter=0, ping_seq_num=0, reached=false, last_seen_block=local height.
+  Initialize counter := 0, ping_seq_num := 0, reached := false, last_seen_block := local block height.
 end note
 end
 
 group Digging rounds
-loop Until WT holds one current reached Ping from every active peer
+loop Until WT holds one current reached ping from every peer
   Boomlet -> WT: WI-DIG-1  Enc_WT(Sig_Boomlet(Ping_0 + freshly encrypted Placeholder_0)) via Niso
   Peers -> WT: WI-DIG-2  corresponding Ping_i and fresh Placeholder_i x4
-  note over WT #Pink: Accept each Ping under G-PING-AT-WT
-  WT -> SARs: WI-DIG-3  each Ping's exact Placeholder_i
+  note over WT #Pink: Accept each ping under G-PING-AT-WT
+  WT -> SARs: WI-DIG-3  each ping's exact Placeholder_i
   note over SARs #Pink: Durably process each under G-SAR-PLACEHOLDER
   SARs --> WT: WI-DIG-4  exact encrypted acknowledgment_i x5
   note over WT #Pink
-    A Ping contributes to a Pong only after its exact acknowledgment.
+    A ping contributes to a pong only after its exact acknowledgment.
     Enforce round spacing; construct recipient-specific Pong_i from current signed pings of all other peers.
   end note
   WT -> Boomlet: WI-DIG-5  Enc_Boomlet(Sig_WT(Pong_0)), acknowledgment_0 via Niso
   WT -> Peers: WI-DIG-6  recipient-specific Pong_i and acknowledgment_i
-  note over Niso #Pink: Prevalidate visible Pong and collection properties under G-PONG-AT-BOOMLET
+  note over Niso #Pink: Prevalidate visible pong and collection properties under G-PONG-AT-BOOMLET
   note over Boomlet #Pink
     Revalidate under G-PONG-AT-BOOMLET.
-    Evaluate G-COUNTER-ADVANCE before height catch-up.
-    Increment only if the local chain advanced and every other current Ping is within the local freshness window.
-    Apply bounded last_seen_block catch-up after every valid Pong, including no-progress rounds.
-    Record reached flags monotonically; set local reached when counter >= mystery; increment ping_seq_num.
   end note
-  opt Random round selected by the profile cadence
+  note over Boomlet #Lavender: Boomlet performs any requested consent rotation.
+  opt After rotation or when selected by the profile cadence
     ref over User, ST, Boomlet
       W-DURESS-CHECK
       Consume one fresh phase-bound response and update placeholder plaintext.
     end ref
   end
   note over Boomlet #Lavender
-    Freshly encrypt the current placeholder plaintext for the next Ping.
-    A reached Boomlet continues participating until all five current reached Pings are collected.
+    Evaluate G-COUNTER-ADVANCE before block-height catch-up.
+    Increment only if the local chain advanced and every other current ping is within the local freshness window.
+    Apply bounded last_seen_block catch-up after every valid pong, including no-progress rounds.
+    Record reached flags monotonically; set local reached when counter >= mystery; increment ping_seq_num.
+    Freshly encrypt the current placeholder plaintext for the next ping.
+    A reached Boomlet continues participating until all five current reached pings are collected.
   end note
 end
 end
@@ -160,7 +161,9 @@ Niso -> Boomlet: WI-SIGN-9  export signed fragment
 Boomlet --> Niso: WI-SIGN-10  psbt_signed_by_peer_0
 note over Boomlet #Lavender
   SIGNING -> SIGNATURE_EXPORTED.
-  After export completes, clear active withdrawal state and mystery; SIGNATURE_EXPORTED -> IDLE.
+  Boomlet sends a final ping and waits for its exact SAR receipt and any required backup reset acknowledgment.
+  under_duress := false
+  Clear active withdrawal state and mystery; SIGNATURE_EXPORTED -> IDLE.
 end note
 Niso -> WT: WI-RELAY-1  psbt_signed_by_peer_0
 Peers -> WT: WI-RELAY-2  psbt_signed_by_peer_i x4
@@ -169,8 +172,8 @@ WT -> Bitcoin: WI-RELAY-3  exact signed transaction
 end
 
 note over User, Bitcoin #LightYellow
-  Invalid identity, signature, envelope, nonce, ceremony binding, sequence, height relation,
-  collection, transaction, or state transition stalls the active ceremony under SPEC section 18.
+  Invalid identity, signature, envelope, nonce, ceremony binding, sequence, block-height relation,
+  collection, transaction, or state transition stalls the active ceremony.
 end note
 
 @enduml

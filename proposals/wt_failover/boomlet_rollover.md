@@ -43,7 +43,7 @@ agree. Apply SPEC IV and retry rules, and authenticate retained ciphertext befor
 decryption.
 
 The checkpoint contains the actual counter, initialized status, original mystery
-if the selected delay policy uses it, reached flag, height and spacing floors,
+if the selected delay policy uses it, reached flag, block height and spacing floors,
 peer sequence and reached-state checks, active WT head and index, exact current
 SAR duty, accepted duress state and required challenge state. It also binds the
 approved transaction and the evidence needed for its current phase. All private
@@ -196,7 +196,7 @@ Before enabling signing or WT voting on Boomletwo, a complete design must supply
 
 Historical pongs cannot be replayed to earn fresh progress. Recovery must not
 convert offline elapsed time, ping count, checkpoint selection or speculative
-height catch-up into extra counter increments. The exact fresh-progress and
+block-height catch-up into extra counter increments. The exact fresh-progress and
 incarnation rules require specification before using the numerical delay bound
 as a claim about elapsed time. The base authenticated-chain issue remains open.
 

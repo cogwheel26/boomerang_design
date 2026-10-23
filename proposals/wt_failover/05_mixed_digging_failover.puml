@@ -27,13 +27,13 @@ alt Final ABORT
   A -> A: Retain initialized delay and pending obligations
   B -> B: Retain local commit and original phase
 else Final ACTIVATE
-  A -> A: Install head; retain mystery, counter, IDs, heights and sequences
+  A -> A: Install head; retain mystery, counter, IDs, block heights and sequences
   B -> B: Install head; retain accepted approvals and own exact commit
   C -> C: Reconstruct five exact signed padded commits
   C -> B: Complete COMMIT_SET, own SAR acknowledgment,\nand fresh head-scoped WT commit response
   B -> B: Verify own prior gates, all five commits, exact acknowledgment,\nIDs, activation certificate, chain and milestone conditions;\nonly exact historical commit and gate ages receive an exception
   alt Every local DIGGING entry guard holds
-    B -> B: Sample mystery once; initialize counter, height and sequence
+    B -> B: Sample mystery once; initialize counter, block height and sequence
     A -> A: Retain discharge and completed pre-freeze challenge
     A -> C: Fresh recovery ping with retained reached state
     B -> C: Normal initial ping for the preserved approved withdrawal

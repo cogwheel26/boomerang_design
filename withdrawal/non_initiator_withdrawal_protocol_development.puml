@@ -19,7 +19,7 @@ autonumber "<b>[WN00]"
 note over User, SARs
   <b>Scope</b>
   Peer i is one of four non-initiator roles; the initiator may occupy any active setup position.
-  Approval collections remain in active setup peer order.
+  Approval collections remain in setup peer order.
   Guards and detailed-message coverage are in withdrawal_development_contracts.md.
 end note
 
@@ -55,7 +55,7 @@ ST -> Boomlet: WN-REVIEW-5  Enc_Boomlet(Sig_ST(exact TxReview)) via Niso
 note over Boomlet #Pink: Accept under G-TX-REVIEW-APPROVAL; REVIEWING_TX -> APPROVED
 Boomlet -> WT: WN-APPROVE-1  withdrawal_id and Enc_WT(Sig_Boomlet_i(TxApproval_i)) via Niso
 Other_Peers -> WT: WN-APPROVE-2  corresponding TxApproval_j from other non-initiators
-note over WT #Pink: Accept under G-TX-APPROVAL-COLLECTION; canonicalize in active setup peer order
+note over WT #Pink: Accept under G-TX-APPROVAL-COLLECTION; canonicalize in setup peer order
 WT -> Niso: WN-APPROVE-3  four non-initiator approvals
 note over Niso #Pink: Reconstruct full set with stored initiator approval; prevalidate under G-APPROVAL-SET-AT-PEER
 Niso -> Boomlet: WN-APPROVE-4  four non-initiator approvals and current local block height
@@ -85,7 +85,7 @@ WT -> SARs: WN-COMMIT-4  initiator Placeholder_0 to the initiator's setup-bound 
 SARs --> WT: WN-COMMIT-5  exact initiator SAR acknowledgment
 WT -> Niso: WN-COMMIT-6  Sig_WT(Sig_Boomlet_0(TxCommit_0))
 note over Niso #Pink: Prevalidate under G-INITIATOR-COMMIT-AT-NONINITIATOR
-Niso -> Boomlet: WN-COMMIT-7  acknowledged initiator commit and current local height
+Niso -> Boomlet: WN-COMMIT-7  acknowledged initiator commit and current local block height
 note over Boomlet #Pink
   Revalidate under G-INITIATOR-COMMIT-AT-NONINITIATOR.
   Only this accepted event authorizes creation of TxCommit_i.
@@ -98,7 +98,7 @@ SARs --> WT: WN-COMMIT-10  Enc_Boomlet_i(Sig_SAR_i(exact Placeholder_i))
 note over WT #Pink: Accept commit and SAR acknowledgment under G-TX-COMMIT-AT-WT
 WT -> Niso: WN-COMMIT-11  complete WT-signed TxCommit set and acknowledgment_i
 note over Niso #Pink: Prevalidate under G-COMMIT-COLLECTION
-Niso -> Boomlet: WN-COMMIT-12  complete set, acknowledgment_i, current local height
+Niso -> Boomlet: WN-COMMIT-12  complete set, acknowledgment_i, current local block height
 note over Boomlet #Pink
   Revalidate complete set and exact own acknowledgment under G-COMMIT-COLLECTION.
   COMMITTED -> DIGGING.
@@ -114,8 +114,8 @@ ref over User, SARs
 end ref
 
 note over User, SARs #LightYellow
-  Invalid identity, signature, envelope, nonce, ceremony binding, sequence, height relation,
-  collection, transaction, or state transition stalls the active ceremony under SPEC section 18.
+  Invalid identity, signature, envelope, nonce, ceremony binding, sequence, block-height relation,
+  collection, transaction, or state transition stalls the active ceremony.
 end note
 
 @enduml

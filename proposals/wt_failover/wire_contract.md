@@ -48,7 +48,7 @@ resume package where its phase needs it. `closed_ids` has at most four distinct
 withdrawal IDs, ordered by bytes. `fragment_digests` has exactly five entries in
 setup peer order. `WtPrepared.signatures` has exactly five BIP340 signatures in
 setup peer order. All identity indices are zero-based and checked against the
-stored setup. An initial phase uses zero heights and sequence, absent ping and
+stored setup. An initial phase uses zero block heights and sequence, absent ping and
 inherited floor, and false reached and accepted-pong flags. The phase determines
 whether initialized, identifiers, and retained evidence are mandatory.
 
