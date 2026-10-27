@@ -326,8 +326,8 @@ encodings. `utf8(text)` returns the NFC-normalized UTF-8 bytes of `text`.
 
 ### 8.2 Canonical encoding
 
-The machine-readable wire registry is [`wire_catalog.json`](wire_catalog.json).
-The generated [`wire_catalog.txt`](wire_catalog.txt) gives every schema's field
+The machine-readable wire registry is [`wire_catalog.json`](../wip/wire_catalog.json).
+The generated [`wire_catalog.txt`](../wip/wire_catalog.txt) gives every schema's field
 IDs, byte layout, size formula, and nesting path. The JSON registry controls
 mechanical wire assignments; this specification controls protocol semantics
 and requirements.
@@ -465,7 +465,7 @@ The final registry MUST give each limit as a positive integer, name every
 permitted top-level context, and contain no unresolved entry. Conformance tests
 MUST accept a value at each limit and reject the first value above it. Encoded
 schema and object maxima MUST be independently recalculated from the canonical
-wire layouts in [`wire_catalog.txt`](wire_catalog.txt).
+wire layouts in [`wire_catalog.txt`](../wip/wire_catalog.txt).
 
 The numeric registry is not yet finalized. No implementation can claim v1
 conformance until the approved values and their boundary evidence are added to
@@ -831,7 +831,7 @@ assigned by field order inside each schema, starting at `1`; field ID `0` is
 reserved and is never assigned. All listed fields are required for schema
 version `1`.
 
-The generated [`wire_catalog.txt`](wire_catalog.txt) shows the complete ASCII
+The generated [`wire_catalog.txt`](../wip/wire_catalog.txt) shows the complete ASCII
 packet layout and encoded-size expression for each schema below.
 
 Schema names use `UpperCamelCase`. Values and fields use `snake_case`. A

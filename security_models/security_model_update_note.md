@@ -10,7 +10,7 @@ equivalence, interoperability and independent assurance remain unproven.
 ## Dynamic rescue-data lifecycle (2026-09-22)
 
 Sources: [SPEC Sections 10 and 13.1](../spec/SPEC.md) and the
-[adopted proposal](../proposals/Cannon_dynamic_rescue_data_lifecycle_proposal.md).
+[adopted proposal](../wip/proposals/Cannon_dynamic_rescue_data_lifecycle_proposal.md).
 The security model still describes selecting one current dynamic update.
 
 ### Changed controls and remaining exposure
@@ -53,7 +53,7 @@ The security model still describes selecting one current dynamic update.
 ## Paired consent rotation (2026-10-17)
 
 Sources: [SPEC Section 16.7](../spec/SPEC.md#167-consent-rotation),
-[adopted proposal](../proposals/Cannon_paired_consent_rotation_proposal.md),
+[adopted proposal](../wip/proposals/Cannon_paired_consent_rotation_proposal.md),
 ADRs [0009](../adr/0009-niso-relayed-consent-rotation.md) and
 [0010](../adr/0010-consent-counter-display.md). The security model still claims
 no rotation or consent-recovery procedure exists.

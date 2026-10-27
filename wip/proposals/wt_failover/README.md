@@ -10,7 +10,7 @@ each Boomlet preserves its withdrawal security state throughout the change.
 single-WT format cannot enable it. Adoption also requires full protocol
 verification, interoperable cryptographic vectors, and hardware measurements.
 
-This document is a normative delta over [SPEC.md](../spec/SPEC.md). All base
+This document is a normative delta over [SPEC.md](../../../spec/SPEC.md). All base
 requirements apply unless a rule below explicitly replaces or extends them.
 
 ## High-level flow

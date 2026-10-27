@@ -18,9 +18,9 @@ does not render diagrams.
 ```sh
 python3 -B - <<'PY'
 from pathlib import Path
-document = Path('wt_failover/security_model.md').read_text()
+document = Path('wip/proposals/wt_failover/security_model.md').read_text()
 source = document.split('```python\n', 1)[1].split('\n```', 1)[0]
-exec(compile(source, 'wt_failover/security_model.md', 'exec'))
+exec(compile(source, 'wip/proposals/wt_failover/security_model.md', 'exec'))
 PY
 ```
 
@@ -54,7 +54,7 @@ from pathlib import Path
 import json
 import runpy
 
-decision_path = Path('scripts/check_wt_switch_decision.py')
+decision_path = Path('outside/scripts/check_wt_switch_decision.py')
 decision = runpy.run_path(str(decision_path), run_name='decision_model')
 Vote = decision['SafetyState']
 vote_steps = decision['safety_steps']
@@ -434,11 +434,11 @@ def binding_checks():
     accepted = [row for row in product(*choices) if lookup(*row) == expected]
     assert accepted == [fields]
     assert expected != H(version, 'Boomerang/wt/genesis', b32(fields[1]))
-    catalog = json.loads(Path('wt_failover/wire_catalog.json').read_text())
+    catalog = json.loads(Path('wip/proposals/wt_failover/wire_catalog.json').read_text())
     schema_names = {s['id']: s['name'] for s in catalog['schemas']}
     assert {i: schema_names[i] for i in (31, 32, 36)} == {
         31: 'WtScope', 32: 'WtOptionalId', 36: 'WtReady'}
-    fixtures = json.loads(Path('wt_failover/canonical_vectors.json').read_text())
+    fixtures = json.loads(Path('wip/proposals/wt_failover/canonical_vectors.json').read_text())
     for fixture in fixtures:
         assert sha256(bytes.fromhex(fixture['signature_preimage_hex'])).hexdigest() == fixture['preimage_sha256']
     expected_release = ('profile', 'setup', 'peer', 'target', 'nonce',

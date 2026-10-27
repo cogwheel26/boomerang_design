@@ -10,9 +10,9 @@ Run from the repository root. No files are created or diagrams rendered.
 ```sh
 python3 -B - <<'PY'
 from pathlib import Path
-s = Path('wt_failover/boomlet_rollover_model.md').read_text()
+s = Path('wip/proposals/wt_failover/boomlet_rollover_model.md').read_text()
 exec(compile(s.split('```python\n', 1)[1].split('\n```', 1)[0],
-             'wt_failover/boomlet_rollover_model.md', 'exec'))
+             'wip/proposals/wt_failover/boomlet_rollover_model.md', 'exec'))
 PY
 ```
 

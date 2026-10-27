@@ -1,7 +1,7 @@
 {
   "extension_format_version": 1,
   "status": "proposal_requires_conformance",
-  "base_catalog": "../spec/wire_catalog.json",
+  "base_catalog": "../../wire_catalog.json",
   "protocol_version": "boomerang-wt-1",
   "schemas": [
     {

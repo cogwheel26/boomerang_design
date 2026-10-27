@@ -5,7 +5,7 @@ DIGGING checkpoint. Boomletwo can remain offline while peers, WT and Niso retain
 the packet. ST participates in its ordinary user interactions and an eventual
 recovery review, with no continuous recording duty.
 
-This proposal extends [SPEC.md](../spec/SPEC.md) and the [WT failover
+This proposal extends [SPEC.md](../../../spec/SPEC.md) and the [WT failover
 profile](README.md). Their requirements apply unless explicitly changed below.
 Source exclusion and later-state recovery remain unresolved, so the checkpoint
 does not authorize activation. Recovery assumes no source cooperation.

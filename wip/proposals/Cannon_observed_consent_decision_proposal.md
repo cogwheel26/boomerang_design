@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Draft, not adopted |
 | Phase 1 priority | 2 |
-| Normative baseline | [`SPEC.md`](../spec/SPEC.md) at `ed91233a4216be0c96f8f8d081276b7c94a39751` |
+| Normative baseline | [`SPEC.md`](../../spec/SPEC.md) at `ed91233a4216be0c96f8f8d081276b7c94a39751` |
 | Related gaps | DG-38, AR-35, AR-79, FM-30, R-12, R-21 |
 | Security review | 2026-09-19; Boomletwo interactions rechecked 2026-09-22 |
 

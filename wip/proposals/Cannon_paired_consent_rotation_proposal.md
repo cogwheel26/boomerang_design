@@ -1,11 +1,11 @@
 # Paired consent rotation proposal
 
 [Complete sequence](Cannon_paired_consent_rotation_sequence.puml).
-[Integrated sequence](../diagrams/ancillary/consent_rotation_diagram.puml).
-Decisions are recorded in [ADR 0009](../adr/0009-niso-relayed-consent-rotation.md) and
-[ADR 0010](../adr/0010-consent-counter-display.md).
+[Integrated sequence](../../diagrams/ancillary/consent_rotation_diagram.puml).
+Decisions are recorded in [ADR 0009](../../adr/0009-niso-relayed-consent-rotation.md) and
+[ADR 0010](../../adr/0010-consent-counter-display.md).
 
-Adopted in [SPEC Section 16.7](../spec/SPEC.md#167-consent-rotation). Encoding, signatures,
+Adopted in [SPEC Section 16.7](../../spec/SPEC.md#167-consent-rotation). Encoding, signatures,
 directional channels, and CBC-CMAC follow SPEC Sections 8–9.
 
 ## Behavior

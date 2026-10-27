@@ -31,8 +31,9 @@ and
 [non-initiator no-prose source](derived/non_initiator_withdrawal_diagram_without_states_without_prose_comments.puml).
 Their compact guard calls are defined in
 [withdrawal_no_prose_guards.md](derived/withdrawal_no_prose_guards.md), and their
-cryptographic calls are defined in
-[no_prose_crypto_contracts.md](../no_prose_crypto_contracts.md).
+cryptographic calls follow the
+[diagram notation](../setup/README.md#diagram-notation) and the
+[SPEC cryptographic profile](../spec/SPEC.md#9-cryptographic-profile).
 Repeated role-parameterized operations are defined in
 [withdrawal_no_prose_fragments.puml](derived/withdrawal_no_prose_fragments.puml).
 

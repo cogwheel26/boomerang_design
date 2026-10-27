@@ -1,7 +1,7 @@
 # WT failover wire contract
 
 `WT_FAILOVER_V1` is a proposed complete profile with `PROTOCOL_VERSION` encoded
-as the ASCII text `boomerang-wt-1`. The base `spec/wire_catalog.json` describes
+as the ASCII text `boomerang-wt-1`. The base `wip/wire_catalog.json` describes
 the single-WT profile. Its generic signature and envelope wrappers alone are
 insufficient to enable this profile. Version selection precedes key derivation
 and setup hashing and persists in the protected setup state. There is no

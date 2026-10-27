@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Draft, not adopted or verified |
 | Phase 1 priority | 3 |
-| Baseline | Current working-tree [`SPEC.md`](../spec/SPEC.md), Sections 7.1, 13.10, and 18.5 |
+| Baseline | Current working-tree [`SPEC.md`](../../spec/SPEC.md), Sections 7.1, 13.10, and 18.5 |
 | Related gaps | DG-04, DG-30, DG-39; AR-27, AR-28, AR-80; FM-31 |
 
 ## Scope and security boundary

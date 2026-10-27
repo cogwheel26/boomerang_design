@@ -4,29 +4,30 @@
 | --- | --- |
 | Status | Adopted into the design specification, 2026-09-18; deployment evidence pending |
 | Phase 1 priority | 1 |
-| Proposal baseline | [`SPEC.md`](../spec/SPEC.md) at `8ad77efabe03385d60733827fe55b3f988519c65` |
+| Proposal baseline | [`SPEC.md`](../../spec/SPEC.md) at `8ad77efabe03385d60733827fe55b3f988519c65` |
 | Related gaps | DG-11, DG-40 |
-| Normative integration | Current [`SPEC.md`](../spec/SPEC.md) |
+| Normative integration | Current [`SPEC.md`](../../spec/SPEC.md) |
 
 ## Integration change map
 
-Recorded 2026-09-18 before applying the integration. The user requested adoption
+Recorded 2026-09-18 before applying the integration; paths reflect the current
+repository layout. The user requested adoption
 of this proposal, a running changelog, and an incremental Phase 1 report.
 
 | File | Places to change | Intended result |
 | --- | --- | --- |
 | `spec/SPEC.md` | Sections 7.5, 8.3, 9.4, 9.6, 10, 13.1, 16.4, 18.1–18.4, 19.4, 19.9, 20–22 | `dynamic_update_auth_key` and `PROTOCOL_VERSION` state; device KDF; authenticated append; exact receipts; bounded opaque payloads; registration, replacement, retry, and complete-history rescue access. |
-| `spec/wire_catalog.json`, `spec/wire_catalog.txt` | Schema registry, signature domains, encryption contexts, registration tuple, generated layouts | Assign IDs 11 and 30 to upload and receipt; register exact types and regenerate the text catalog. |
+| `wip/wire_catalog.json`, `wip/wire_catalog.txt` | Schema registry, signature domains, encryption contexts, registration tuple, generated layouts | Assign IDs 11 and 30 to upload and receipt; register exact types and regenerate the text catalog. |
 | `outside/test_vectors/` | Focused vectors | Cryptographic bytes and lifecycle evidence with explicit boundaries. |
 | `setup/derived/setup_development_contracts.md`, `setup/derived/setup_no_prose_guards.md`, `setup/README.md` | SAR registration, stored objects, receipt verification, retry | Protected SAR registration and signed first-upload receipt. |
-| `no_prose_crypto_contracts.md`, `setup/**/*.puml`, `withdrawal/**/*.puml`, `duress_protection/*.puml` | SAR upload and rescue-data retrieval fragments | Device-key encryption and asynchronous access to all retained uploads; source edits only. |
+| `setup/**/*.puml`, `withdrawal/**/*.puml`, `duress_protection/*.puml` | SAR upload and rescue-data retrieval fragments | Device-key encryption and asynchronous access to all retained uploads; source edits only. |
 | `DESIGN.md`, `GLOSSARY.md`, `withdrawal/README.md`, `duress_protection/README.md` | Rescue data, registration, replacement, activation | Terminology and explanatory behavior consistent with the specification. |
 | `security_models/security_model_update_note.md` | DG-11, DG-40, T-DATA-02, related risks and assumptions | Hand off affected security-model entries for independent reassessment. |
-| `outside/Cannon_roadmap.md`, `outside/Cannon_phase_1_report.md`, `CHANGELOG.md` | Dynamic-data milestone, progress, decisions, evidence, chronological entries | Adopt history retention and record progress and remaining gates as work proceeds. |
+| `outside/Cannon_roadmap.md`, `outside/Cannon_phase_1_report.md`, `outside/CHANGELOG.md` | Dynamic-data milestone, progress, decisions, evidence, chronological entries | Adopt history retention and record progress and remaining gates as work proceeds. |
 | This proposal | Status, current-status baseline, roadmap divergence, object limits, integration checklist | Record adoption and exact implementation choices without claiming unrun deployment tests. |
 
 The independent review should also revisit the rescue-data attack-tree branch
-and SAR data-flow labels. The [security review note](../security_models/security_model_update_note.md)
+and SAR data-flow labels. The [security review note](../../security_models/security_model_update_note.md)
 lists the affected entries.
 
 The catalog validation covers the schema registry and registered dynamic
@@ -40,8 +41,8 @@ protected first registration, replacement, non-erasure, retry, and conflict reje
 `DynamicRescueUpload` uses schema ID
 11; `DynamicRescueReceipt` uses ID 30.
 
-The [changelog](../CHANGELOG.md) records integration and validation. The
-[Phase 1 report](../outside/Cannon_phase_1_report.md) records evidence and open
+The [changelog](../../outside/CHANGELOG.md) records integration and validation. The
+[Phase 1 report](../../outside/Cannon_phase_1_report.md) records evidence and open
 gates. The existing DG-40 entry awaits independent reassessment. Protected
 provisioning, real storage restoration, and duress-observability
 validation remain open.
@@ -417,7 +418,7 @@ already described in the main specification.
 ### Evidence still required
 
 - [ ] Independently reassess the security model using the
-  [review note](../security_models/security_model_update_note.md).
+  [review note](../../security_models/security_model_update_note.md).
 - [ ] Validate authenticated Phone–SAR transport for registration and later
   uploads with a real implementation, including channel substitution,
   endpoint failover, and payment-replay attacks.
