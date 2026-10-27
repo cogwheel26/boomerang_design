@@ -19,7 +19,10 @@ Arguments are evaluated exactly as written at the call site.
 
 ## Channel operations
 
-`C-SEAL(S, R, context, content)` expands to:
+The acting device is `S` for encryption and `R` for decryption. The `<peer>`
+suffix names the other entity above in lowercase, including its index.
+
+`encrypt_for_<peer>(context: context, content: content)` expands to:
 
 ```text
 cbc_cmac_encrypt(
@@ -31,7 +34,7 @@ cbc_cmac_encrypt(
   content: content)
 ```
 
-`C-OPEN(R, S, context, envelope)` expands to:
+`decrypt_from_<peer>(context: context, envelope: envelope)` expands to:
 
 ```text
 cbc_cmac_decrypt(
@@ -42,9 +45,6 @@ cbc_cmac_decrypt(
   context: context,
   envelope: envelope)
 ```
-
-The argument order records the direction. `C-SEAL` lists sender then receiver;
-`C-OPEN` lists receiver then sender.
 
 ## SAR stored-data operations
 

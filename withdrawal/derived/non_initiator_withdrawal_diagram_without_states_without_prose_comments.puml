@@ -1,6 +1,6 @@
 @startuml non_initiator_withdrawal_diagram_without_states_no_prose
 ' GW-* definitions: withdrawal_no_prose_guards.md
-' C-* definitions: ../no_prose_crypto_contracts.md
+' Cryptographic shorthand: ../../no_prose_crypto_contracts.md
 !include withdrawal_no_prose_fragments.puml
 skinparam sequenceMessageAlign left
 title Non-Initiator Withdrawal Sequence Diagram (Without States)
@@ -35,6 +35,12 @@ note over User, SAR
 #GW-NONINIT-COMMIT-AT-WT-FRESH(most_work_bitcoin_block_height, peer_1_tx_commit)
 end note
 
+legend left
+encrypt_for_<peer> and decrypt_from_<peer> use CBC-CMAC directional channels
+with the acting device's identity key and the named peer's public key.
+Decryption authenticates before returning content.
+endlegend
+
 autonumber 10 "<b>[00]"
 
 ' Step 10
@@ -51,7 +57,7 @@ WT o-> Niso: <b>WithdrawalWtNonInitiatorNisoMessage1 \n wt_tx_approval_signed_by
 hnote over Niso #White: <b>LOCAL</b> most_work_bitcoin_block_height := rpc_client.get_block_height() \n regard peer_0_tx_approval_signed_by_boomlet_0.signer_identity_pubkey as \n boomlet_0_identity_pubkey. \n <b>CHECK</b> Assert boomlet_0_identity_pubkey in boomerang_params.peer_ids_collection. \n <b>LOCAL</b> peer_0_tx_approval := peer_0_tx_approval_signed_by_boomlet_0.content \n wt_tx_approval := wt_tx_approval_signed_by_wt.content \n niso_1_event_block_height := most_work_bitcoin_block_height \n <b>CHECK</b> Assert peer_0_tx_approval.withdrawal_id == wt_tx_approval.withdrawal_id \n GW-WT-APPROVAL-FRESH(most_work_bitcoin_block_height, peer_0_tx_approval, wt_tx_approval) \n GW-MILESTONE(most_work_bitcoin_block_height) \n <b>LOCAL</b> initiator_peer_id := boomlet_0_identity_pubkey
 ' Step 12
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage1 \n wt_tx_approval_signed_by_wt; peer_0_tx_approval_signed_by_boomlet_0; psbt_encrypted_by_boomlet_0_for_boomlet_1; niso_1_event_block_height
-hnote over Boomlet #White: <b>LOCAL</b> regard peer_0_tx_approval_signed_by_boomlet_0.signer_identity_pubkey as \n boomlet_0_identity_pubkey. \n <b>CHECK</b> Assert boomlet_0_identity_pubkey in boomerang_params.peer_ids_collection. \n <b>LOCAL</b> peer_0_tx_approval := peer_0_tx_approval_signed_by_boomlet_0.content \n wt_tx_approval := wt_tx_approval_signed_by_wt.content \n withdrawal_id := peer_0_tx_approval.withdrawal_id \n psbt := C-OPEN(Boomlet_1, Boomlet_0, canonical_encode("withdrawal_psbt", withdrawal_id), psbt_encrypted_by_boomlet_0_for_boomlet_1) \n expected_withdrawal_id := tagged_sha256("Boomerang/withdrawal_id", \n canonical_encode(setup_instance_id, psbt.derive_tx_id(), boomlet_0_identity_pubkey, \n peer_0_tx_approval.approval_nonce)) \n <b>CHECK</b> Assert expected_withdrawal_id == peer_0_tx_approval.withdrawal_id \n Assert peer_0_tx_approval.withdrawal_id == wt_tx_approval.withdrawal_id \n GW-INIT-APPROVAL-FRESH(niso_1_event_block_height, peer_0_tx_approval, wt_tx_approval) \n GW-WT-APPROVAL-FRESH(niso_1_event_block_height, peer_0_tx_approval, wt_tx_approval) \n GW-MILESTONE(niso_1_event_block_height)
+hnote over Boomlet #White: <b>LOCAL</b> regard peer_0_tx_approval_signed_by_boomlet_0.signer_identity_pubkey as \n boomlet_0_identity_pubkey. \n <b>CHECK</b> Assert boomlet_0_identity_pubkey in boomerang_params.peer_ids_collection. \n <b>LOCAL</b> peer_0_tx_approval := peer_0_tx_approval_signed_by_boomlet_0.content \n wt_tx_approval := wt_tx_approval_signed_by_wt.content \n withdrawal_id := peer_0_tx_approval.withdrawal_id \n psbt := decrypt_from_boomlet_0(context: canonical_encode("withdrawal_psbt", withdrawal_id), \n envelope: psbt_encrypted_by_boomlet_0_for_boomlet_1) \n expected_withdrawal_id := tagged_sha256("Boomerang/withdrawal_id", \n canonical_encode(setup_instance_id, psbt.derive_tx_id(), boomlet_0_identity_pubkey, \n peer_0_tx_approval.approval_nonce)) \n <b>CHECK</b> Assert expected_withdrawal_id == peer_0_tx_approval.withdrawal_id \n Assert peer_0_tx_approval.withdrawal_id == wt_tx_approval.withdrawal_id \n GW-INIT-APPROVAL-FRESH(niso_1_event_block_height, peer_0_tx_approval, wt_tx_approval) \n GW-WT-APPROVAL-FRESH(niso_1_event_block_height, peer_0_tx_approval, wt_tx_approval) \n GW-MILESTONE(niso_1_event_block_height)
 ' Step 13
 Boomlet o-> Niso: <b>WithdrawalNonInitiatorBoomletNisoMessage1 \n psbt
 hnote over Niso #Pink: Assert hydrate_psbt(psbt) != Null \n Assert tagged_sha256("Boomerang/withdrawal_id", canonical_encode(setup_instance_id, \n psbt.derive_tx_id(), boomlet_0_identity_pubkey, peer_0_tx_approval.approval_nonce)) == \n peer_0_tx_approval.withdrawal_id
@@ -64,14 +70,14 @@ User o-> Niso: <b>WithdrawalNonInitiatorNisoInput1 \n magic: "withdrawal_non_ini
 ' Step 16
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage2 \n magic: "withdrawal_peer_agreement_with_psbt_received"
 group ST_check(tx_id)
-hnote over Boomlet #Lavender:  tx_id := psbt.derive_tx_id() \n st_preview_nonce := random_bytes(32) \n tx_id_with_nonce := MessageWithNonce{ \n content: tx_id, \n nonce: st_preview_nonce \n } \n tx_id_with_nonce_encrypted_by_boomlet_1_for_st := C-SEAL(Boomlet_1, ST_1, canonical_encode("withdrawal_tx_review"), tx_id_with_nonce)
+hnote over Boomlet #Lavender:  tx_id := psbt.derive_tx_id() \n st_preview_nonce := random_bytes(32) \n tx_id_with_nonce := MessageWithNonce{ \n content: tx_id, \n nonce: st_preview_nonce \n } \n tx_id_with_nonce_encrypted_by_boomlet_1_for_st := encrypt_for_st_1(context: canonical_encode("withdrawal_tx_review"), \n content: tx_id_with_nonce)
 
 ' Step 17
 Boomlet o-> Niso: <b>WithdrawalNonInitiatorBoomletNisoMessage2 \n tx_id_with_nonce_encrypted_by_boomlet_1_for_st
 
 ' Step 18
 Niso o-> ST: <b>WithdrawalNonInitiatorNisoStMessage1 \n tx_id_with_nonce_encrypted_by_boomlet_1_for_st
-hnote over ST #Lavender:  tx_id_with_nonce := C-OPEN(ST_1, Boomlet_1, canonical_encode("withdrawal_tx_review"), tx_id_with_nonce_encrypted_by_boomlet_1_for_st) \n tx_id := tx_id_with_nonce.content
+hnote over ST #Lavender:  tx_id_with_nonce := decrypt_from_boomlet_1(context: canonical_encode("withdrawal_tx_review"), \n envelope: tx_id_with_nonce_encrypted_by_boomlet_1_for_st) \n tx_id := tx_id_with_nonce.content
 
 ' Step 19
 ST o-> User: <b>WithdrawalNonInitiatorStOutput1 \n tx_id
@@ -88,14 +94,14 @@ hnote over Niso #Lavender: most_work_bitcoin_block_height := rpc_client.get_bloc
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage3 \n tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1; niso_1_event_block_height
 $WITHDRAWAL_ST_REVIEW_ACCEPT("Boomlet_1", "ST_1", "tx_id_with_nonce_signed_by_st_encrypted_by_st_for_boomlet_1")
 end
-hnote over Boomlet #Lavender:  approval_nonce := random_bytes(32) \n _peer_1_tx_approval := TxApproval{ \n withdrawal_id: withdrawal_id, \n approval_nonce: approval_nonce, \n event_block_height: niso_1_event_block_height \n } \n _peer_1_tx_approval_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/tx_approval", _peer_1_tx_approval) \n _peer_1_tx_approval_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt := C-SEAL(Boomlet_1, WT, canonical_encode("withdrawal_tx_approval", withdrawal_id), _peer_1_tx_approval_signed_by_boomlet_1)
+hnote over Boomlet #Lavender:  approval_nonce := random_bytes(32) \n _peer_1_tx_approval := TxApproval{ \n withdrawal_id: withdrawal_id, \n approval_nonce: approval_nonce, \n event_block_height: niso_1_event_block_height \n } \n _peer_1_tx_approval_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/tx_approval", _peer_1_tx_approval) \n _peer_1_tx_approval_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt := encrypt_for_wt(context: canonical_encode("withdrawal_tx_approval", withdrawal_id), \n content: _peer_1_tx_approval_signed_by_boomlet_1)
 
 ' Step 23
 Boomlet o-> Niso: <b>WithdrawalNonInitiatorBoomletNisoMessage3 \n withdrawal_id; peer_1_tx_approval_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt
 
 ' Step 24
 Niso o-> WT: <b>WithdrawalNonInitiatorNisoWtMessage1 \n withdrawal_id; peer_1_tx_approval_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt
-hnote over WT #White: <b>LOCAL</b> most_work_bitcoin_block_height := rpc_client.get_block_height() \n peer_1_tx_approval_signed_by_boomlet_1 := C-OPEN(WT, Boomlet_1, canonical_encode("withdrawal_tx_approval", withdrawal_id), peer_1_tx_approval_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt) \n peer_1_tx_approval := peer_1_tx_approval_signed_by_boomlet_1.content \n <b>CHECK</b> Assert peer_1_tx_approval.withdrawal_id == withdrawal_id \n GW-NONINIT-APPROVAL-AT-WT-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_1_tx_approval) \n <b>LOCAL</b> peer_i_tx_approval_signed_by_boomlet_i := C-OPEN(WT, Boomlet_i, canonical_encode("withdrawal_tx_approval", withdrawal_id), peer_i_tx_approval_signed_by_boomlet_i_encrypted_by_boomlet_i_for_wt) [2 <= i <= 4] \n peer_i_tx_approval := peer_i_tx_approval_signed_by_boomlet_i.content [2 <= i <= 4] \n <b>CHECK</b> Assert peer_i_tx_approval.withdrawal_id == withdrawal_id [2 <= i <= 4] \n GW-NONINIT-APPROVAL-AT-WT-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_i_tx_approval) [2 <= i <= 4] \n <b>LOCAL</b> ordered_peer_tx_approvals := Collection<peer_i_tx_approval_signed_by_boomlet_i> [0 \n <= i <= 4] sorted in setup peer order by peer_ids_collection \n ordered_non_initiator_peer_tx_approvals := ordered_peer_tx_approvals with the initiator's approval omitted \n <b>CHECK</b> Assert count(ordered_peer_tx_approvals) == count(peer_ids_collection) \n Assert ordered_peer_tx_approvals contains exactly one approval per setup peer \n Assert ordered_peer_tx_approvals has no missing peers and no duplicate signers
+hnote over WT #White: <b>LOCAL</b> most_work_bitcoin_block_height := rpc_client.get_block_height() \n peer_1_tx_approval_signed_by_boomlet_1 := decrypt_from_boomlet_1(context: canonical_encode("withdrawal_tx_approval", withdrawal_id), \n envelope: peer_1_tx_approval_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt) \n peer_1_tx_approval := peer_1_tx_approval_signed_by_boomlet_1.content \n <b>CHECK</b> Assert peer_1_tx_approval.withdrawal_id == withdrawal_id \n GW-NONINIT-APPROVAL-AT-WT-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_1_tx_approval) \n <b>LOCAL</b> peer_i_tx_approval_signed_by_boomlet_i := decrypt_from_boomlet_i(context: canonical_encode("withdrawal_tx_approval", withdrawal_id), \n envelope: peer_i_tx_approval_signed_by_boomlet_i_encrypted_by_boomlet_i_for_wt) [2 <= i <= 4] \n peer_i_tx_approval := peer_i_tx_approval_signed_by_boomlet_i.content [2 <= i <= 4] \n <b>CHECK</b> Assert peer_i_tx_approval.withdrawal_id == withdrawal_id [2 <= i <= 4] \n GW-NONINIT-APPROVAL-AT-WT-FRESH(most_work_bitcoin_block_height, wt_tx_approval, peer_i_tx_approval) [2 <= i <= 4] \n <b>LOCAL</b> ordered_peer_tx_approvals := Collection<peer_i_tx_approval_signed_by_boomlet_i> [0 \n <= i <= 4] sorted in setup peer order by peer_ids_collection \n ordered_non_initiator_peer_tx_approvals := ordered_peer_tx_approvals with the initiator's approval omitted \n <b>CHECK</b> Assert count(ordered_peer_tx_approvals) == count(peer_ids_collection) \n Assert ordered_peer_tx_approvals contains exactly one approval per setup peer \n Assert ordered_peer_tx_approvals has no missing peers and no duplicate signers
 autonumber 24 "<b>[00]"
 ' Step 24 - b
 Non_Initiator_Peers --> WT: <b>WithdrawalNonInitiatorNisoWtMessage1 \n withdrawal_id; peer_i_tx_approval_signed_by_boomlet_i_encrypted_by_boomlet_i_for_wt [2 <= i <= 4]
@@ -141,7 +147,7 @@ ST o-> Niso: <b>WithdrawalNonInitiatorStNisoMessage2 \n duress_signal_index_with
 ' Step 33n
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage5 \n duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1
 $WITHDRAWAL_DURESS_RESPONSE_OPEN("Boomlet_1", "ST_1", "duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1")
-hnote over Boomlet #Lavender: duress_placeholder := C-SEAL(Boomlet_1, SAR, canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), duress_placeholder_plaintext)
+hnote over Boomlet #Lavender: duress_placeholder := encrypt_for_sar(context: canonical_encode("withdrawal_duress_placeholder", approved_withdrawal_id), \n content: duress_placeholder_plaintext)
 end group
 hnote over Boomlet #Lavender:  approval_set_attestation_fingerprint := \n tagged_sha256("Boomerang/withdrawal/approval_set_attestation_fingerprint", \n canonical_encode(ordered_peer_tx_approvals, wt_tx_approval_signed_by_wt)) \n approval_set_attestation_fingerprint_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/approval_set_attestation", approval_set_attestation_fingerprint)
 
@@ -171,7 +177,7 @@ WT o-> Niso: <b>WithdrawalWtNonInitiatorNisoMessage3 \n peer_0_tx_commit_signed_
 hnote over Niso #White: <b>LOCAL</b> most_work_bitcoin_block_height := rpc_client.get_block_height() \n niso_1_event_block_height := most_work_bitcoin_block_height \n peer_0_tx_commit_signed_by_boomlet_0 := \n peer_0_tx_commit_signed_by_boomlet_0_signed_by_wt.content \n peer_0_tx_commit := peer_0_tx_commit_signed_by_boomlet_0.content \n <b>CHECK</b> Assert peer_0_tx_commit.approved_withdrawal_id == approved_withdrawal_id \n GW-INIT-COMMIT-AT-NONINIT-FRESH(most_work_bitcoin_block_height, peer_0_tx_commit)
 ' Step 39
 Niso o-> Boomlet: <b>WithdrawalNonInitiatorNisoBoomletMessage6 \n peer_0_tx_commit_signed_by_boomlet_0_signed_by_wt; niso_1_event_block_height
-hnote over Boomlet #White: <b>LOCAL</b> peer_0_tx_commit_signed_by_boomlet_0 := \n peer_0_tx_commit_signed_by_boomlet_0_signed_by_wt.content \n peer_0_tx_commit := peer_0_tx_commit_signed_by_boomlet_0.content \n <b>CHECK</b> Assert peer_0_tx_commit.approved_withdrawal_id == approved_withdrawal_id \n GW-INIT-COMMIT-AT-NONINIT-FRESH(niso_1_event_block_height, peer_0_tx_commit) \n <b>LOCAL</b> _peer_1_tx_commit := TxCommit{ \n approved_withdrawal_id: approved_withdrawal_id, \n event_block_height: niso_1_event_block_height \n } \n _peer_1_tx_commit_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/tx_commit", _peer_1_tx_commit) \n _peer_1_tx_commit_signed_by_boomlet_1_padded := PaddedMessage{content: _peer_1_tx_commit_signed_by_boomlet_1, \n padding: duress_placeholder \n } \n _peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/tx_commit_envelope", _peer_1_tx_commit_signed_by_boomlet_1_padded) \n _peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt := \n C-SEAL(Boomlet_1, WT, canonical_encode("withdrawal_tx_commit", approved_withdrawal_id), _peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1)
+hnote over Boomlet #White: <b>LOCAL</b> peer_0_tx_commit_signed_by_boomlet_0 := \n peer_0_tx_commit_signed_by_boomlet_0_signed_by_wt.content \n peer_0_tx_commit := peer_0_tx_commit_signed_by_boomlet_0.content \n <b>CHECK</b> Assert peer_0_tx_commit.approved_withdrawal_id == approved_withdrawal_id \n GW-INIT-COMMIT-AT-NONINIT-FRESH(niso_1_event_block_height, peer_0_tx_commit) \n <b>LOCAL</b> _peer_1_tx_commit := TxCommit{ \n approved_withdrawal_id: approved_withdrawal_id, \n event_block_height: niso_1_event_block_height \n } \n _peer_1_tx_commit_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/tx_commit", _peer_1_tx_commit) \n _peer_1_tx_commit_signed_by_boomlet_1_padded := PaddedMessage{content: _peer_1_tx_commit_signed_by_boomlet_1, \n padding: duress_placeholder \n } \n _peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1 := sign_message(boomlet_1_identity_privkey, \n "Boomerang/withdrawal/tx_commit_envelope", _peer_1_tx_commit_signed_by_boomlet_1_padded) \n _peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt := \n encrypt_for_wt(context: canonical_encode("withdrawal_tx_commit", approved_withdrawal_id), \n content: _peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1)
 ' Step 40
 Boomlet o-> Niso: <b>WithdrawalNonInitiatorBoomletNisoMessage6 \n peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt
 
@@ -181,7 +187,7 @@ autonumber 41 "<b>[00]"
 
 ' Step 41
 Niso o-> WT: <b>WithdrawalNonInitiatorNisoWtMessage3 \n peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt
-hnote over WT #Lavender: peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1 := \n C-OPEN(WT, Boomlet_1, canonical_encode("withdrawal_tx_commit", approved_withdrawal_id), peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt) \n peer_1_tx_commit_signed_by_boomlet_1_padded := \n peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1.content \n duress_placeholder := peer_1_tx_commit_signed_by_boomlet_1_padded.padding \n peer_1_tx_commit_signed_by_boomlet_1 := peer_1_tx_commit_signed_by_boomlet_1_padded.content
+hnote over WT #Lavender: peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1 := \n decrypt_from_boomlet_1(context: canonical_encode("withdrawal_tx_commit", approved_withdrawal_id), \n envelope: peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1_encrypted_by_boomlet_1_for_wt) \n peer_1_tx_commit_signed_by_boomlet_1_padded := \n peer_1_tx_commit_signed_by_boomlet_1_padded_signed_by_boomlet_1.content \n duress_placeholder := peer_1_tx_commit_signed_by_boomlet_1_padded.padding \n peer_1_tx_commit_signed_by_boomlet_1 := peer_1_tx_commit_signed_by_boomlet_1_padded.content
 ' Step 42
 WT o-> SAR: <b>WithdrawalNonInitiatorWtSarMessage1[=WithdrawalWtSarMessage1] \n duress_placeholder; boomlet_1_identity_pubkey; approved_withdrawal_id
 $WITHDRAWAL_SAR_PROCESS_PLACEHOLDER("Boomlet_1", "boomlet_1_identity_pubkey", "duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_1")

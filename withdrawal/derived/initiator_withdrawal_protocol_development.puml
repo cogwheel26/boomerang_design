@@ -101,7 +101,10 @@ group Digging rounds
 loop Until WT holds one current reached ping from every peer
   Boomlet -> WT: WI-DIG-1  Enc_WT(Sig_Boomlet(Ping_0 + freshly encrypted Placeholder_0)) via Niso
   Peers -> WT: WI-DIG-2  corresponding Ping_i and fresh Placeholder_i x4
-  note over WT #Pink: Accept each ping under G-PING-AT-WT
+  note over WT #Pink
+    Handle exact retries under SPEC 15.7; return after receipt-only delivery.
+    Accept each new ping under G-PING-AT-WT.
+  end note
   WT -> SARs: WI-DIG-3  each ping's exact Placeholder_i
   note over SARs #Pink: Durably process each under G-SAR-PLACEHOLDER
   SARs --> WT: WI-DIG-4  exact encrypted acknowledgment_i x5

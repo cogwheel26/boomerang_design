@@ -9,19 +9,21 @@
 
 ## Diagrams
 
-The compact protocol-development source is
-[setup_protocol_development.puml](setup_protocol_development.puml).
-It shows causal gates, trust-boundary crossings, checkpoint order, and Boomlet
-state transitions. Its named message and acceptance contracts are defined in
-[setup_development_contracts.md](setup_development_contracts.md).
-
-The annotated sequence with prose and Pink notes removed is
-[setup_diagram_without_states_without_prose_comments.puml](setup_diagram_without_states_without_prose_comments.puml).
-
-The canonical annotated source is
+The main annotated source is
 [setup_diagram_without_states.puml](setup_diagram_without_states.puml), with
 [setup_diagram_without_states.svg](setup_diagram_without_states.svg) as its
 generated graphical rendering.
+
+The derived views are in [derived/](derived/).
+
+The compact protocol-development source is
+[setup_protocol_development.puml](derived/setup_protocol_development.puml).
+It shows causal gates, trust-boundary crossings, checkpoint order, and Boomlet
+state transitions. Its named message and acceptance contracts are defined in
+[setup_development_contracts.md](derived/setup_development_contracts.md).
+
+The annotated sequence with prose and Pink notes removed is
+[setup_diagram_without_states_without_prose_comments.puml](derived/setup_diagram_without_states_without_prose_comments.puml).
 
 The development view, contract tables, annotated diagram, and this README are
 explanatory implementation aids.
@@ -51,6 +53,8 @@ Normative protocol requirements are defined only by
 | `select_one_from_each(columns)` / `map_to_original_indices(...)` | Capture one choice per column and recover the corresponding original-list indices. |
 | `derive_cbc_cmac_keys(material, context)` | Derive distinct AES-256 CBC and CMAC keys for non-channel material with SP 800-108 AES-CMAC. |
 | `channel_keys(private, local_entity_name, public, peer_entity_name, sender_public_key, receiver_public_key)` | Validate ECDH input and hardcoded entity names, derive the ordered four-key channel schedule, and select the directional CBC/CMAC keys. Message labels and scope IDs remain in the envelope context. |
+| `encrypt_for_<peer>(context, content)` | CBC-CMAC channel encryption using the acting device's identity key and the named peer's public key. |
+| `decrypt_from_<peer>(context, envelope)` | Authenticate and decrypt the corresponding directional channel envelope. |
 | `cbc_cmac_encrypt(keys, context, content)` | AES-256-CBC/PKCS#7 followed by full AES-CMAC over context, IV, and ciphertext. |
 | `cbc_cmac_decrypt(keys, context, envelope)` | Verify CMAC before CBC decryption, unpadding, and canonical decoding. |
 | `sign_message(private, domain, content)` | Domain-separated BIP340 signature over canonical content. |

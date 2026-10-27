@@ -7,29 +7,35 @@
 
 ## Diagrams
 
+The main annotated sources are the
+[initiator](initiator_withdrawal_diagram_without_states.puml) and
+[non-initiator](non_initiator_withdrawal_diagram_without_states.puml), with
+[initiator SVG](initiator_withdrawal_diagram_without_states.svg) and
+[non-initiator SVG](non_initiator_withdrawal_diagram_without_states.svg)
+renderings.
+
+The derived views are in [derived/](derived/).
+
 The compact protocol-development sources are the
-[initiator view](initiator_withdrawal_protocol_development.puml)
+[initiator view](derived/initiator_withdrawal_protocol_development.puml)
 and
-[non-initiator view](non_initiator_withdrawal_protocol_development.puml).
+[non-initiator view](derived/non_initiator_withdrawal_protocol_development.puml).
 They show causal gates, role differences, repeated digging behavior, and
 Boomlet state transitions. Their named message and acceptance contracts are
 defined in
-[withdrawal_development_contracts.md](withdrawal_development_contracts.md).
+[withdrawal_development_contracts.md](derived/withdrawal_development_contracts.md).
 
-The canonical sequences with prose comments removed are the
-[initiator no-prose source](initiator_withdrawal_diagram_without_states_without_prose_comments.puml)
+The sequences with prose comments removed are the
+[initiator no-prose source](derived/initiator_withdrawal_diagram_without_states_without_prose_comments.puml)
 and
-[non-initiator no-prose source](non_initiator_withdrawal_diagram_without_states_without_prose_comments.puml).
+[non-initiator no-prose source](derived/non_initiator_withdrawal_diagram_without_states_without_prose_comments.puml).
 Their compact guard calls are defined in
-[withdrawal_no_prose_guards.md](withdrawal_no_prose_guards.md), and their
+[withdrawal_no_prose_guards.md](derived/withdrawal_no_prose_guards.md), and their
 cryptographic calls are defined in
 [no_prose_crypto_contracts.md](../no_prose_crypto_contracts.md).
 Repeated role-parameterized operations are defined in
-[withdrawal_no_prose_fragments.puml](withdrawal_no_prose_fragments.puml).
+[withdrawal_no_prose_fragments.puml](derived/withdrawal_no_prose_fragments.puml).
 
-The detailed graphical sequence diagrams are the
-[initiator SVG](initiator_withdrawal_diagram_without_states.svg) and
-[non-initiator SVG](non_initiator_withdrawal_diagram_without_states.svg).
 The development views, contract tables, detailed diagrams, and this README are
 explanatory implementation aids. Normative protocol requirements are defined
 only by [SPEC.md](../spec/SPEC.md).
@@ -106,7 +112,7 @@ canonicalized in setup peer order by `peer_ids_collection`.
 44. Niso receives {Collection<peer_i_tx_commit_signed_by_boomlet_i_signed_by_wt> [0 <= i <= 4], duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0} from WT. It then verifies wt_pubkey's signature on peer_i_tx_commit_signed_by_boomlet_i_signed_by_wt, each non-initiator peer i's boomlet_i_identity_pubkey's signature on peer_i_tx_commit_signed_by_boomlet_i, approved_withdrawal_id to be the one expected, and event_block_height to be fresh. It then forwards Collection<peer_i_tx_commit_signed_by_boomlet_i_signed_by_wt> [1 <= i <= 4], duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0 and the latest block height it sees as niso_0_event_block_height to Boomlet.
 45. Boomlet receives {Collection<peer_i_tx_commit_signed_by_boomlet_i_signed_by_wt> [0 <= i <= 4], niso_0_event_block_height, duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0} from Niso. It first decrypts duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0, verifies sar_pubkey's signature on duress_placeholder_signed_by_sar and checks to see if the content matches of the duress_placeholder that it had sent to WT. It then verifies wt_pubkey's signature on peer_i_tx_commit_signed_by_boomlet_i_signed_by_wt, each non-initiator peer i's boomlet_i_identity_pubkey's signature on peer_i_tx_commit_signed_by_boomlet_i, approved_withdrawal_id to be the one expected, and event_block_height to be fresh according to niso_0_event_block_height. After that Boomlet draws a fresh ceremony mystery, initializes counter with 0, reached_boomlets_collection with an empty set, ping_seq_num with 0, reached_mystery_flag with 0, sets last_seen_block to niso_0_event_block_height. Boomlet then constructs ping containing approved_withdrawal_id, last_seen_block, ping_seq_num, and reached_mystery_flag, signs it with boomlet_0_identity_privkey, freshly re-encrypts the current duress_placeholder_plaintext for SAR, pads the ping with this new duress_placeholder, signs peer_0_ping_signed_by_boomlet_0_padded with boomlet_0_identity_privkey, encrypts the result with wt_pubkey and sends peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt to Niso.
 46. Niso receives peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt from Boomlet and forwards it to WT.
-47. WT receives peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt from Niso (and peer_i_ping_signed_by_boomlet_i_padded_signed_by_boomlet_i_encrypted_by_boomlet_i_for_wt from Peers). If this is the first ping received, WT initializes reached_pings_collection with an empty set and goes into a loop that ends when reached_pings_collection[peer_i_id] has a valid value for every peer. WT decrypts peer_i_ping_signed_by_boomlet_i_padded_signed_by_boomlet_i and verifies boomlet_i_identity_pubkey's signature. Wt then separates duress_placeholder, which is the padding, and peer_i_ping. This diagram expands only peer 0's SAR path: WT sends peer 0's duress_placeholder and boomlet_0_identity_pubkey to peer 0's SAR. Other peers' placeholders are routed to their own setup-bound SARs in the corresponding peer flows.
+47. WT receives peer_0_ping_signed_by_boomlet_0_padded_signed_by_boomlet_0_encrypted_by_boomlet_0_for_wt from Niso (and peer_i_ping_signed_by_boomlet_i_padded_signed_by_boomlet_i_encrypted_by_boomlet_i_for_wt from Peers). WT handles exact ping retries under SPEC Section 15.7 before processing new pings. If this is the first ping received, WT initializes reached_pings_collection with an empty set and goes into a loop that ends when reached_pings_collection[peer_i_id] has a valid value for every peer. WT decrypts peer_i_ping_signed_by_boomlet_i_padded_signed_by_boomlet_i and verifies boomlet_i_identity_pubkey's signature. Wt then separates duress_placeholder, which is the padding, and peer_i_ping. This diagram expands only peer 0's SAR path: WT sends peer 0's duress_placeholder and boomlet_0_identity_pubkey to peer 0's SAR. Other peers' placeholders are routed to their own setup-bound SARs in the corresponding peer flows.
 48. SAR receives {duress_placeholder, boomlet_0_identity_pubkey, approved_withdrawal_id} from WT. It decrypts duress_placeholder using the Boomlet-to-SAR CBC/CMAC envelope context and sar_privkey to get duress_placeholder_plaintext. It classifies the plaintext as valid safe if it is all-zero 32-byte padding, valid duress if its derived doxing_data_identifier exists, or malformed otherwise. If it was valid duress and the tuple of approved_withdrawal_id, the received boomlet_0_identity_pubkey, and envelope IV of duress_placeholder was not previously saved, SAR activates duress response, uses duress_placeholder_plaintext as doxing_key_for_sar to decrypt static_doxing_data_encrypted_by_doxing_key_for_sar, derives device_data_key from doxing_key_for_sar for each retained upload, derives dynamic_doxing_data_cbc_cmac_keys from device_data_key, decrypts each retained upload's dynamic_doxing_data_encrypted_by_device_data_key with dynamic_doxing_data_cbc_cmac_keys, and makes every retained upload available to SEARCH AND RESCUE. For valid safe or duress placeholders, SAR signs duress_placeholder with sar_privkey and encrypts it with boomlet_0_identity_pubkey. Malformed placeholders are rejected before any acknowledgment is created.
 49. WT receives duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0 from SAR and continues processing peer_0_ping_signed_by_boomlet_0 and peer_i_ping_signed_by_boomlet_i. It verifies boomlet_i_identity_pubkey's signature on peer_i_ping_signed_by_boomlet_i and checks approved_withdrawal_id to be the one expected. If this is not the first ping it also checks that ping_seq_num has increased.  If reached_mystery_flag is 1, WT assigns peer_i_ping_signed_by_boomlet_i to reached_pings_collection[peer_i_id]. WT constructs pong containing approved_withdrawal_id, most_work_bitcoin_block_height, and Collection<peer_j_ping_signed_by_boomlet_j> [for each Peer i's pong include peer_j_ping_signed_by_boomlet_j of all other peers (i != j)], if it isn't the first pong composed WT waits for at least 1 block to pass. WT signs the pong and encrypts it for Boomlet to get pong_i_signed_by_wt_encrypted_by_wt_for_boomlet_i. It then sends pong_0_signed_by_wt_encrypted_by_wt_for_boomlet_0 alongside duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0 to Niso and pong_i_signed_by_wt_encrypted_by_wt_for_boomlet_i [1 <= i <= 4] to other peers.
 50. Niso receives {pong_0_signed_by_wt_encrypted_by_wt_for_boomlet_0, duress_placeholder_signed_by_sar_encrypted_by_sar_for_boomlet_0} from WT and forwards them to Boomlet alongside the latest most_work_bitcoin_block_height as niso_0_event_block_height.

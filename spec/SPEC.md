@@ -2023,7 +2023,7 @@ Newly encrypted means a fresh `CbcCmacEnvelope` with a fresh IV over the current
 The combined object is
 `PaddedMessage{content: signed Ping, padding: duress_placeholder}`.
 
-WT verifies:
+For a new ping, WT verifies:
 
 - both signatures;
 - approved withdrawal ID;
@@ -2038,8 +2038,10 @@ ineligible for counter advancement at a recipient Boomlet.
 
 WT forwards every valid ping's placeholder to the setup-bound SAR, including
 after digging ends. Before using a ping in a pong, WT obtains its exact encrypted
-SAR acknowledgment. WT also relays `(approved_withdrawal_id, encrypted signed
-SAR receipt)` through Niso to the originating Boomlet. Receipt-only delivery
+SAR acknowledgment. WT keeps each peer's latest accepted ping envelope and
+receipt and relays `(approved_withdrawal_id, encrypted signed SAR receipt)`
+through Niso to the originating Boomlet. Exact retries resume pending SAR delivery
+or return the cached receipt before checks for a new ping. Receipt-only delivery
 creates no pong or digging progress.
 
 ### 15.8 pong
@@ -2872,7 +2874,8 @@ A conforming implementation MUST provide tests for:
   out-of-order arrivals, and distinct upload IDs sharing a sequence number,
   append-only retention, rejection of changed canonical bytes for an accepted
   upload identity, and uploads from a replacement Phone without new registration;
-- ping sequence and reached-flag monotonicity;
+- ping sequence and reached-flag monotonicity, including exact retry recovery
+  under Section 15.7;
 - counter advancement requiring one signed ping from every other peer,
   including
   already reached peers, to fall within the accepted boundary, while a valid
