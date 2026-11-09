@@ -66,8 +66,8 @@ signing share.
 3. ST authenticates the challenge, maps it through the fixed vocabulary,
    creates five independent display shuffles, and retains the reverse maps.
 4. User selects one displayed entry from each column.
-5. ST returns exactly five original indices and the same nonce in an
-   authenticated envelope for Boomlet.
+5. ST returns `MessageWithNonce<DuressSignalIndex>` containing the five
+   original indices and the same nonce in an authenticated envelope for Boomlet.
 6. Boomlet requires one outstanding challenge in the current phase, exact
    nonce equality, exactly five distinct in-range indices,
    and successful authenticated decryption.

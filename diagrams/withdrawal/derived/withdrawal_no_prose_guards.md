@@ -11,21 +11,12 @@ exact conditions below. `local_height` is the receiver's current block height.
 local_height >= boomerang_params.boomerang_descriptor.milestone_block_0
 ```
 
-`GW-DURESS-SELECTION(selection, columns)` requires:
-
-```text
-count(selection) == count(columns)
-count(selection) == 5
-selection contains exactly one displayed choice from each columns column
-each selection value exists in its corresponding columns column
-```
-
 `GW-DURESS-INDEXES(indices)` requires:
 
 ```text
 count(indices) == 5
-indices are distinct
-indices are in range [1..193]
+all_unique(indices)
+min(indices) >= 1 && max(indices) <= 193
 ```
 
 `GW-DURESS-RESPONSE(response, nonce)` requires:

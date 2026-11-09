@@ -138,7 +138,6 @@ hnote over User #Lavender:  user_selection := select_one_from_each(duress_displa
 
 ' Step 31n
 User o-> ST: <b>WithdrawalNonInitiatorStInput2 \n user_selection
-hnote over ST #Pink: GW-DURESS-SELECTION(user_selection, duress_display_columns)
 $WITHDRAWAL_DURESS_RESPONSE_CREATE("ST_1", "Boomlet_1", "duress_signal_index_with_nonce_encrypted_by_st_for_boomlet_1")
 hnote over ST #Pink: GW-DURESS-INDEXES(duress_signal_index)
 ' Step 32n

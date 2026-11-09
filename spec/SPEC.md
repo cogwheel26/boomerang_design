@@ -1260,7 +1260,7 @@ Transition prerequisites:
 | `PARAMS_REVIEWED -> PARAMETERS_AGREED` | All peers sign identical `boomerang_params_fingerprint` |
 | `PARAMETERS_AGREED -> WT_READY` | Valid local `WtSetupReceipt` |
 | `WT_READY -> SAR_READY` | Valid local WT wrapper and SAR response |
-| `SAR_READY -> BACKUP_READY` | Valid local `BackupDone` and equal peer `setup_checkpoint` signatures |
+| `SAR_READY -> BACKUP_READY` | Valid local `BackupDone` or normal-key-authorized skip, and equal peer `setup_checkpoint` signatures |
 
 ## 13. Setup protocol
 
