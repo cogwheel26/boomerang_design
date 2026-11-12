@@ -211,7 +211,7 @@ During an active setup or withdrawal, Boomlet also holds:
 
 - `duress_check_space`: local candidate country permutation;
 - nonces for outstanding local ST interactions;
-- `backup_complete`: whether setup backup has completed;
+- `backup_complete`: whether backup or a signed skip has completed;
 - shared transaction identifier and outstanding local ST review;
 - `withdrawal_id`: shared current withdrawal identifier;
 - `ordered_peer_tx_approvals`: verified signed `TxApproval` values from every
@@ -472,7 +472,7 @@ Invalid points, infinity, non-curve points, invalid scalars, and non-canonical e
 
 ### 8.5 Ordering
 
-Peer setup records and identity public keys are ordered lexicographically by encoded 33-byte Boomlet identity public-key bytes. Duplicate identity keys or duplicate ordering keys MUST be rejected.
+Peer setup records and identity public keys are ordered lexicographically by encoded 33-byte Boomlet identity public-key bytes. Duplicate x-only identity keys or duplicate ordering keys MUST be rejected.
 
 ## 9. Cryptographic profile
 
@@ -1260,7 +1260,7 @@ Transition prerequisites:
 | `PARAMS_REVIEWED -> PARAMETERS_AGREED` | All peers sign identical `boomerang_params_fingerprint` |
 | `PARAMETERS_AGREED -> WT_READY` | Valid local `WtSetupReceipt` |
 | `WT_READY -> SAR_READY` | Valid local WT wrapper and SAR response |
-| `SAR_READY -> BACKUP_READY` | Valid local `BackupDone` or normal-key-authorized skip, and equal peer `setup_checkpoint` signatures |
+| `SAR_READY -> BACKUP_READY` | Valid local `BackupDone` or signed request to skip backup, and equal peer `setup_checkpoint` signatures |
 
 ## 13. Setup protocol
 
@@ -1518,6 +1518,8 @@ and at most five `WtId` values, and MUST be preserved unchanged from
 `BoomerangParamsSeed` into the finalized `BoomerangParams`.
 Different peer records, WT identities or order, milestones, protocol versions,
 or setup nonces produce a different identifier.
+
+`active_wt_id := wt_ids[0]`. Setup and withdrawals MUST initially use only this WT.
 
 ### 13.6 User setup review
 
@@ -1924,7 +1926,7 @@ approval_set_attestation_fingerprint_signed_by_boomlet_i :=
     "Boomerang/withdrawal/approval_set_attestation",
     approval_set_attestation_fingerprint
   )
-  [1 <= i <= 4]
+  [for each non-initiator setup peer i]
 ```
 
 WT MUST recompute `approval_set_attestation_fingerprint` from its accepted
@@ -2230,7 +2232,7 @@ Every ST under the same `PROTOCOL_VERSION` MUST use the exact same ordered
 193-entry vocabulary for consent enrollment and later duress challenges.
 
 The user selects five distinct countries. Order is irrelevant. The resulting
-`duress_consent_set` is stored in Boomlet and its inactive Boomletwo backup and
+`duress_consent_set` is stored in Boomlet and any provisioned Boomletwo backup and
 memorized by User. Section 16.7 defines paired replacement.
 
 ### 16.2 Challenge
@@ -2433,7 +2435,8 @@ source-key signing or encryption. These roles and imported consent state survive
 restart.
 
 1. Boomlet accepts `BEGIN_ROTATION()` only as the active source in IDLE or DIGGING,
-   with available ST, no incomplete attempt, and `consent_counter < 2^64 - 2`.
+   with an inactive Boomletwo provisioned for the current setup, available ST,
+   no incomplete attempt, and `consent_counter < 2^64 - 2`.
    Boomlet starts immediately in IDLE. In DIGGING, it finishes and sends any
    ping already under construction, then starts rotation at the beginning of
    the next iteration before input and ping construction, including while
@@ -2827,7 +2830,7 @@ A conforming implementation MUST provide tests for:
 - modified context, IV, ciphertext, and tag rejection;
 - MAC-before-padding behavior;
 - setup record ordering and setup ID derivation, including unsorted
-  Niso-to-Boomlet records, duplicate Boomlet identity keys, missing or stale
+  Niso-to-Boomlet records, duplicate x-only Boomlet identity keys, missing or stale
   local signed records, and byte-for-byte unchanged setup IDs for correctly
   sorted input;
 - `MilestoneBlocks` canonical encoding and rejection of missing fields,

@@ -1,7 +1,7 @@
 # Withdrawal no-prose guards
 
-Calls beginning with `GW-` in the withdrawal no-prose diagrams expand to the
-exact conditions below. `local_height` is the receiver's current block height.
+The following `GW-` guard abbreviations expand to the conditions below.
+`local_height` is the receiver's current block height.
 
 ## Shared checks
 

@@ -15,6 +15,7 @@ Sections 14 through 18.
 | `via Niso` | Niso transports the object and performs every visible prevalidation available to it. Endpoint signatures and encryption remain authoritative. |
 | `x4` or `x5` | One object from each indicated active role, with membership, uniqueness, and canonical ordering enforced. |
 | `G-NAME` | The complete acceptance guard defined below. |
+| `G-NAME.visible` | Only the guard conditions checkable by Niso from visible fields. |
 | `W-DURESS-CHECK` | The reusable withdrawal duress fragment defined below. |
 
 Unless a guard says otherwise, it includes canonical schema and size bounds,

@@ -112,7 +112,7 @@ setup_checkpoint =
 
 A Boomlet signs `setup_checkpoint` only after successfully verifying its local
 prerequisite for that phase. WT and SAR receipts, and either a backup receipt
-or normal-key-authorized skip, remain local evidence for signing.
+or a signed request to skip backup, remain local evidence for signing.
 Boomlet persists `setup_checkpoint` as its local setup-completion state.
 
 Withdrawal binds the stored `setup_instance_id`; the final checkpoint is only

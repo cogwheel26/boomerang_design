@@ -140,12 +140,13 @@ note over Boomlet #Pink
 end note
 end
 
-group Backup activation and final checkpoint
+group Backup and final checkpoint
+alt User requests backup
 User -> Iso: S-BACKUP-1  install empty Boomletwo and provide recovery inputs
 Iso -> Boomletwo: S-BACKUP-2  initialize target
 Boomletwo --> Iso: S-BACKUP-3  boomletwo_identity_pubkey
 Iso -> Boomlet: S-BACKUP-4  Sig_normal(BoomletBackupRequest{target key, normal pubkey})
-note over Boomlet #Pink: Accept once under G-BACKUP-REQUEST
+note over Boomlet #Pink: Assert G-BACKUP-REQUEST
 Boomlet --> Iso: S-BACKUP-5  target-encrypted backup state, boomerang_params, signed SAR response
 note over Iso #Pink
   Accept under G-BACKUP-PACKAGE.
@@ -154,8 +155,12 @@ end note
 Iso -> Boomletwo: S-BACKUP-6  active identity and target-encrypted backup state
 note over Boomletwo #Pink: Require empty target; authenticate, decrypt, and import state with embedded setup_instance_id
 Boomletwo --> Iso: S-BACKUP-7  Sig_Boomletwo(BackupDone)
+User -> Iso: S-BACKUP-CHOICE  magic: "setup_user_is_asked_to_connect_boomlet_to_iso_boomlet_connected_to_iso"
 Iso -> Boomlet: S-BACKUP-8  Sig_Boomletwo(BackupDone)
 note over Boomlet #Pink: Accept under G-BACKUP-DONE; mark backup complete
+else User skips backup
+ref over User, Iso, Boomlet: Skip backup through Iso
+end
 note over Boomlet #Lavender: C_backup := checkpoint(setup_instance_id, backup_ready, C_sar)
 Boomlet -> Peers: S-BACKUP-9  Sig_Boomlet(C_backup) via Niso
 Peers --> Boomlet: S-BACKUP-10  matching Sig_Boomlet_j(C_backup) from every other peer via Niso
