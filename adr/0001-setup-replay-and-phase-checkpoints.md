@@ -132,8 +132,8 @@ the setup nonce there is redundant.
   inclusion, state, challenge, or replay-memory checks.
 - Peers cannot reorder or skip common setup phases without deriving a different
   checkpoint.
-- A checkpoint means every signer accepted its own prerequisite; it does not
-  prove that all peers received byte-identical service receipts.
+- Each checkpoint signer accepted its own prerequisite. Peer-local service
+  receipts may differ.
 - Receipt validity still depends on local signature, setup ID, the
   `boomerang_params_fingerprint`, and object-specific checks.
 

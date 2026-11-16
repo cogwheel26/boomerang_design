@@ -24,7 +24,7 @@ hnote over Iso #Lavender:  coin_type := 0 if network is mainnet else 1 \n master
 ' Step 74
 Iso o-> Boomlet:  <b>SetupIsoBoomletMessage7 \n backup_skip_signed_by_normal_0
 hnote over Boomlet #LavenderBlush:  Boomlet receives backup_skip_signed_by_normal_0 from Iso, verifies the \n normal-key signature and current setup ID, requires no stored backup key, and records backup completion. \n Valid retries return the same status.
-hnote over Boomlet #Pink:  Assert verify_signature(normal_pubkey_0, "Boomerang/setup/backup_skip", backup_skip_signed_by_normal_0) == True \n Assert backup_skip_signed_by_normal_0.content == setup_instance_id \n Assert setup_state in {SAR_READY, BACKUP_READY} \n Assert backup_boomlet_pubkey == Null
+hnote over Boomlet #Pink:  Assert verify_signature(normal_pubkey_0, "Boomerang/setup/backup_skip", backup_skip_signed_by_normal_0) == True \n Assert backup_skip_signed_by_normal_0.content == setup_instance_id \n Assert setup_state in {SAR_READY, BACKUP_READY} \n Assert boomletwo_Identity_pubkey == Null
 hnote over Boomlet #Lavender:  If setup_state == SAR_READY && backup_complete == False: \n backup_complete := True \n save(backup_complete)
 
 ref over User, Iso, Boomlet: Continue setup at step 86

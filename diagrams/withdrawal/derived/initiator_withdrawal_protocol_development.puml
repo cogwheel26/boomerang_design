@@ -114,12 +114,16 @@ loop Until WT holds one current reached ping from every peer
   end note
   WT -> Boomlet: WI-DIG-5  Enc_Boomlet(Sig_WT(Pong_0)), acknowledgment_0 via Niso
   WT -> Peers: WI-DIG-6  recipient-specific Pong_i and acknowledgment_i
-  note over Niso #Pink: Prevalidate visible pong and collection properties under G-PONG-AT-BOOMLET
+  note over Niso #Pink: Assert G-PONG-AT-BOOMLET.visible
   note over Boomlet #Pink
-    Revalidate under G-PONG-AT-BOOMLET.
+    Assert G-PONG-AT-BOOMLET
   end note
-  note over Boomlet #Lavender: Boomlet performs any requested consent rotation.
-  opt After rotation or when selected by the profile cadence
+  note over Boomlet #Lavender
+    if new valid pong round:
+      duress_check_draw := random_integer(1, DURESS_CHECK_INTERVAL_IN_BLOCKS)
+  end note
+  ref over Boomlet: Consent rotation if requested (SPEC 16.7)
+  opt After rotation or when the recorded draw equals 1
     ref over User, ST, Boomlet
       W-DURESS-CHECK
       Consume one fresh phase-bound response and update placeholder plaintext.

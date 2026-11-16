@@ -59,13 +59,13 @@ no rotation or consent-recovery procedure exists.
 
 ### Changed controls and remaining exposure
 
-- Signed, nonce-bound ST approval authorizes rotation through Niso within the
-  setup-bound source/inactive-backup pair. Both verify approval and the protected
-  counter. Inactive copied-source-key restrictions need implementation evidence.
+- Signed, nonce-bound ST approval authorizes rotation through Niso. Boomlet
+  and any setup-bound backup verify approval and the protected counter.
+  Inactive copied-source-key restrictions need implementation evidence.
   Selection and matching confirmation rely on trusted ST local input/encoding.
   Approval supplies less independent ownership authentication than the normal
-  key and cannot establish freedom from coercion or privacy. Control of the
-  trusted pair and ST can authorize unwanted maintenance or force duress.
+  key and cannot establish freedom from coercion or privacy. Control of
+  Boomlet and ST can authorize unwanted maintenance or force duress.
 - Valid wrong current-set or withdrawal answers set `under_duress`; correct
   later answers preserve it. Set delivery carries the flag; the backup saves both
   before acknowledging the exact request digest. IDLE rotation can defer SAR
@@ -84,7 +84,7 @@ no rotation or consent-recovery procedure exists.
   observation can reveal replacements, and identical sets are allowed. The
   counter becomes visible after Boomlet records ST approval. Review mistakes,
   false duress, coerced entry and counter inference.
-- Niso censorship or unavailable ST, backup, WT or SAR can stall completion,
+- Niso censorship or unavailable ST, WT, SAR or an existing backup can stall completion,
   resumption or reset. Backups may retain older consent after an unaccepted
   transfer; activation authority, source exclusion, revocation and
   single-active-device protection remain open.

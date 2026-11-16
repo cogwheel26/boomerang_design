@@ -437,11 +437,11 @@ end
 
 ' Step 70
 Boomlet o-> Niso:  <b>SetupBoomletNisoMessage10 \n magic: "setup_sar_acknowledgement_of_finalization_received"
-hnote over Niso #LavenderBlush:  Niso receives {magic: "setup_sar_acknowledgement_of_finalization_received"} \n from Boomlet and informs User \n to initialize backup.
+hnote over Niso #LavenderBlush:  Niso receives {magic: "setup_sar_acknowledgement_of_finalization_received"} \n from Boomlet and informs User \n to choose backup or skip it through Iso.
 
 ' Step 71
 Niso o-> User:  <b>SetupNisoOutput2 \n magic: "setup_sar_finalization_confirmed"
-hnote over User #LavenderBlush:  User receives {magic: "setup_sar_finalization_confirmed"} from Niso and \n connects the hardware for Boomletwo, the backup of Boomlet, to Iso. \n At this transition Niso deletes all retained WT payment information.
+hnote over User #LavenderBlush:  User receives {magic: "setup_sar_finalization_confirmed"} from Niso and \n chooses whether to install Boomletwo or skip backup through Iso. \n At this transition Niso deletes all retained WT payment information.
 hnote over Niso #Lavender:  Niso drops all information about **wt** payments.
 end group
 group Backup activation
@@ -470,8 +470,8 @@ hnote over Iso #Lavender:  coin_type := 0 if network is mainnet else 1 \n master
 
 ' Step 77
 Iso o-> Boomlet:  <b>SetupIsoBoomletMessage5 \n backup_request_signed_by_normal_0
-hnote over Boomlet #LavenderBlush:  Boomlet receives backup_request_signed_by_normal_0 from Iso and verifies \n normal_pubkey_0's signature under domain "Boomerang/setup/backup_request". It requires \n backup_normal_pubkey equal to normal_pubkey_0 and takes boomletwo_Identity_pubkey from backup_boomlet_pubkey. \n BoomletBackupState contains setup_instance_id, \n Boomlet identity private and public keys, MuSig2 private and public shares, normal public key, ST identity \n public key, Tor secret key, selected SarId, doxing_key, duress_consent_set, signed PeerSetupRecord, \n BoomerangParams, \n setup_checkpoint, signed SarSetupResponse, replay state, consent_counter and under_duress. \n Boomlet copies those fields from memory, and requires the copied setup_instance_id to equal the active setup ID. \n It encrypts the state with the Boomlet-to-Boomletwo directional channel keys, using canonical context \n {"backup_state"}. It sends the encrypted state, boomlet_0_identity_pubkey, boomerang_params, and the local \n signed SAR response to Iso. \n No final setup_checkpoint exists yet.
-hnote over Boomlet #Pink:  Assert verify_signature(normal_pubkey_0, "Boomerang/setup/backup_request", \n backup_request_signed_by_normal_0) == True
+hnote over Boomlet #LavenderBlush:  Boomlet receives backup_request_signed_by_normal_0 from Iso and verifies \n normal_pubkey_0's signature under domain "Boomerang/setup/backup_request". It requires \n backup_normal_pubkey equal to normal_pubkey_0 and takes boomletwo_Identity_pubkey from backup_request.backup_boomlet_pubkey. \n Boomlet constructs BoomletBackupState from memory and requires its setup_instance_id to equal the active setup ID. \n It encrypts the state for Boomletwo using context \n {"backup_state"}. It sends the encrypted state, boomlet_0_identity_pubkey, boomerang_params, and the local \n signed SAR response to Iso. \n No final setup_checkpoint exists yet.
+hnote over Boomlet #Pink:  Assert backup_complete == False \n Assert verify_signature(normal_pubkey_0, "Boomerang/setup/backup_request", \n backup_request_signed_by_normal_0) == True
 hnote over Boomlet #Lavender:  backup_request := backup_request_signed_by_normal_0.content
 hnote over Boomlet #Pink:  Assert backup_request.backup_normal_pubkey == normal_pubkey_0
 hnote over Boomlet #Lavender:  boomletwo_Identity_pubkey := backup_request.backup_boomlet_pubkey \n boomlet_backup_state := boomlet.memory
@@ -503,8 +503,8 @@ hnote over Iso #LavenderBlush:  Iso receives {magic: \n "setup_user_is_asked_to_
 
 ' Step 81
 Iso o-> Boomletwo:  <b>SetupIsoBoomletwo2 \n boomlet_0_identity_pubkey \n boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo
-hnote over Boomletwo #LavenderBlush:  Boomletwo receives {boomlet_0_identity_pubkey, \n boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo} from Iso and first requires its memory to be empty. It \n decrypts BoomletBackupState \n with the Boomlet-to-Boomletwo directional channel keys, using canonical context \n {"backup_state"}. It takes setup_instance_id from the authenticated state and imports every state field. \n BackupDone contains the imported setup_instance_id, backup_boomlet_pubkey set to boomletwo_Identity_pubkey, \n and boomlet_pubkey set to boomlet_0_identity_pubkey. Boomletwo signs it with boomletwo_Identity_privkey under \n domain "Boomerang/setup/backup_done".
-hnote over Boomletwo #Pink:  Assert boomletwo.memory is empty
+hnote over Boomletwo #LavenderBlush:  Boomletwo receives {boomlet_0_identity_pubkey, \n boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo} from Iso and first requires that no BoomletBackupState has been imported. It \n decrypts BoomletBackupState \n using context \n {"backup_state"}. It takes setup_instance_id from the authenticated state and imports every state field. \n BackupDone contains the imported setup_instance_id, backup_boomlet_pubkey set to boomletwo_Identity_pubkey, \n and boomlet_pubkey set to boomlet_0_identity_pubkey. Boomletwo signs it with boomletwo_Identity_privkey under \n domain "Boomerang/setup/backup_done".
+hnote over Boomletwo #Pink:  Assert no BoomletBackupState has been imported
 hnote over Boomletwo #Lavender:  boomlet_backup_state := decrypt_from_boomlet_0(context: canonical_encode("backup_state"), \n envelope: boomlet_0_backup_encrypted_by_boomlet_0_for_boomletwo) \n setup_instance_id := boomlet_backup_state.setup_instance_id \n boomletwo.memory += boomlet_backup_state \n backup_done := BackupDone{ \n setup_instance_id: setup_instance_id, \n backup_boomlet_pubkey: boomletwo_Identity_pubkey, \n boomlet_pubkey: boomlet_0_identity_pubkey \n } \n backup_done_signed_by_boomletwo := sign_message(boomletwo_Identity_privkey, "Boomerang/setup/backup_done", \n backup_done)
 
 ' Step 82
@@ -517,7 +517,7 @@ hnote over User #LavenderBlush:  User receives {magic: "setup_boomlet_backup_don
 
 ' Step 84
 User o-> Iso:  <b>SetupIsoInput5 \n magic: "setup_user_is_asked_to_connect_boomlet_to_iso_boomlet_connected_to_iso"
-hnote over Iso #LavenderBlush:  Iso receives {magic: \n "setup_user_is_asked_to_connect_boomlet_to_iso_boomlet_connected_to_iso"} from User \n and proceeds to forward backup_done_signed_by_boomletwo to Boomlet.
+hnote over Iso #LavenderBlush:  Iso receives {magic: \n "setup_user_is_asked_to_connect_boomlet_to_iso_boomlet_connected_to_iso"} from User \n and forwards backup_done_signed_by_boomletwo to Boomlet.
 
 ' Step 85
 Iso o-> Boomlet:  <b>SetupIsoBoomletMessage6 \n backup_done_signed_by_boomletwo
@@ -528,9 +528,13 @@ hnote over Boomlet #Pink:  Assert backup_done.setup_instance_id == setup_instanc
 hnote over Boomlet #Pink:  Assert backup_done.backup_boomlet_pubkey == boomletwo_Identity_pubkey
 hnote over Boomlet #Pink:  Assert backup_done.boomlet_pubkey == boomlet_0_identity_pubkey \n backup_complete := True
 
+else User skips backup
+ref over User, Iso, Boomlet: Skip backup through Iso
+end
+
 ' Step 86
 Boomlet o-> Iso:  <b>SetupBoomletIsoMessage6 \n magic: "setup_boomlet_backup_done"
-hnote over Iso #LavenderBlush:  Iso receives {magic: "setup_boomlet_backup_done"} from Boomlet and proceeds to \n inform User that the \n backup process has been completed.
+hnote over Iso #LavenderBlush:  Iso receives {magic: "setup_boomlet_backup_done"} from Boomlet and informs \n User that the backup choice is complete.
 
 ' Step 87
 Iso o-> User:  <b>SetupIsoOutput5 \n magic: "setup_boomlet_backup_completed_boomlet_closed_ready_to_finish_setup"
@@ -542,7 +546,7 @@ hnote over Niso #LavenderBlush:  Niso receives {magic: "setup_user_is_informed_t
 
 ' Step 89
 Niso o-> Boomlet:  <b>SetupNisoBoomletMessage11 \n magic: "setup_boomlet_closed_finish_setup"
-hnote over Boomlet #LavenderBlush:  Boomlet receives {magic: "setup_boomlet_closed_finish_setup"} from Niso. \n Because it already verified BackupDone locally, it updates setup_checkpoint from setup_instance_id, \n phase "backup_ready", and previous setup_checkpoint and signs it with boomlet_0_identity_privkey under domain \n "Boomerang/setup/phase_checkpoint". The peer-specific BackupDone receipt is not hashed into setup_checkpoint.
+hnote over Boomlet #LavenderBlush:  Boomlet receives {magic: "setup_boomlet_closed_finish_setup"} from Niso. \n It updates setup_checkpoint from setup_instance_id, phase "backup_ready", and previous setup_checkpoint and signs it with boomlet_0_identity_privkey under domain \n "Boomerang/setup/phase_checkpoint". The peer-specific BackupDone receipt is not hashed into setup_checkpoint.
 group Backup-ready checkpoint synchronization
 hnote over Boomlet #Lavender:  setup_checkpoint := tagged_sha256("Boomerang/setup_phase_checkpoint", \n canonical_encode(setup_instance_id, "backup_ready", setup_checkpoint)) \n setup_checkpoint_signed_by_boomlet_0 := sign_message(boomlet_0_identity_privkey, \n "Boomerang/setup/phase_checkpoint", setup_checkpoint)
 
