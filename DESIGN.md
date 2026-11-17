@@ -1117,34 +1117,30 @@ a credible and rehearsed response can use it without creating greater risk.
 The [risk register and design gaps](security_models/README.md), the adversary
 decompositions in the [attack trees](security_models/attack_trees.md), and the
 itemized [assumption register](security_models/assumption_register.md) analyze
-this catalog in greater depth. The assumption register also records unproven
-formal-analysis obligations.
+this catalog in greater depth. Protocol verification guidance is collected in
+the [audit mappings](security_models/audit_mappings.md#protocol-verification-guidance).
 
 ## 15. Ancillary procedures and open protocol work
 
-Several operational procedures are identified but not specified. Their
-absence is itself an open assumption. The security argument presumes they can
-be added without changing the security model, yet none of them is available
-today when the corresponding failure occurs.
+Several operational procedures remain unspecified. Service or device loss
+therefore leaves the documented stall or fallback behavior. Adding recovery
+procedures requires a separate security review.
 
 1. Switching from an unresponsive WT to a new one.
 2. Activating the Boomletwo backup, with revocation and proof that only one
    of Boomlet and Boomletwo is ever active.
-3. Replacing a Phone.
-4. Replacing a Niso.
-5. Replacing an ST.
-6. Handling prolonged unavailability of a setup-bound SAR.
-7. Handling timeouts caused by freshness checks.
-8. Handling prolonged peer non-response, including blame assignment and
+3. Replacing a Niso.
+4. Replacing an ST.
+5. Handling prolonged unavailability of a setup-bound SAR.
+6. Handling timeouts caused by freshness checks.
+7. Handling prolonged peer non-response, including blame assignment and
    notifying the other peers.
 
 Service failure meanwhile stalls the primary ceremony and does not authorize
 fallback early. The specification's open-issue list is
 [SPEC §22](spec/SPEC.md); design-gap status is tracked in the
-[security models](security_models/README.md), and the formal-analysis
-obligations in the
-[assumption register](security_models/assumption_register.md) remain
-unproven.
+[security models](security_models/README.md), and verification guidance is in
+the [audit mappings](security_models/audit_mappings.md#protocol-verification-guidance).
 
 ## 16. Design status and verification path
 

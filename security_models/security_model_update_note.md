@@ -11,15 +11,13 @@ equivalence, interoperability and independent assurance remain unproven.
 
 Sources: [SPEC Section 10](../spec/SPEC.md#10-protocol-objects) and
 [Section 13.1](../spec/SPEC.md#131-sar-registration).
-The security model still describes selecting one current dynamic update.
 
 ### Changed controls and remaining exposure
 
 - Protected first registration bundles payment receipts, identifier, static
   envelope, `dynamic_update_auth_key` and first upload in `SetupPhoneSarMessage2`;
   `SetupSarPhoneMessage2` returns the signed upload receipt. Atomic commit covers
-  the envelope, `PROTOCOL_VERSION`, key, first upload and receipt. Reassess
-  transport authentication, partial failures and complete-request retries.
+  the envelope, `PROTOCOL_VERSION`, key, first upload and receipt.
 - Authenticated append retains every accepted upload; Phone cannot erase it.
   Retries are idempotent; conflicting bytes under one upload identity are rejected.
   Exact signed receipts prove individual encrypted-upload acceptance, neither

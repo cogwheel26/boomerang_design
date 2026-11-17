@@ -1,6 +1,6 @@
 # Boomerang architecture and trust boundaries
 
-> **Last change — 2026-11-15:** included optional-backup flows and local rotation recovery.
+> **Last change — 2026-11-16:** updated trust boundaries, data flows and retained state for rescue-data history, consent rotation and optional backup.
 
 <a id="trust-boundaries"></a>
 ## Trust boundaries and diagram
@@ -18,7 +18,7 @@ The DFD, threat catalog, and risk register use the same boundaries.
 | TB-BOOMLET   | Device/Host    | Boomlet secure-element devices | Boomlet and Boomletwo internal state vs. attached hosts | Protect non-exportable key shares and setup state; enforce per-withdrawal non-determinism and duress logic |
 | TB-ST        | Device/Host    | ST trusted UI device        | ST UI and key store vs. attached hosts and observers      | Prevent duress-input and verification manipulation               |
 | TB-NISO      | Device/Host    | Niso online host            | Niso OS and applications vs. external networks and services | High malware exposure; untrusted for duress integrity            |
-| TB-PHONE     | Device/Host    | Phone rescue-data client    | Phone-held passwords, sensor data, and SAR state vs. the peer environment and network | Compromise can leak, forge, suppress, or roll back rescue data |
+| TB-PHONE     | Device/Host    | Phone rescue-data client    | Phone-held passwords, sensor data, and SAR state vs. the peer environment and network | Compromise can leak rescue secrets, append false data or suppress collection and uploads |
 | TB-QR        | Channel/Service | QR transfer channel            | Air-gapped devices vs. optical mediators                       | Prevent direct electronic exfiltration; add parsing and swapping risk |
 | TB-OOB       | Channel/Service | Out-of-band coordination channel | Peer identity verification vs. attacker-controlled communications | Peer identity and parameters must be verified                    |
 | TB-TOR       | Channel/Service | Tor communication path         | Peer onion services vs. the public Internet                    | Provide anonymity with correlation and DoS exposure              |
@@ -32,9 +32,9 @@ The DFD, threat catalog, and risk register use the same boundaries.
 ### Cross-boundary flows
 
 - **F-QR-1:** Iso ↔ ST over QR during setup key exchange and duress-set confirmation
-- **F-QR-2:** Niso ↔ ST over QR during withdrawal `tx_id` verification, duress checks, and consent rotation
+- **F-QR-2:** Niso ↔ ST over QR during online setup review, withdrawal `tx_id` verification, duress checks, and consent rotation
 - **F-USB-1:** Boomlet ↔ Iso during installation, setup authorization, backup verification, and final signing
-- **F-USB-2:** Boomlet ↔ Niso during online setup and withdrawal
+- **F-USB-2:** Boomlet ↔ Niso during online setup, withdrawal and consent rotation
 - **F-USB-3:** Boomletwo ↔ Iso during backup installation and backup import
 - **F-USB-4:** Boomletwo ↔ Niso during paired consent rotation and reset
 - **F-NET-1:** Niso ↔ peer Nisos via Tor during setup coordination and signed `PeerSetupRecord` exchange
@@ -209,6 +209,11 @@ active-withdrawal mystery, counters,
 reach state and replay memory)]
       BOOM --> D_BOOM
       BACKUP([Boomletwo, optional, inactive])
+      D_BACKUP[(Boomletwo secure state:
+original identity key;
+imported keys, setup and consent state;
+inactive role and retained receipts)]
+      BACKUP --> D_BACKUP
     end
 
     subgraph TBST["TB-ST: Secure Terminal boundary"]
@@ -328,6 +333,12 @@ WT IDs, milestones" --> BOOM
   WT -- "payment info, registration, and setup receipts over Tor" --> TOR
   TOR --> NISO
 
+  ISO -- "normal-key-signed backup request or skip" --> BOOM
+  BOOM -- "target-bound encrypted backup and verification data" --> ISO
+  ISO -- "encrypted backup and Boomlet identity" --> BACKUP
+  BACKUP -- "signed BackupDone" --> ISO
+  ISO -- "BackupDone" --> BOOM
+
   USER -- "doxing_password,
 static doxing data,
 SAR IDs" --> PHONE
@@ -385,7 +396,7 @@ Classification accounts for custody impact, safety impact, and privacy.
 | Mnemonic, passphrase, normal private keys      | **Critical secret**               | Compromise enables deterministic theft later                              |
 | Boomlet key shares + identity private key      | **Critical secret**               | Compromise breaks Boomerang authorization, privacy, and duress            |
 | Iso setup authority and `normal_privkey`       | **Critical secret / trust root**  | Setup-time substitution can install attacker-chosen normal or rescue authority |
-| Duress consent set                             | **Critical secret**               | If learned, a coercer can bypass the duress mechanism                     |
+| Duress consent set                             | **Critical secret**               | Enables reuse of safe answers until private replacement                  |
 | Consent counter, duress flag, backup-presence metadata and rotation recovery | **Critical integrity and safety state** | Protect against rollback and disclosure of the duress flag |
 | Doxing data (static + dynamic)                 | **Critical safety-sensitive PII** | Compromise enables targeting and harm                                     |
 | Doxing password / key / identifier             | **Critical secret / metadata**    | User-chosen password bounds offline cracking resistance; compromise weakens rescue privacy and duress safety |
@@ -433,8 +444,8 @@ These parameters control withdrawal timing and uncertainty:
   - WT timeout schedule that accommodates the fixed delay
 
 These values set the attacker's delay and replay windows. They also affect
-coercion cost, false positives, and liveness. A production profile needs
-selection criteria, tests, and operational monitoring for each value.
+coercion cost, false positives, and liveness. Parameter selection must preserve
+honest progress and fit the SAR processing bound and WT timeouts.
 
 ### Protocol-binding boundaries
 
@@ -445,13 +456,13 @@ selection criteria, tests, and operational monitoring for each value.
 - Every Boomerang input uses `SIGHASH_DEFAULT`; hydration may add signing support data but may not change the transaction, ordering, sequences, or committed sighash policy.
 - `mystery` is created only on entry to `DIGGING`, remains fixed across retries in that ceremony, and is erased after export, explicit abort, or unrecoverable active-withdrawal failure.
 - Duress safety depends on fresh SAR-encrypted placeholder envelopes, `approved_withdrawal_id` context binding, SAR replay tuples keyed by `{approved_withdrawal_id, boomlet_identity_pubkey, duress_placeholder.iv}`, SAR signatures over the exact encrypted placeholder, and fixed-deadline acknowledgement release after the same safe/duress durable-write path.
-- SAR acknowledgement proves receipt and durable activation of the exact placeholder. Physical response, correct location, lawful authority, effectiveness, and de-escalation are outside the protocol guarantee.
+- SAR acknowledges the exact placeholder and records a duress activation before replying when the plaintext signals duress. Physical response, correct location, lawful authority, effectiveness, and de-escalation are outside the protocol guarantee.
 - [SPEC Section 13.1](../spec/SPEC.md#131-sar-registration) authenticates registration and atomically commits its static envelope, protocol version, upload key, first upload and signed receipt. First-registration retries repeat the complete request. Later authenticated uploads append to retained history; exact retries recover the original receipt and conflicts cannot replace an accepted upload.
 - Random upload IDs identify records. Per-device sequences describe first-submission order, not send time or cross-device order; gaps, duplicate numbers for distinct upload IDs and out-of-order delivery remain valid. Dynamic plaintext is opaque, so payload currency and relevance belong to the rescue application.
 - Replacement Phones reconstruct the same upload key and use fresh device IDs. Device IDs do not authenticate individual Phones, and replacement does not revoke an old key holder.
-- Exporting a signed fragment, importing one-time backup state, and releasing a fixed-deadline SAR acknowledgement cross crash-sensitive state boundaries without a complete recovery contract.
+- Recovery is unspecified if Boomletwo imports state but Boomlet loses `BackupDone`, or if Niso or WT loses the signed PSBT fragment after Boomlet clears its copy.
 - N-of-N identity separation does not establish independent firmware, provisioning, RPC, WT, SAR, payment, or legal failure domains.
-- [SPEC Section 16.7](../spec/SPEC.md#167-consent-rotation) defines ST-approved rotation through Niso, synchronizing the setup-bound inactive backup if one exists. ST performs local selection and confirmation; the backup replies with its own identity and confines the copied source key to SAR verification.
+- [SPEC Section 16.7](../spec/SPEC.md#167-consent-rotation) defines ST-approved rotation through Niso, synchronizing the setup-bound inactive backup if one exists. ST performs local selection and confirmation; the backup replies with its own identity and confines the copied Boomlet identity key to SAR verification.
 - Rotation omits synchronization and paired reset only when the protected retained backup key is absent. An unreachable backup or withheld receipt cannot select this path; lost or regressed metadata must fail closed. Without a backup, Boomlet atomically commits the set, duress flag, counter, completion state and exact ST reply.
-- Boomlet and any backup retain monotonic counters and exact recovery packets. The backup durably saves the set and ORed duress flag before its receipt. DIGGING rotation preserves the iteration and outstanding SAR delivery while paused; fresh input and the resumption ping's exact SAR receipt precede progress, signing or export. Final SAR delivery and any paired reset precede clearing; IDLE rotation can defer SAR delivery until a later approved withdrawal.
+- Boomlet and any backup retain monotonic counters and saved messages for exact retries. Boomletwo durably saves the set and ORed duress flag before acknowledging `consent_set`. DIGGING rotation preserves the iteration and outstanding SAR delivery while paused; fresh input and SAR acknowledgment of the resumption ping's exact placeholder precede progress, signing or export. For approved withdrawals, SAR acknowledgment of the final ping's placeholder and any required Boomletwo reset precede clearing Boomlet's withdrawal state; IDLE rotation can defer SAR delivery until a later approved withdrawal.
 - Observed consent remains compromised until a private replacement completes. Continued observation or an identical replacement preserves that exposure. ST displays the counter after recorded approval. Cancellation after approval and unchanged sets also advance it; it is not a duress indicator. Rotation does not authorize activation, device replacement or spending.
