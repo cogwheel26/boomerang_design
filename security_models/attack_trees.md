@@ -223,13 +223,15 @@ flowchart TD
   B1 --> OR4{OR}
   OR4 --> B1a["Record the ST display and the user's hand or input device"]
   OR4 --> B1b["Have an attacker operate the input while compelling the user to identify the safe choices"]
-  OR4 --> B1c["Reuse an observed consent set before a private replacement completes"]
+  OR4 --> B1c["Reuse an observed consent set until it is privately replaced with a different set"]
 
   C --> OR2{OR}
   OR2 --> C1["Compromise SAR infrastructure or operators"]
   OR2 --> C2["Sabotage prior SAR registration so activation is not actionable"]
   OR2 --> C3["Falsify or stop Phone uploads, hide or lose SAR history, or misinterpret accepted data"]
   OR2 --> C4["Block a later approved withdrawal so duress recorded during IDLE rotation remains undelivered"]
+  OR2 --> C5["Exploit faulty rotation or early cleanup to erase recorded duress"]
+  OR2 --> C6["Censor rotation traffic before its duress placeholder reaches SAR"]
 
   D --> AND1((AND))
   AND1 --> D1["Infer hidden duress from side channels despite intended unchanged protocol flow"]
@@ -254,7 +256,7 @@ flowchart TD
   E8["Control: ST-approved rotation binds nonce, counter and exact receipts"] -.-> B1c
   E9["Boundary: private input and available Boomlet, ST and any existing backup"] -.-> E8
   E10["Boundary: ST approval does not establish ownership or freedom from coercion"] -.-> F
-  E11["Control: duress stays set until final SAR delivery and cleanup"] -.-> F
+  E11["Control: sticky duress, protected rotation state and receipt-gated clearing"] -.-> C5
   E12["Boundary: IDLE rotation defers SAR delivery until a later approved withdrawal"] -.-> C4
 
   classDef goal fill:#ffffff,stroke:#222,stroke-width:2px,color:#000;
@@ -264,7 +266,7 @@ flowchart TD
   classDef gate fill:#ffffff,stroke:#333,stroke-width:2px,color:#000;
 
   class A goal;
-  class B,C,D,F,B1,B1a,B1b,B1c,B2,B3,C1,C2,C3,C4,D1,D2,D2a,D2b,D2c,F1,F2 attack;
+  class B,C,D,F,B1,B1a,B1b,B1c,B2,B3,C1,C2,C3,C4,C5,C6,D1,D2,D2a,D2b,D2c,F1,F2 attack;
   class E5,E7,E8,E11 control;
   class E1,E2,E3,E4,E6,E9,E10,E12 open;
   class OR0,OR1,OR2,OR3,OR4,OR5,AND1 gate;
