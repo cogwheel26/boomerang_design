@@ -28,7 +28,24 @@ end ref
 alt Final ABORT
   B -> B: Persist cancellation; retain original ceremony and obligations
 else Final ACTIVATE and all five establish DIGGING never initialized
-  B -> B: Install head, tombstone old IDs,\nretire pending reviews and old authorization state
+  B -> B: Install head, retain closure certificate and tombstone old IDs
+  alt A local approved_withdrawal_id exists
+    B -> B: Reuse saved final ping or save sequence 0, reached false,\nlatest accepted Niso height and fresh placeholder
+    opt Exact final SAR receipt is not retained
+      B -> C: Saved final ping and verified approval-set evidence
+      C -> S: Route exact final placeholder without advancing phase
+      S -> C: Encrypted exact acknowledgment
+      C -> B: Receipt-only response
+      B -> B: Verify and retain exact final SAR receipt
+    end
+    ref over B
+      Complete SPEC Section 16.7 cleanup, including any required paired reset.
+      A required paired reset waits for the configured Boomletwo.
+    end ref
+  else No local approved_withdrawal_id
+    B -> B: Clean up locally; preserve under_duress for next withdrawal
+  end
+  B -> B: Retire pending reviews; admit fresh withdrawal after cleanup
   N -> B: Propose transaction for a new withdrawal
   B -> U: Fresh nonce-bound transaction review for initiator
   U -> B: Initiator ST signature over reviewed transaction identity

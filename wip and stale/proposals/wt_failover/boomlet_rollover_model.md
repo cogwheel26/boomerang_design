@@ -10,9 +10,9 @@ Run from the repository root. No files are created or diagrams rendered.
 ```sh
 python3 -B - <<'PY'
 from pathlib import Path
-s = Path('wip/proposals/wt_failover/boomlet_rollover_model.md').read_text()
+s = Path('wip and stale/proposals/wt_failover/boomlet_rollover_model.md').read_text()
 exec(compile(s.split('```python\n', 1)[1].split('\n```', 1)[0],
-             'wip/proposals/wt_failover/boomlet_rollover_model.md', 'exec'))
+             'wip and stale/proposals/wt_failover/boomlet_rollover_model.md', 'exec'))
 PY
 ```
 
@@ -61,11 +61,12 @@ histories = [
     (observations, 'source lost at checkpoint', (), False),
     (observations, 'source lost after checkpoint', ('undelivered duress duty',), False),
     (observations, 'source lost after checkpoint', ('hidden ACTIVATE COMMIT',), False),
+    (observations, 'source lost after checkpoint', ('later consent rotation',), False),
     (observations, 'source isolated after checkpoint', (), True),
 ]
 assert all(h[0] == observations for h in histories)
-assert len({(h[2], h[3]) for h in histories}) == 4
-print('BOUNDARY one packet observation fits four different security histories')
+assert len({(h[2], h[3]) for h in histories}) == 5
+print('BOUNDARY one packet observation fits five different security histories')
 
 # Exact checkpoint progress is not equivalent to ping sequence. Each valid
 # no-advance pong can produce another ping without increasing the counter.
@@ -81,5 +82,5 @@ The threshold search covers positive uniform supports with upper bound at most
 20, every unreached original draw, saved counter, possible later unreached
 counter and independent replacement draw. The algebraic inequalities in the
 proposal establish the same bound beyond this finite range, assuming a common
-progress unit and an authentic counter. The four histories illustrate missing
+progress unit and an authentic counter. The five histories illustrate missing
 information; they are not a model of a complete recovery protocol.

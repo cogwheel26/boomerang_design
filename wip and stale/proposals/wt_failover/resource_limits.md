@@ -80,9 +80,9 @@ and votes can be discarded only after the higher promise makes reissuance
 impossible. Retain the exact signed intent in the live journal. Each replay-ledger entry is
 at most 112 internal bytes: intent digest, first admitted switch ID, predecessor
 head, disposition and allocation flags. Four 128-byte withdrawal records retain
-IDs, initialized status and fragment commitments. These fixed records occupy
-7,680 bytes within the 8,192-byte ledger reservation. Exact archived public
-intents and final certificates can be retrieved and checked against those
+IDs, initialized status and fragment or closure-certificate commitments. These
+fixed records occupy 7,680 bytes within the 8,192-byte ledger reservation.
+Exact archived public intents and final certificates can be retrieved and checked against those
 commitments; the highest prepared certificate itself stays on Boomlet because
 its complete five-signature proof is required for recovery.
 External peers retain final certificates and public packages for catch-up.
@@ -105,15 +105,19 @@ The self-contained-ping candidate needs a separate byte and endurance budget
 for encrypted checkpoints, without increasing ordinary signature counts.
 Its complete snapshot inventory and holder-retention guarantees are not yet
 specified; existing public-package limits cannot be treated as proof of capacity
-for private recovery state. There is no continuous ST or backup recording budget.
+for private recovery state. Ordinary consent rotation and final-cleanup records
+are additional active state. Their eight automatic retries per object, eight fresh
+status nonces per attempt and cached replies under SPEC Section 16.7 survive WT
+changes. There is no continuous ST or backup recording budget.
 Unresolved decisions and finite limits can expose forced-fallback risks; they
 cannot be resolved by erasing locks or treating fallback as equivalent protection.
 
 ## Silence and retry admission
 
-A deployment must publish finite budgets, in milliseconds, for the existing
-`SAR_ACK_DELAY`, bounded WT and SAR processing, a complete routed round trip,
-and chain observation. Define:
+`SAR_ACK_DELAY_MS` is SPEC's `sar_placeholder_ack_delay` expressed in
+milliseconds. A deployment must publish finite budgets for bounded WT and SAR
+processing, a complete routed round trip and chain observation in the same units.
+Define:
 
 ```text
 MIN_SWITCH_SILENCE_MS = SAR_ACK_DELAY_MS
@@ -131,8 +135,10 @@ The same conservative lower bound applies to requests whose SAR duty was
 already acknowledged, avoiding classification-dependent timer behavior.
 
 An exact in-flight acknowledgment may arrive while frozen and discharge only
-its matched duty. Retransmission through a candidate retains the inner IV,
-approved ID, and original SAR replay deadline; it cannot select a faster release
-path. The SAR's existing fixed-deadline failure policy applies. Freeze and retry
-counts depend on public request state and user action, never decrypted safe or
-duress status. Generic heartbeats and partial responses do not count as progress.
+its matched duty. Retransmission through a candidate retains the inner IV
+and approved ID. Each complete retry receives a new fixed release deadline
+under SPEC Section 16.4; a missed deadline produces no late acknowledgment.
+Replay activation remains idempotent, with uniform safe and duress handling.
+Freeze and retry counts depend on public request state and user action, never
+decrypted safe or duress status. Generic heartbeats and partial responses do
+not count as progress.

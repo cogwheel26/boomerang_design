@@ -10,7 +10,7 @@ participant "Boomlets" as B
 participant "Nisos" as N
 participant "Initial WT" as W
 participant "Bound SARs" as S
-participant "Iso and designated Boomletwos" as Backup
+participant "Isos and optional Boomletwos" as Backup
 
 legend left
 Grouped lifelines represent five independent peers.
@@ -19,10 +19,10 @@ endlegend
 
 group Roster and parameter agreement
   N -> B: Ordered signed peer records, WT identities,\nmilestone blocks and descriptor parameters
-  B -> B: Admit protected keys, one setup backup and anti-rollback journal
+  B -> B: Admit protected keys and anti-rollback journal
   B -> B: Verify five peer identities and matching parameters
   B -> ST: Authenticated, nonce-bound setup review
-  ST -> U: Display ordered WT identities, setup parameters,\nand designated backup security requirements
+  ST -> U: Display ordered WT identities, setup parameters,\nand any designated backup security requirements
   U -> ST: Approve
   ST -> B: Signed setup review
   B -> B: Verify review and derive setup_instance_id
@@ -64,16 +64,23 @@ group SAR finalization and backup
   B -> N: Signed SAR-ready checkpoint
   N -> B: Five matching checkpoint signatures
   B -> B: Complete SAR_READY
-  ref over B,Backup
-    Base authorized Boomletwo backup ceremony.
-    Normal-key-signed request, target-bound encrypted setup state,
-    Iso descriptor and SAR checks, verified BackupDone.
-  end ref
-  B -> N: Signed backup-ready checkpoint after local receipt checks
+  alt This peer chooses backup
+    ref over B,Backup
+      SPEC Section 13.10 Boomletwo backup.
+      Normal-key-signed request, target-bound encrypted state,
+      Iso descriptor and SAR checks, verified BackupDone.
+    end ref
+  else This peer skips backup
+    Backup -> B: Iso signs current setup ID with normal key
+    B -> B: Verify signature, setup ID and absent Boomletwo key
+    B -> Backup: setup_boomlet_backup_done
+  end
+  B -> N: Signed backup-ready checkpoint after local completion
   N -> B: Five matching checkpoint signatures
   B -> B: Complete BACKUP_READY
   note over B,Backup #E8F5E9
-    The designated backup remains offline and inactive.
+    Backup choices may differ across peers.
+    Any designated backup remains offline and inactive.
     Recovery checkpoint candidates bind only that target.
     Source-loss activation needs exclusion and complete security history.
   end note

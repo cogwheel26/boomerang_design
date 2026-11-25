@@ -5,26 +5,6 @@
   "protocol_version": "boomerang-wt-1",
   "schemas": [
     {
-      "id": 30,
-      "name": "WtHeadContent",
-      "version": 1,
-      "fields": [
-        {
-          "id": 1,
-          "name": "active_wt_head",
-          "type": "bytes32",
-          "required": true
-        },
-        {
-          "id": 2,
-          "name": "content",
-          "type": "value",
-          "required": true,
-          "context_rule": "wt_head_content"
-        }
-      ]
-    },
-    {
       "id": 31,
       "name": "WtScope",
       "version": 1,
@@ -510,6 +490,26 @@
           "required": true
         }
       ]
+    },
+    {
+      "id": 44,
+      "name": "WtHeadContent",
+      "version": 1,
+      "fields": [
+        {
+          "id": 1,
+          "name": "active_wt_head",
+          "type": "bytes32",
+          "required": true
+        },
+        {
+          "id": 2,
+          "name": "content",
+          "type": "value",
+          "required": true,
+          "context_rule": "wt_head_content"
+        }
+      ]
     }
   ],
   "signature_context_overrides": {
@@ -539,7 +539,9 @@
   },
   "forbidden_schema_ids": [],
   "encryption_type_overrides": {
-    "withdrawal_pong": "SignedMessage<WtHeadContent<Pong>>"
+    "withdrawal_pong": "SignedMessage<WtHeadContent<Pong>>",
+    "wt_placeholder_response": "tuple<bytes32,CbcCmacEnvelope<SignedMessage<CbcCmacEnvelope<bytes32>>>>",
+    "placeholder_response": "tuple<bytes32,CbcCmacEnvelope<SignedMessage<CbcCmacEnvelope<bytes32>>>>"
   },
   "limits": {
     "peers": 5,

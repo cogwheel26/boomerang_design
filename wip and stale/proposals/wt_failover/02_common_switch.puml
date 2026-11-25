@@ -20,6 +20,7 @@ endlegend
 group Review and freeze
   N -> B: Propose a different setup-roster candidate
   B -> B: Finish required challenge and resolve live signing nonce
+  B -> B: Finish or cancel pending rotation; finish any paired reset
   B -> B: Reserve storage and bounded trusted recovery allowance
   B -> B: Build manifest, exact obligation and resume-package commitment
   B -> ST: Authenticated nonce-bound review commitment
@@ -49,7 +50,7 @@ group Candidate preparation
     B -> B: Verify and retain own SAR finalization receipt
   end
   opt Frozen placeholder remains unacknowledged
-    C -> C: Verify committed padded object and original authorization gates
+    C -> C: Verify committed padded object and its original gate evidence
     C -> S: Route exact retained placeholder to fixed SAR
     S -> C: Ordinary exact-envelope acknowledgment encrypted to Boomlet i
     C -> B: Forward response in candidate transport
@@ -57,6 +58,7 @@ group Candidate preparation
   end
   B -> B: Require discharged duty or frozen NO_PLACEHOLDER
   note over B,S
+    Final-cleanup pings may precede DIGGING and receive only a SAR receipt.
     Duplicate acknowledgment changes no phase, block height or counter.
     Missing gate evidence, bytes or acknowledgment blocks PREPARE.
   end note

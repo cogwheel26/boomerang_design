@@ -9,11 +9,16 @@ participant "Boomlet i" as B
 participant "Iso i" as I
 participant "Other four peers" as P
 participant "Candidate WT" as C
+participant "Bound SAR i" as S
 participant "Bitcoin network" as Chain
 
 alt A complete signed transaction is already retained
   N -> N: Verify full transaction, descriptor and approved tx_id
   N -> Chain: Broadcast or rebroadcast the exact transaction
+  ref over N,B
+    Finish any pending local cleanup under SPEC Section 16.7.
+    WT failover remains available for required SAR delivery.
+  end ref
 else Coordination is needed for signing or fragment collection
   N -> B: Propose WT failover
   opt A MuSig2 secret nonce is live
@@ -62,7 +67,19 @@ else Coordination is needed for signing or fragment collection
     C -> Chain: Broadcast exact approved transaction
     C -> N: Complete signed transaction and head-bound CompletionReceipt
     N -> B: Exact complete transaction and receipt
-    B -> B: Verify complete transaction, all five fragments and own SAR duty
+    B -> B: Verify complete transaction and all five fragments
+    B -> B: Finish prior SAR duty; reuse or save exact final ping
+    opt Exact final SAR receipt is not retained
+      B -> C: Saved final ping
+      C -> S: Route exact final placeholder
+      S -> C: Encrypted exact acknowledgment
+      C -> B: Receipt-only response
+      B -> B: Verify and retain exact final SAR receipt
+    end
+    ref over B
+      Complete SPEC Section 16.7 cleanup, including any required paired reset.
+      A required paired reset waits for the configured Boomletwo.
+    end ref
     B -> B: Mark COMPLETED_RETAINED; retain own fragment and closed IDs
     B -> B: Erase completed private delay state and consumed session secrets
     note over N,C

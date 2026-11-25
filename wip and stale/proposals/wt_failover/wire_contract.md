@@ -1,8 +1,8 @@
 # WT failover wire contract
 
 `WT_FAILOVER_V1` is a proposed complete profile with `PROTOCOL_VERSION` encoded
-as the ASCII text `boomerang-wt-1`. The base `wip/wire_catalog.json` describes
-the single-WT profile. Its generic signature and envelope wrappers alone are
+as the ASCII text `boomerang-wt-1`. The [base catalog](../../wire_catalog.json)
+describes the single-WT profile. Its generic signature and envelope wrappers alone are
 insufficient to enable this profile. Version selection precedes key derivation
 and setup hashing and persists in the protected setup state. There is no
 in-place negotiation or fallback to a different version after setup.
@@ -25,7 +25,6 @@ encodings and signature preimages.
 
 | ID | Record | Fields in order |
 | --- | --- | --- |
-| 30 | `WtHeadContent` | `active_wt_head: bytes32`, `content: value` |
 | 31 | `WtScope` | `setup_instance_id: bytes32`, `previous_head: bytes32`, `switch_id: bytes32` |
 | 32 | `WtOptionalId` | `present: bool`, `id: bytes32` |
 | 33 | `WtObligation` | `present: bool`, `approved_id: bytes32`, `iv: bytes16`, `envelope_digest: bytes32`, `padded_digest: bytes32`, `gate_digest: bytes32` |
@@ -39,6 +38,7 @@ encodings and signature preimages.
 | 41 | `WtCompletionReceipt` | `setup_id: bytes32`, `approved_id: bytes32`, `tx_id: bytes32`, `transaction_digest: bytes32`, `fragment_digests: list<bytes32>` |
 | 42 | `WtPublicArchive` | `setup_id: bytes32`, `params: BoomerangParams`, `checkpoint: bytes32`, `public_evidence: bytes` |
 | 43 | `WtResumeEntry` | `artifact_kind: u8`, `payload: bytes` |
+| 44 | `WtHeadContent` | `active_wt_head: bytes32`, `content: value` |
 
 All absent variants have `present=false` and every remaining byte or scalar
 zero. A present ID must be nonzero. `WtObligation.present=false` means the
@@ -48,9 +48,14 @@ resume package where its phase needs it. `closed_ids` has at most four distinct
 withdrawal IDs, ordered by bytes. `fragment_digests` has exactly five entries in
 setup peer order. `WtPrepared.signatures` has exactly five BIP340 signatures in
 setup peer order. All identity indices are zero-based and checked against the
-stored setup. An initial phase uses zero block heights and sequence, absent ping and
-inherited floor, and false reached and accepted-pong flags. The phase determines
-whether initialized, identifiers, and retained evidence are mandatory.
+stored setup. A present `ping_digest` and `ping_sequence` identify the last
+ping that Boomlet signed for the manifest's approved withdrawal before freezing.
+If no such ping was signed, the digest is absent and sequence zero. Before
+DIGGING, accepted-pong and reached flags are false, pong height is zero and
+the inherited floor is absent. A pre-DIGGING
+final-cleanup ping has a present ping digest and sequence zero. Other
+pre-DIGGING phases have an absent ping digest and sequence zero. The phase
+determines whether initialized, identifiers, and retained evidence are mandatory.
 
 | Enum | Values |
 | --- | --- |
@@ -130,7 +135,12 @@ There is no generic "unwrap and accept" handler.
 The setup response uses `Boomerang/setup/wt_sar_response`. Withdrawal objects
 use their corresponding ordinary withdrawal domains; reached
 collections use `Boomerang/withdrawal/reached_collection`. WT fragment and
-completion domains are listed above. A pong or reached delivery pairs the signed
+completion domains are listed above. Receipt-only `wt_placeholder_response`
+and candidate `placeholder_response` carry
+`tuple<bytes32,CbcCmacEnvelope<SignedMessage<CbcCmacEnvelope<bytes32>>>>`: the
+approved ID and SAR-encrypted signed exact placeholder. Verify the SAR signature
+and local gate without a WT signature, pong or phase advance.
+A pong or reached delivery pairs the signed
 WT object with the recipient's SAR acknowledgment inside the recipient's
 head-authenticated transport. The signed ping or commit and the exact inner SAR
 envelope together determine which obligation may be discharged. Bare broadcast
@@ -151,7 +161,8 @@ operation from the dispatch table, never a caller-provided arbitrary label.
 
 Registered active types are `wt_sar_response`, `wt_tx_approval`, `wt_approval_collection`,
 `wt_tx_commit_ack`, `wt_commit_collection`, `wt_pong`, `wt_reached_collection`,
-`wt_fragment_submission`, `wt_fragment_receipt`, and `wt_completion_receipt`.
+`wt_fragment_submission`, `wt_fragment_receipt`, `wt_completion_receipt`, and
+`wt_placeholder_response`.
 Candidate types are `registration_request`, `registration_response`,
 `payment_request`, `payment_response`, `sar_setup_request`, `sar_setup_response`,
 `resume_package`, `placeholder_request`,
@@ -176,11 +187,13 @@ fragments remain WT-neutral; current use requires their origin's authenticated
 submission or exact membership in a frozen committed package.
 
 A historical predecessor WT approval or initiator acknowledgment may be parsed
-only by the `COMMIT_SET` evidence handler. It verifies the head recorded when
-that gate was accepted, exact committed bytes and the limited age exceptions
-in README Section 7.4. It cannot dispatch the embedded object to an ordinary
-live-message handler. Setup facts and complete signed Bitcoin transactions are
-also evidence, with their own validation paths, never sources of WT authority.
+only by the `COMMIT_SET` or frozen SAR-duty evidence handler. Both verify the
+head recorded when that gate was accepted and exact committed bytes. Only
+`COMMIT_SET` advances a phase, with the limited age exceptions in README
+Section 7.4; receipt-only routing follows SPEC Section 15.7. Neither handler
+dispatches the embedded object to an ordinary live-message handler. Setup facts
+and complete signed Bitcoin transactions are also evidence, with their own
+validation paths, never sources of WT authority.
 
 Base schemas 21, 22 and 23 retain their setup backup meanings.
 `BoomletBackupState` is admitted only by the authorized one-time setup import
@@ -199,11 +212,14 @@ Each package is a canonical `list<WtResumeEntry>` with at most 32 entries. Kinds
 2 service receipt, 3 reviewed transaction, 4 approval set, 5 predecessor WT
 approval, 6 approval-set attestations, 7 padded commit, 8 initiator acknowledgment,
 9 padded ping, 10 SAR acknowledgment, 11 reached collection, 12 signed fragment,
-13 complete transaction, 14 completion receipt, and 15 signing disposition.
-Sort by kind and then origin peer; reject duplicates for the same kind and origin.
-Origin is derived from the validated artifact, never an untrusted extra signer.
-A collection kind contains exactly its protocol-defined five or four signers;
-a local kind has one origin. Phase requirements in README Sections 4, 5, 7 and 9
+13 complete transaction, 14 completion receipt, 15 signing disposition, and
+16 pre-DIGGING closure certificate. Kind 16 uses the exact final ACTIVATE type
+above, occurs at most once, and requires the matching closure scope and five
+uninitialized snapshots. Sort by kind and then origin peer; reject duplicates
+for the same kind and origin. Origin is derived from the validated artifact,
+never an untrusted extra signer.
+Multi-signer artifacts require their protocol-defined signer sets; a local
+artifact has one origin. Phase requirements in README Sections 4, 5, 7 and 9
 are mandatory. A kind can never contain another package. Transaction and fragment
 byte payloads are parsed against the ordinary descriptor and signing profile.
 

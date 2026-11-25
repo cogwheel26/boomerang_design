@@ -10,7 +10,7 @@ participant "Other four peers" as P
 participant "Old WT" as Old
 participant "Candidate WT" as C
 participant "Bound SAR i" as S
-participant "Iso and designated Boomletwo" as Backup
+participant "Iso and optional Boomletwo" as Backup
 
 N -> Old: Pending WT-dependent setup request
 ... Silence threshold or explicit user decision ...
@@ -46,8 +46,8 @@ else Final ACTIVATE
     P -> B: Complete matching checkpoint collection
   else SAR_READY
     ref over B,Backup
-      Finish base authorized encrypted Boomletwo backup.
-      Preserve normal-key authorization, Iso checks and BackupDone.
+      Complete backup or the signed request to skip it under SPEC Section 13.10.
+      Backup requires the designated Boomletwo; skipping requires no Boomletwo.
     end ref
     B -> B: Verify local backup-ready prerequisite
     B -> P: Signed backup-ready checkpoint

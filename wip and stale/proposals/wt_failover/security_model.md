@@ -18,9 +18,9 @@ does not render diagrams.
 ```sh
 python3 -B - <<'PY'
 from pathlib import Path
-document = Path('wip/proposals/wt_failover/security_model.md').read_text()
+document = Path('wip and stale/proposals/wt_failover/security_model.md').read_text()
 source = document.split('```python\n', 1)[1].split('\n```', 1)[0]
-exec(compile(source, 'wip/proposals/wt_failover/security_model.md', 'exec'))
+exec(compile(source, 'wip and stale/proposals/wt_failover/security_model.md', 'exec'))
 PY
 ```
 
@@ -268,6 +268,9 @@ def capsule_violation(state):
 @dataclass(frozen=True)
 class Withdrawal:
     initialized: bool = False
+    approved: bool = True
+    has_backup: bool = False
+    rotation_record: bool = False
     duty: int = 0
     acknowledged: bool = False
     frozen: bool = False
@@ -276,6 +279,10 @@ class Withdrawal:
     fragment: bool = False
     exported: bool = False
     transaction: bool = False
+    closing: bool = False
+    final_received: bool = False
+    reset_done: bool = False
+    duress: bool = True
     closed: bool = False
     delay: tuple = (0, 0, 0)  # mystery, counter, inherited floor
 
@@ -290,14 +297,14 @@ def withdrawal_steps(state, mutant=None):
         if state.duty != 1 or mutant == 'skip_discharge':
             yield 'prepare activation', replace(state, prepared=True)
         if state.prepared:
-            close = not state.initialized
-            delay = ((0, 0, 0) if close or mutant == 'reset_delay' else state.delay)
+            delay = (0, 0, 0) if mutant == 'reset_delay' else state.delay
             yield 'install certified activation', replace(
-                state, frozen=False, decision_done=True, closed=close, delay=delay)
+                state, frozen=False, prepared=False, decision_done=True,
+                closing=state.closing or not state.initialized, delay=delay)
         duty = 1 if mutant == 'abort_rollback_ack' and state.acknowledged else state.duty
         yield 'install certified ABORT', replace(
             state, frozen=False, prepared=False, decision_done=True, duty=duty)
-    if not state.closed and not state.frozen and state.initialized:
+    if not state.closed and not state.frozen and state.initialized and not state.closing:
         if state.duty != 1 and not state.fragment:
             # Reached, PSBT and fresh signing-session checks are abstracted.
             yield 'retain fragment before exporting', replace(
@@ -305,8 +312,22 @@ def withdrawal_steps(state, mutant=None):
         if state.fragment:
             yield 'verify complete signed transaction', replace(state, transaction=True)
             if state.duty != 1 and (state.transaction or mutant == 'receipt_cleanup'):
-                yield 'complete withdrawal and erase private delay state', replace(
-                    state, closed=True, delay=(0, 0, 0))
+                yield 'begin final cleanup', replace(state, closing=True)
+    if state.closing and not state.closed and not state.frozen:
+        if not state.approved:
+            yield 'clean up before approval; retain duress', replace(
+                state, closed=True, duress=mutant != 'clear_preapproval_duress')
+        else:
+            if state.duty != 1 and not state.final_received:
+                # Abstracts saving the final ping and verifying its exact SAR receipt.
+                yield 'verify saved final-ping receipt', replace(state, final_received=True)
+            paired_reset = state.has_backup and state.rotation_record
+            if state.final_received and paired_reset and not state.reset_done:
+                yield 'verify exact paired reset acknowledgment', replace(state, reset_done=True)
+            if ((state.final_received or mutant == 'skip_final_receipt')
+                    and (not paired_reset or state.reset_done or mutant == 'skip_backup_reset')):
+                yield 'complete cleanup and clear private state', replace(
+                    state, closed=True, duress=False, delay=(0, 0, 0))
     if state.fragment and mutant == 'erase_fragment':
         yield 'storage receipt permits fragment erasure', replace(state, fragment=False)
     yield 'crash or retry preserves withdrawal journal', state
@@ -321,6 +342,12 @@ def withdrawal_violation(state):
         return 'switch reset initialized delay state'
     if state.closed and state.initialized and not state.transaction:
         return 'private cleanup accepted a receipt without a complete transaction'
+    if state.closed and state.approved and not state.final_received:
+        return 'approved withdrawal cleaned up without its final SAR receipt'
+    if state.closed and state.has_backup and state.rotation_record and not state.reset_done:
+        return 'cleanup skipped the configured backup reset'
+    if state.closed and not state.approved and not state.duress:
+        return 'pre-approval cleanup cleared sticky duress'
     if state.exported and not state.fragment:
         return 'untrusted storage caused loss of the local fragment'
 
@@ -356,6 +383,32 @@ def lifecycle_checks():
     # Six independent non-quiescent conditions; only the empty set admits a move.
     assert sum(not any(flags) for flags in product((False, True), repeat=6)) == 1
     print('PASS acknowledgment binding: 7 substitutions; quiescence: 64 cases')
+
+
+def peer_ping_checks():
+    # Other protocol checks remain mandatory. None denotes explicit absence
+    # of a signed ping in the frozen manifest.
+    def above_frozen_sequence(withdrawal, sequence, bound):
+        bound_withdrawal, frozen_sequence = bound
+        return (withdrawal != bound_withdrawal or frozen_sequence is None
+                or sequence > frozen_sequence)
+
+    cases = (
+        (7, 8, False),
+        (8, 8, False),  # Pre-freeze ping withheld from a receiver last seeing 7.
+        (9, 8, True),
+        (10, 8, True),
+        (0, None, True),  # Lagging peer's normal initial ping.
+        (0, 0, False),
+        (1, 0, True),
+        (9, 9, False),  # Another activation raises the frozen bound.
+        (10, 9, True),
+    )
+    for sequence, frozen_sequence, expected in cases:
+        assert above_frozen_sequence('A', sequence, ('A', frozen_sequence)) == expected
+    # A later withdrawal starts at zero under the same WT head.
+    assert above_frozen_sequence('B', 0, ('A', 8))
+    print(f'PASS peer ping freshness: {len(cases) + 1} sequence and scope cases')
 
 
 def split_lock_boundary():
@@ -434,13 +487,22 @@ def binding_checks():
     accepted = [row for row in product(*choices) if lookup(*row) == expected]
     assert accepted == [fields]
     assert expected != H(version, 'Boomerang/wt/genesis', b32(fields[1]))
-    catalog = json.loads(Path('wip/proposals/wt_failover/wire_catalog.json').read_text())
+    catalog = json.loads(Path('wip and stale/proposals/wt_failover/wire_catalog.json').read_text())
     schema_names = {s['id']: s['name'] for s in catalog['schemas']}
-    assert {i: schema_names[i] for i in (31, 32, 36)} == {
-        31: 'WtScope', 32: 'WtOptionalId', 36: 'WtReady'}
-    fixtures = json.loads(Path('wip/proposals/wt_failover/canonical_vectors.json').read_text())
+    assert {i: schema_names[i] for i in (31, 32, 36, 44)} == {
+        31: 'WtScope', 32: 'WtOptionalId', 36: 'WtReady', 44: 'WtHeadContent'}
+    base_catalog = json.loads(Path('wip and stale/wire_catalog.json').read_text())
+    assert len(schema_names) == len(catalog['schemas'])
+    assert set(schema_names).isdisjoint(s['id'] for s in base_catalog['schemas'])
+    fixtures = json.loads(Path('wip and stale/proposals/wt_failover/canonical_vectors.json').read_text())
+    schema_ids = {s['name']: s['id'] for s in catalog['schemas']}
     for fixture in fixtures:
-        assert sha256(bytes.fromhex(fixture['signature_preimage_hex'])).hexdigest() == fixture['preimage_sha256']
+        body = bytes.fromhex(fixture['canonical_hex'])
+        preimage = bytes.fromhex(fixture['signature_preimage_hex'])
+        assert body[0] == 0x40
+        assert int.from_bytes(body[1:3], 'big') == schema_ids[fixture['type'].split('<', 1)[0]]
+        assert preimage.endswith(body)
+        assert sha256(preimage).hexdigest() == fixture['preimage_sha256']
     expected_release = ('profile', 'setup', 'peer', 'target', 'nonce',
                         'handoff', 'capsule', 'release_domain')
     allowed = 0
@@ -501,14 +563,19 @@ def main():
         check(mutant, [Capsule()], lambda s, m=mutant: capsule_steps(s, m),
               capsule_violation, negative=True)
     withdrawals = [Withdrawal(initialized=i, duty=d, acknowledged=(d == 2),
+                              has_backup=b, rotation_record=r,
                               delay=(13, 7, 9) if i else (0, 0, 0))
-                   for i, d in product((False, True), range(3))]
+                   for i, d, b, r in product((False, True), range(3),
+                                             (False, True), (False, True))]
+    withdrawals += [Withdrawal(approved=False, has_backup=b) for b in (False, True)]
     check('withdrawal lifecycle', withdrawals, withdrawal_steps, withdrawal_violation)
     for mutant in ('skip_discharge', 'reset_delay', 'abort_rollback_ack',
-                   'receipt_cleanup', 'erase_fragment'):
+                   'receipt_cleanup', 'erase_fragment', 'skip_final_receipt',
+                   'skip_backup_reset', 'clear_preapproval_duress'):
         check(mutant, withdrawals, lambda s, m=mutant: withdrawal_steps(s, m),
               withdrawal_violation, negative=True)
     lifecycle_checks()
+    peer_ping_checks()
     binding_checks()
     cold_recovery_counterexample()
     split_lock_boundary()

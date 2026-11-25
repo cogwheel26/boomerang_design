@@ -1,9 +1,10 @@
 # WT failover and Boomletwo recovery progress
 
 The current recovery candidate uses self-contained ping checkpoints with an
-offline designated Boomletwo. It has no continuously online ST or backup
-requirement. An independent mystery draw needs a conservative floor; a checkpoint
-alone does not establish latest state or exclude a returning original device.
+offline designated Boomletwo for peers that chose backup. It has no continuous
+ST or backup recording requirement; ordinary rotation and reset still apply.
+An independent mystery draw needs a conservative floor; a checkpoint alone
+does not establish latest state or exclude a returning original device.
 
 ## Deliverables
 
@@ -22,7 +23,8 @@ The checkpoint checks cover 1,152,921 conservative-threshold cases, including
 stale counters. They reproduce immediate completion for 80 of 100 raw redraws
 at counter 80, and an independent parallel-trial example increasing completion
 probability from 1/4 to 7/16. They also exhibit indistinguishable checkpoint
-observations with different later duties, votes and source availability.
+observations with different later duties, consent transitions, votes and source
+availability.
 
 These checks count valid progress units; they do not prove elapsed block time,
 latest-state recovery, source exclusion or complete activation. Existing WT
@@ -33,8 +35,8 @@ checkpoint fields or a five-ping pong format.
 
 - [ ] Choose an enforceable old-source exclusion mechanism that remains safe
   when an attacker falsely claims the source is lost.
-- [ ] Preserve later or concealed rescue duties, WT votes and replay state
-  without a continuously online ST or Boomletwo.
+- [ ] Preserve later or concealed rescue duties, consent transitions, WT votes
+  and replay state without a continuously online ST or Boomletwo.
 - [ ] Select the mystery policy and define recovery progress and incarnation
   rules, including already-reached state and fresh local signing sessions.
 - [ ] Finish the bounded checkpoint schema, fixed padding, detached bundle,

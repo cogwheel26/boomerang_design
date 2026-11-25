@@ -23,7 +23,9 @@ does not authorize activation. Recovery assumes no source cooperation.
 ## 1. Packet and setup binding
 
 The SPEC Section 13.10 backup fixes the only eligible Boomletwo and immutable
-setup policy. Recovery cannot select another target or change that policy.
+setup policy. Only peers that chose backup create these checkpoints; other
+peers retain ordinary WT failover. Recovery cannot select another target or
+change immutable setup policy. Consent state may change under SPEC Section 16.7.
 
 A recovery-capable ping bundle contains:
 
@@ -45,9 +47,12 @@ decryption.
 The checkpoint contains the actual counter, initialized status, original mystery
 if the selected delay policy uses it, reached flag, block height and spacing floors,
 peer sequence and reached-state checks, active WT head and index, exact current
-SAR duty, accepted duress state and required challenge state. It also binds the
-approved transaction and the evidence needed for its current phase. All private
-fields stay encrypted. A ping sequence is not a counter: valid no-advance pongs
+SAR duty, sticky duress state, saved per-pong draw and required challenge state.
+Retain the current consent counter, rotation and reset records, exact replies,
+consumed retry and status counts, and pending resumption or final-cleanup gates
+under SPEC Section 16.7. Recovery cannot regress the backup's consent counter.
+The checkpoint also binds the approved transaction and required phase evidence.
+All private fields stay encrypted. A ping sequence is not a counter: valid no-advance pongs
 still generate pings in the base protocol.
 
 Construct the new placeholder and the checkpoint before signing the ping. The
@@ -55,6 +60,8 @@ checkpoint represents the state associated with that output, with explicit next
 sequence and pending acknowledgment. It must not embed the signature, ciphertext
 or digest of the complete packet containing itself. Required header fields and
 placeholder bytes provide the binding without a recursive hash definition.
+For a resumption ping, recover the exact signed output from the enclosing bundle
+rather than embedding that output in its own rotation record.
 Store only bounded state and references to supplied evidence, not nested earlier
 checkpoint packets. Exact field layout and size limits remain conformance work.
 
@@ -139,7 +146,7 @@ authority or obligation recovery. No threshold policy completes activation.
 | The source had accepted at least the checkpoint's recorded progress | Yes, under the base honest-device assumption |
 | This packet names the WT head at that checkpoint | Yes |
 | This is the last ping or the currently installed WT head | No |
-| No later duress challenge, placeholder, vote or signing output exists | No |
+| No later duress challenge, consent transition, placeholder, vote or signing output exists | No |
 | The source is destroyed or unable to continue | No |
 
 A signed packet authenticates one snapshot. It cannot turn missing duties,
@@ -152,7 +159,8 @@ can conceal that vote and its final certificate. Recovering â€œno pending voteâ€
 from the old packet could then create a conflicting decision.
 
 More checkpoint fields do not cover later events, and an untrusted holder can
-conceal the newest checkpoint.
+conceal the newest checkpoint. A later consent rotation or reset can also
+leave the saved counter, replies and cleanup gates stale.
 
 ## 5. Peer WT discovery
 
@@ -210,11 +218,12 @@ to a ping, with no extra source signature. A full five-ping pong can share its
 WT signature across recipients. Normal Boomlet self-ping validation can use
 exact retained-byte comparison; recovery performs source verification and one
 checkpoint decryption. ST has no recurring recording role, and Boomletwo has no
-normal-operation power or connectivity requirement.
+per-pong recording requirement. Configured Boomletwos still participate in
+consent rotation and reset under SPEC Section 16.7.
 
 The snapshot format, limits, retention, incarnation rules and activation
-mechanism remain unfinished. Checkpoints cannot alter private policy or restore
-secret signing nonces; SPEC confidentiality and duress-shape rules apply.
+mechanism remain unfinished. Checkpoints cannot alter immutable setup policy
+or restore secret signing nonces; SPEC confidentiality and duress-shape rules apply.
 
 The [bounded checks](boomlet_rollover_model.md) demonstrate threshold bounds,
 redraw counterexamples and stale-checkpoint indistinguishability. They do not

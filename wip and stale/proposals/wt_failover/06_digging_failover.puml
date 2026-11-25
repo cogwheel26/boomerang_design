@@ -38,7 +38,8 @@ alt Final ABORT
 else Final ACTIVATE
   note over A,P
     Frozen obligations were discharged before PREPARE.
-    Installation preserves those discharges and all private delay state.
+    Installation preserves those discharges, the saved duress draw,
+    any completed-rotation resumption gate and all private delay state.
   end note
 
   group One recovery ping per installed head
@@ -59,20 +60,22 @@ else Final ACTIVATE
     C -> A: Current-head reached collection and own exact SAR acknowledgment
     C -> B: Current-head reached collection and own exact SAR acknowledgment
     C -> P: Current-head reached collection and each own exact SAR acknowledgment
-    A -> A: Verify five reached pings and own exact acknowledgment before signing
-    B -> B: Verify five reached pings and own exact acknowledgment before signing
+    A -> A: Verify five reached pings, per-peer sequence bounds\nand own exact acknowledgment before signing
+    B -> B: Verify five reached pings, per-peer sequence bounds\nand own exact acknowledgment before signing
   else At least one peer is still digging
     C -> C: Respect maximum inherited predecessor block height plus spacing
     C -> A: Head-scoped pong with four peer pings and own SAR acknowledgment
     C -> B: Head-scoped pong with four peer pings and own SAR acknowledgment
     C -> P: Recipient-specific pongs and own acknowledgments
-    A -> A: Verify strict sequences, block heights, scope, spacing and exact acknowledgment
-    B -> B: Verify strict sequences, block heights, scope, spacing and exact acknowledgment
+    A -> A: Verify strict sequences, per-peer bounds, block heights,\nscope, spacing and exact acknowledgment
+    B -> B: Verify strict sequences, per-peer bounds, block heights,\nscope, spacing and exact acknowledgment
     A -> A: Apply ordinary counter predicate and bounded catch-up
     B -> B: Apply ordinary counter predicate and bounded catch-up
     ref over A,ST
-      Each peer performs its ordinary per-round duress draw,
-      completes any selected challenge, and creates its next ordinary ping.
+      Each new valid pong uses one saved uniform draw from
+      1..DURESS_CHECK_INTERVAL_IN_BLOCKS; check on 1.
+      Retries reuse the draw and challenge.
+      Complete any selected challenge and create the next ordinary ping.
     end ref
   end
 end

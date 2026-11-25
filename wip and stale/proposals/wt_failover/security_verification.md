@@ -14,13 +14,15 @@ latest-state recovery, source exclusion or real chain progress.
 | SV-04 | Medium | Honest peers can lock different five-intent combinations and prevent completion | Explicit availability and forced-fallback risk; discarding locks would weaken decision safety |
 | SV-05 | Medium | Checkpoint format, self-inclusive pong dispatch and activation safeguards are not implementation-ready | Open conformance blocker; exact schemas, rejection rules, resource costs and independent vectors are required |
 | SV-06 | Critical | A replacement path can preserve key exclusivity while weakening backup availability, private policy or coercion resistance | Preserve the designated backup and ordinary gates; independent redraw needs a conservative floor, while later-state recovery and source exclusion remain unresolved |
+| SV-07 | Medium | A replacement WT presents an unseen pre-freeze peer ping as fresh post-activation evidence | Fixed by receiver sequence bounds in README Section 8.2; ten regression cases |
 
 ## Checkpoint security review
 
 The candidate stays within SPEC Section 18.5's designated backup boundary. The
 [finite checks](boomlet_rollover_model.md) verify both conservative threshold
 policies and reproduce the unsafe raw redraw. They also show that one authentic
-checkpoint fits histories with a later duty, hidden COMMIT or usable source.
+checkpoint fits histories with a later duty, consent transition, hidden COMMIT
+or usable source. Peers without backup use WT failover without these checkpoints.
 Historical pongs, ping counts and offline time earn no progress. Exclusion and
 complete-state recovery remain prerequisites for signing or WT voting.
 
@@ -57,9 +59,11 @@ An initial activation PREPARE requires the honest signer's exact outstanding SAR
 acknowledgment. Recovery retains that established witness. ABORT preserves
 completed discharge. Pre-DIGGING closure cannot erase an initialized withdrawal;
 initialized switches preserve mystery, counter and spacing state. Local fragments
-remain retained, and private cleanup requires verified completion and finished
-duties. These are state-preservation claims. They do not prove real elapsed block
-progress when all observations available to the honest device are fabricated.
+remain retained. Approved withdrawals require their exact final SAR receipt and
+any paired reset before private cleanup; initialized withdrawals also require
+the complete transaction. Pre-approval closure preserves `under_duress`. These
+are state-preservation claims. They do not prove real elapsed block progress
+when all observations available to the honest device are fabricated.
 
 ### WT lookup from a checkpoint
 
@@ -73,7 +77,7 @@ of the source's voting history, including any vote emitted after its last ping.
 
 [security_model.md](security_model.md) retains the executable source and command.
 The decision-checker dependency has SHA-256
-`72578865ef2582351e6d7f9a4492a4c9441641d12a869822d675a33f697f878a`.
+`358e4beb4283dfbde12d18b1e6a18db96d9467747df226d185614da7aaaabfb7`.
 The model prints its digest. Re-running the experiments checks their explicit
 abstractions, not conformance of an activation implementation.
 
@@ -84,18 +88,20 @@ abstractions, not conformance of an activation implementation.
 | Two competing intent combinations | 302 states and 603 transitions | No conflicting activation children; split locks can stall |
 | Experimental decision and handoff ordering | 1,790 states and 4,982 transitions | Freeze, retirement, one activation and retained public state; does not model designated backup or coercion |
 | Experimental capsule processing | 22 states and 72 transitions | Same-byte authentication and bounded copying; not a proposed post-setup export path |
-| Local withdrawal lifecycle | 52 states and 134 transitions | Discharge, recorded delay state, completion and fragment retention |
+| Local withdrawal lifecycle | 278 states and 750 transitions | Discharge, delay, final SAR receipt, optional paired reset, pre-approval duress retention and fragment retention |
 | Five-peer snapshot matrix | 7,776 snapshots and 241,056 honesty assignments | Finite abstract preparation guards |
 | Quiescence and acknowledgment bindings | 64 combinations and seven changed fields | Guard checks, not private-state decoding |
+| Peer ping freshness | Ten sequence and scope cases | Pre-freeze replay, initial zero, another activation and a new withdrawal |
 | Canonical WT lookup | 128 field and version variants | Matching a trusted pin, not establishing its freshness |
 | Abstract release bindings | 256 substitutions | Exact tuple binding, not current activation wire conformance |
-| Saved encoding fixtures | Two preimage hashes | No production signatures or encryption |
+| Saved encoding fixtures | Two preimage hashes and schema checks | Distinct base and extension IDs; no production signatures or encryption |
 
-Fifteen negative controls expose missing prepared evidence, late COMMIT, intent
+Eighteen negative controls expose missing prepared evidence, late COMMIT, intent
 rebinding, hidden COMMIT at freeze, premature release, repeated state import,
 source rollback, ciphertext substitution, unbounded copying, skipped discharge,
-reset delay, acknowledgment rollback, receipt-only cleanup, fragment erasure
-and peer-only cold recovery. These checks remain useful necessary conditions.
+reset delay, acknowledgment rollback, receipt-only cleanup, fragment erasure,
+skipped final receipt, skipped paired reset, cleared pre-approval duress and
+peer-only cold recovery. These checks remain useful necessary conditions.
 Their success cannot establish that a recovery design is no easier to attack
 than the ordinary withdrawal path.
 

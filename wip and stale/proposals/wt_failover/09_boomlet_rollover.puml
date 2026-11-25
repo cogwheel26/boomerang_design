@@ -12,13 +12,14 @@ participant "Designated offline Boomletwo" as T
 actor "User with enrolled ST" as U
 
 note over B,T
-  Setup has authorized exactly this backup target.
+  Only peers with a designated setup backup create these checkpoints.
+  Setup has authorized exactly this target.
   Neither ST nor Boomletwo records each ordinary transition.
   The checkpoint format below is a candidate extension.
 end note
 
 group Normal DIGGING
-  B -> B: Validate ordinary progress and preserve exact SAR duty
+  B -> B: Validate progress; preserve exact SAR duty,\nconsent counter, rotation records, replies and consumed budgets
   B -> B: Create target-encrypted checkpoint and exact placeholder
   B -> B: Bind checkpoint digest in existing signed ping
   B -> N: Signed ping bundle with detached encrypted checkpoint
@@ -38,7 +39,7 @@ group Inspect a recovery checkpoint
   T -> T: Verify source signature and exact encrypted checkpoint\nBind setup, target, withdrawal, sequence and placeholder
   T -> T: Identify WT at the checkpoint using retained head\nDo not treat peer claims as latest-state authority
   note over N,T
-    A valid old ping can omit a later duress duty or WT vote.
+    A valid old ping can omit later duress, consent transitions or WT votes.
     Source loss claims do not prove that an isolated source cannot return.
   end note
 end

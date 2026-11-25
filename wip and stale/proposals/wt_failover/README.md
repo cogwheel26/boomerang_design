@@ -110,13 +110,17 @@ WT switches do not replace the SPEC setup checkpoint chain. Completed checkpoint
 remain valid; incomplete WT-dependent prerequisites are repeated through the
 candidate before activation preparation.
 
-The designated Boomletwo and one-time backup remain governed by SPEC Section
-13.10. The target stays inactive, and public archives cannot authorize it.
+Backup is optional per peer under SPEC Section 13.10. Before `BACKUP_READY`,
+each peer completes the backup or the normal-key-signed request to skip it.
+Choices may differ without changing the shared checkpoint. A designated
+Boomletwo stays inactive; public archives cannot authorize it.
 
 The [Boomletwo proposal](boomlet_rollover.md) evaluates self-contained DIGGING
 checkpoints encrypted to that same target and authenticated by existing ping
-signatures. It has no continuously online ST or backup requirement. The proposed
-mutable-state export cannot change private setup policy, select a different
+signatures. Peers without a designated Boomletwo omit these checkpoints. No
+continuous ST or backup recording is required; configured backups still
+participate in consent rotation and reset under SPEC Section 16.7. The proposed
+mutable-state export cannot change immutable setup policy, select a different
 target or include secret MuSig2 nonces. Exact formats remain proposal work.
 
 Backup activation must preserve exclusive authority and state after the supplied
@@ -150,9 +154,8 @@ timer. Explicit user decisions or authenticated terminal errors may also trigger
 a proposal. A timeout is advisory and changes no trusted authority.
 
 For a request with a SAR acknowledgment, the host's monotonic elapsed timer must
-exceed `SAR_ACK_DELAY + WT_SAR_PROCESSING_BUDGET + ROUND_TRIP_ROUTING_BUDGET +
-CHAIN_OBSERVATION_BUDGET` before a silence prompt. Block-height silence alone cannot
-establish that elapsed interval; rapid blocks cannot shorten a SAR deadline.
+exceed `MIN_SWITCH_SILENCE_MS` before a silence prompt. Block-height silence
+alone cannot establish that elapsed interval; rapid blocks cannot shorten a SAR deadline.
 The [resource profile](resource_limits.md) fixes timer admission and retry rules.
 Untrusted host time can suggest review but cannot advance the frozen journal.
 
@@ -164,8 +167,12 @@ freshness and milestone checks used throughout the ceremony.
 
 Resolve any live MuSig2 nonce under SPEC Section 15.13 before freezing; retain a
 produced fragment. Also finish and bind any required duress answer to its pending
-placeholder. If the corresponding commit or ping cannot be formed, stall. Switch
-preparation draws no new challenge and cannot erase an existing duty.
+placeholder. Finish or cancel a pending consent rotation and finish any paired
+reset under SPEC Section 16.7 before freezing. Preserve consent state, duress
+state, cached replies and consumed retry and status counts. A pending SAR
+resumption or final-cleanup receipt may remain as the frozen duty in Section 5.2.
+If the corresponding commit or ping cannot be formed, stall. Switch preparation
+draws no new challenge and cannot erase an existing duty.
 
 Boomlet constructs a manifest containing:
 
@@ -193,7 +200,7 @@ The resume package contains the public evidence needed for its phase:
 | --- | --- |
 | Setup | Parameter agreement, completed checkpoint certificate, and pending local setup receipts |
 | No active withdrawal | Completed setup evidence and explicit absence of an active ceremony |
-| Pre-DIGGING | Reviewed transaction commitment, local authorization state, and exact committed artifacts or their authenticated retention references |
+| Pre-DIGGING | Reviewed transaction commitment, local authorization state, exact committed artifacts or their authenticated retention references, and any retained final-cleanup ping with its gate evidence |
 | DIGGING | Accepted approval-set binding, local padded commit, current signed padded ping, exact outstanding placeholder obligations, and accepted public progress summaries |
 | Reached or signing | DIGGING evidence, reached collection, and signing-session disposition |
 | Fragment collection | Immutable fragment, transaction binding, and retained public progress evidence needed by peers still completing the withdrawal |
@@ -221,7 +228,8 @@ authentication and nonce rules apply. Any manifest change requires a fresh revie
 Before exporting its signed switch intent, Boomlet stores the exact
 intent, manifest, retention commitments, and frozen state. The intent signs the
 same nonce-bound review message under a distinct signature domain. Queued WT
-messages, ST answers, signing, and ordinary state advancement wait while frozen.
+messages, ST answers, consent rotation, reset, signing, and ordinary state
+advancement wait while frozen.
 The sole withdrawal-side exception is verification and durable discharge of the
 exact frozen placeholder under Section 5.2; it changes neither the signed
 snapshot nor the ordinary phase, counters, block heights, or sequences.
@@ -283,9 +291,12 @@ committed package and transports the exact placeholder to the setup-bound SAR.
 For an initiator commit the original complete approval set, exact WT approval,
 and all four matching approval-set attestations are required before routing.
 For a non-initiator commit, also retain its verified initiator acknowledgment.
-Retained ping evidence binds the initialized withdrawal and current sequence.
-The host cannot replace this gate evidence with a claimed phase. Missing gates
-stall preparation, including withdrawal closure.
+Retained ping evidence binds the verified approval set and recorded sequence.
+A final-cleanup ping may precede DIGGING; route it for its SAR receipt without
+producing a pong or advancing the phase. Verification may discharge a recorded
+resumption or final-cleanup receipt gate while frozen; later cleanup waits for
+the final decision. The host cannot replace gate evidence with a claimed phase.
+Missing gates stall preparation, including withdrawal closure.
 
 The SPEC SAR checks apply to the response. A candidate envelope may transport
 the WT-neutral acknowledgment, and Niso may extract the same response from a
@@ -517,7 +528,7 @@ and use fallback; unilateral rebinding would permit conflicting heads.
 | Before parameter agreement | Finish a consistent reviewed setup agreement before deriving its roster-bound genesis and using failover |
 | `PARAMETERS_AGREED` | Verify candidate registration and local receipt, then complete the matching WT-ready checkpoint exchange |
 | `WT_READY` | Preserve completed checkpoints, verify retained candidate-path SAR finalization evidence, and complete the SAR-ready checkpoint exchange |
-| `SAR_READY` | Preserve completed checkpoints; finish designated encrypted backup, ordinary Iso checks and `BackupDone` |
+| `SAR_READY` | Preserve completed checkpoints; complete backup or the signed request to skip it under SPEC Section 13.10 |
 | `BACKUP_READY` or partial final delivery | Verify and relay matching completed checkpoint evidence; finish each local completion guard |
 | Setup complete, no withdrawal active | Install the head and use it for the next withdrawal |
 
@@ -543,12 +554,14 @@ otherwise:
 ```
 
 Incomplete authorization reports bind the withdrawal under discussion and each
-peer's actual participation. A completed archive matching another peer's active
-scope is reconciled by supplying the exact full signed transaction before freezing. That peer verifies
-its completion and local SAR duties; a phase claim cannot substitute for the
-transaction. An unmatched closed scope stalls review. A missing approved ID has
-a phase-specific meaning; it is not permission to erase unexplained later state. A false initialized report
-can stall a restart. False negative reports cannot reset an honest peer's delay.
+peer's actual participation. A closed archive matching another peer's active
+scope supplies the exact full signed transaction or the retained final ACTIVATE
+certificate for that pre-DIGGING closure before freezing. Verify the matching
+scope and local cleanup duties; a phase claim cannot substitute for this evidence.
+An unmatched closed scope stalls review. A missing approved ID has a
+phase-specific meaning; it is not permission to erase unexplained later state.
+A false initialized report can stall a restart. False negative reports cannot
+reset an honest peer's delay.
 
 ### 7.3 Close a pre-DIGGING withdrawal
 
@@ -560,11 +573,17 @@ every activation vote cover the common closure scope and obligation vector.
 An unresolved or missing scope, prepared placeholder, or signing archive stalls
 closure. If any peer has initialized DIGGING, preserve that withdrawal.
 
-After final ACTIVATE, tombstone the abandoned withdrawal ID and any
-approved ID, invalidate its pending transaction and duress-review nonces, and
-retire its local active state before unlocking. Any replacement follows a fresh
-SPEC withdrawal; switch approval does not approve its transaction. Historical
-approval-set continuation is outside this profile.
+After final ACTIVATE, retain the closure certificate, tombstone the abandoned
+IDs and invalidate pending reviews. Complete SPEC Section 16.7 cleanup before
+admitting another withdrawal. Without a local approved ID, clean up locally
+and preserve `under_duress`. Otherwise reuse the saved final ping or create it
+with sequence zero, `reached_mystery_flag: false` and the latest accepted Niso
+block height; verify its exact SAR receipt and complete any required paired reset
+before clearing state. A required paired reset cannot be bypassed when
+Boomletwo is unavailable. Certificate installation remains independent of SAR
+availability. Any replacement follows a fresh SPEC withdrawal;
+switch approval does not approve its transaction. Historical approval-set
+continuation is outside this profile.
 
 A final ABORT keeps the original operation and its still-valid local reviews.
 Already completed rescue activation is irreversible. Each honest peer has
@@ -612,14 +631,16 @@ Recovery pings create the next ordinary SAR obligation under the installed head.
 
 A required duress challenge from an accepted ordinary pong must finish before
 creating another ping. Preserve these challenges and outstanding placeholder
-records through cancellation and repeated switches. A newer safe placeholder
-cannot replace an unacknowledged duress placeholder.
+records, the saved per-pong draw, and any completed-rotation resumption gate
+through cancellation and repeated switches. Retries reuse the draw and challenge.
+A newer safe placeholder cannot replace an unacknowledged duress placeholder.
 
-Each initialized Boomlet then creates at most one recovery ping per new head
-without receiving another pong first. It uses the next unused sequence, retained
-block height and reached flag, and fresh placeholder encryption over current local
-plaintext. Persist the signed padded bytes and sequence update before export;
-a crash retransmits that same ping. Waiting for prior acknowledgments prevents
+A peer in final cleanup retries its saved final ping and reset under SPEC
+Section 16.7. Every other initialized Boomlet creates at most one recovery ping
+per new head without receiving another pong first. It uses the next unused
+sequence, retained block height and reached flag, and fresh placeholder
+encryption over current local plaintext. Persist the signed padded bytes and
+sequence update before export; a crash retransmits that same ping. Waiting for prior acknowledgments prevents
 repeated switches from accumulating outstanding recovery placeholders.
 
 Recovery-ping creation changes neither mystery, counter, nor local block height and
@@ -645,7 +666,13 @@ and local state agrees. Unknown history or unsafe block heights stalls. A malici
 report cannot lower an honest peer's stored floor; inflated block heights can cause
 denial of service and remain subject to chain checks.
 
-After enforcing this floor, validate and apply pongs under SPEC Sections
+For each ping from the preserved withdrawal in a new-head pong or reached
+collection, Boomlet requires its sequence to exceed that peer's frozen
+`ping_sequence` when `ping_digest` is present. An explicitly absent `ping_digest`
+permits the normal initial sequence zero. Install these per-peer bounds with the
+certified head and approved withdrawal ID; retain them through restart and ABORT.
+
+After enforcing these bounds, validate and apply pongs under SPEC Sections
 15.8 through 15.10, with the installed head and exact outstanding SAR
 acknowledgment. Activation and recovery-ping creation never increment counters.
 A valid increment accepted before the freeze remains; peers that missed it
@@ -682,11 +709,13 @@ The originating Boomlet checks the receipt against its retained bytes. Receipt
 acceptance records dissemination only. Because Niso and WT may both be malicious,
 neither their receipt nor a broadcast claim permits Boomlet to erase its copy.
 
-Completion requires the SPEC transaction checks and the peer's latest SAR duty.
-The head-bound `CompletionReceipt` commits to the exact transaction and ordered
-fragment digests but records dissemination only. The verified transaction and
-local discharge authorize `COMPLETED_RETAINED`; a pending challenge or placeholder
-blocks it. Exact receipt replay is idempotent.
+Verify the complete transaction and discharge the peer's latest SAR duty, then
+complete SPEC Section 16.7 cleanup, including the exact final SAR receipt and any
+required paired reset. Pending challenges, receipts or resets block
+`COMPLETED_RETAINED`; retain exact replies across retries. The head-bound
+`CompletionReceipt` commits to the exact transaction and ordered fragment digests
+but records dissemination only. Broadcast and rebroadcast need not wait for
+local cleanup. Exact receipt replay is idempotent.
 
 At `COMPLETED_RETAINED`, erase consumed signing secrets and private mystery and
 counter, invalidate reviews, and retain a durable closed-withdrawal record plus
@@ -726,8 +755,9 @@ records and bounds. SPEC decoding and cross-profile rejection rules apply.
 
 Boomlet keeps the roster, active head and index, frozen local manifest, exact
 exported control statements, promised ballot, highest prepared certificate,
-final decision, recovery-ping replay state, required ceremony secrets, and
-bounded tombstones. Persistent writes precede corresponding outputs.
+final decision, per-peer ping sequence bounds, recovery-ping replay state,
+consent rotation and cleanup state, required ceremony secrets, and bounded
+tombstones. Persistent writes precede corresponding outputs.
 
 Niso retains public packages, vote collections, setup evidence, and fragments.
 Candidate WT retains reconstruction inputs, route records, certificates, and
@@ -748,9 +778,9 @@ Protected caches apply only to identical artifacts in an unchanged frozen contex
 | Frozen obligation discharge | At most one exact SAR acknowledgment verification per Boomlet; reuse an already verified acknowledgment |
 | Recovery ballot | Up to one RECOVER, PREPARE, and COMMIT signature per peer, plus recovery-certificate verification |
 | DIGGING continuation | Up to five fresh padded pings and SAR exchanges, plus unresolved placeholder replay |
-| Pre-DIGGING closure | Existing intent and PREPARE carry closure authorization and discharge attestation |
+| Pre-DIGGING closure | Existing intent and PREPARE carry closure authorization and discharge attestation; approved peers verify the final SAR receipt and complete any paired reset |
 | New withdrawal after closure | Fresh transaction reviews, approvals, and commits |
-| Completion | Stream final transaction once and retain own immutable fragment; a WT receipt records dissemination |
+| Completion | Verify the final transaction and SAR receipt, complete any paired reset, and retain own fragment |
 
 Each padded ping has two Boomlet signatures. Certificate verification, hashing,
 encryption, channel operations, interface traffic, and durable writes add further
