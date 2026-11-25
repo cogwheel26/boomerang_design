@@ -26,9 +26,12 @@ reduce availability, and repeated switches expose service and timing metadata.
 ### Self-contained ping recovery
 
 The [Boomletwo candidate](boomlet_rollover.md) keeps the designated backup
-offline. Its checkpoint proves state at one ping, not current state or source
-exclusion. Recovery cannot lower the remaining progress floor, replay historical
-pongs or bypass inherited protocol gates.
+offline. After source loss, Boomletwo independently checks duress through ST,
+obtains its exact activation SAR receipt and issues the two-key replacement
+certificate defined in the lifecycle proposal. Recipients durably select its
+identity for future actions. Its checkpoint proves state at one ping; current
+state requires additional evidence. Recovery cannot lower the remaining progress
+floor, replay historical pongs or bypass inherited protocol gates.
 
 ### Chain observation and recovery limits
 
@@ -52,7 +55,7 @@ requires a fresh setup and a separate complete wire version.
 
 | ID | Assumption | Sources | If False | Status |
 | --- | --- | --- | --- | --- |
-| AR-82 | At least one honest identity has one active device and enforceable non-rollbackable lifecycle and protocol journals. Any designated setup backup remains inactive until valid activation. | WT proposal 3.3, 6 | Clones or restored hidden votes permit conflicting decisions. | Required device admission; hardware evidence pending |
+| AR-82 | At least one honest logical peer preserves non-rollbackable protocol journals across identity replacement. Recipients durably retain its accepted identity and certificate. A designated backup completes the activation duress and SAR gates before certificate output. | WT proposal 3.3, 6; lifecycle | Regressed identities or missing voting history permit conflicting decisions. | Specified activation rules; device evidence pending |
 | AR-83 | Each honest signer retains exact frozen placeholder bytes and verifies its own acknowledgment before initial activation PREPARE, and completes any required cleanup gates under SPEC Section 16.7. | WT proposal 5.2, 7.3 | Closure or candidate loss can discard rescue delivery. | Specified; bounded lifecycle checks |
 | AR-84 | All five peers cooperate, retain certificates and eventually share an admitted ballot; required SAR and backup receipts and chain evidence are available. | WT proposal 6; resource limits | Decision recovery, closure or continued withdrawal stalls; limits may force fallback. | Explicit availability boundary |
 | AR-85 | Profile and head dispatch reject bare, old-head and wrong-candidate WT transitions; history is admitted only as exact frozen evidence. | WT wire contract; proposal 7.4 | A retired WT or stale authorization can advance state. | Structural and abstract guard checks; interoperability pending |
@@ -65,7 +68,7 @@ These requirements apply to the [checkpoint candidate](boomlet_rollover.md).
 
 | ID | Requirement | If missing | Status |
 | --- | --- | --- | --- |
-| AR-88 | The original source cannot issue conflicting new authority after backup activation, even if merely isolated | Two devices can sign conflicting decisions or offer parallel completion opportunities | Exclusion mechanism unresolved |
+| AR-88 | Each recipient verifies both replacement signatures and atomically stores Boomletwo's accepted key and exact certificate before accepting future actions or acknowledging installation | A stale recipient mapping accepts actions under the predecessor identity or loses the replacement on restart | Specified in the lifecycle proposal; conformance pending |
 | AR-89 | Recovery preserves exact obligations and decisions later than any supplied checkpoint, and cannot reduce required valid progress | Stale authentic state hides duress or votes; an independent redraw may finish early | Conservative threshold policies specified; complete-state recovery unresolved |
 
 
@@ -80,7 +83,7 @@ the bounded models.
 | Threat | Attack path | Required control and audit evidence | Risks |
 | --- | --- | --- | --- |
 | T-FAILOVER-01 | WT disappears with an undelivered padded commit; closure erases the withdrawal | Exact own SAR discharge before PREPARE, reviewed closure IDs, frozen obligation vector, final SAR receipt and any paired reset before cleanup; lost and duplicated acknowledgment tests | R-22, R-29 |
-| T-FAILOVER-02 | Source and stale backup cosign incompatible histories | Preserve the one designated setup backup; require exclusive activation and complete state continuity; hidden-vote counterexample and device fault tests | R-03, R-30 |
+| T-FAILOVER-02 | A recipient restores a predecessor identity or recovery omits earlier votes | Preserve the designated backup, verify and persist its replacement certificate, require complete recovered voting history; certificate replay and hidden-vote cases | R-03, R-30 |
 | T-FAILOVER-03 | Retired or returning WT replays a state-advancing signature | Versioned head wrapper, expected roster signer, candidate and active dispatch separation; negative vectors for every WT operation | R-10, R-31 |
 | T-FAILOVER-04 | Candidate disappears after an honest COMMIT or a relay conceals the final certificate | Durable highest prepared certificate, immutable RECOVER, exact own report, higher promise, learnable final decision; candidate-loss model | R-13, R-30 |
 | T-FAILOVER-05 | Export receipt causes erasure while Niso and WT lose or suppress the fragment | Originator retains exact bytes; verify the complete transaction, final SAR receipt and any paired reset before private cleanup; power interruption at every handoff | R-13, R-29 |
@@ -93,8 +96,8 @@ the bounded models.
 | Threat | Required evidence | Risks |
 | --- | --- | --- |
 | Four surviving peers conceal the missing peer's COMMIT or claim an arbitrary current WT | Hidden-vote counterexample; source-authenticated head required for read-only discovery | R-30, R-31 |
-| Source remains usable while backup activates | Enforceable exclusion under an isolated-source attack; peer promises are insufficient | R-30 |
+| Replacement is incomplete, substituted or lost during recipient installation | Both key fields, nested signatures, setup context, atomic accepted-key update and exact retry result | R-30 |
 | Old checkpoint omits a later duty or vote | Complete-state recovery mechanism; authenticated history alone does not prove freshness | R-29, R-30, R-32 |
 | Target substitution or private-policy changes bypass base security | Exact designated setup target and SAR, current consent state and counter under SPEC Section 16.7, checkpoint and one-time activation binding | R-01, R-19, R-30 |
-| Device replacement drops duress state or lowers remaining work | Exact duty continuity and conservative threshold; no raw redraw against restored credit | R-22, R-29 |
-| Captor isolates source or withholds current packets | Demonstrate source-loss recovery without concurrent authority or lost duties; compare attack cost with ordinary withdrawal | R-29, R-30 |
+| Device replacement drops duress state or lowers remaining work | Independent activation check, sticky stored duress, exact activation SAR receipt, earlier-duty recovery and conservative threshold; no raw redraw against restored credit | R-22, R-29 |
+| Current recovery packets are withheld | Demonstrate that missing evidence stalls withdrawal recovery while retaining activation records, recorded duress and accepted recipient identities | R-29, R-30 |

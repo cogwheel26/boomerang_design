@@ -1,5 +1,5 @@
 @startuml boomletwo_checkpoint_recovery
-title Self-contained DIGGING checkpoint and guarded Boomletwo recovery
+title Self-contained DIGGING checkpoint and Boomletwo activation
 hide footbox
 autonumber
 skinparam sequenceMessageAlign center
@@ -9,7 +9,9 @@ participant Niso as N
 participant WT as W
 participant "Other peers" as P
 participant "Designated offline Boomletwo" as T
-actor "User with enrolled ST" as U
+participant "Enrolled ST" as S
+participant "Setup-bound SAR" as R
+actor "User" as U
 
 note over B,T
   Only peers with a designated setup backup create these checkpoints.
@@ -31,6 +33,7 @@ group Normal DIGGING
 end
 
 ... Original Boomlet is lost; no further source interaction ...
+destroy B
 
 group Inspect a recovery checkpoint
   U -> T: Start recovery using designated setup backup
@@ -40,21 +43,44 @@ group Inspect a recovery checkpoint
   T -> T: Identify WT at the checkpoint using retained head\nDo not treat peer claims as latest-state authority
   note over N,T
     A valid old ping can omit later duress, consent transitions or WT votes.
-    Source loss claims do not prove that an isolated source cannot return.
   end note
 end
 
-alt Complete activation safeguards have been established
-  T -> T: Bind checkpoint and attempt irreversibly\nGenerate and persist one independent draw R
-  T -> T: For unreached state use max(original mystery, R)\nor setup upper bound plus R
-  T -> T: Restore only authenticated progress and exact duties\nContinue ordinary gates under a defined exclusion mechanism
-else Exclusion or later security state is unresolved
-  T -> T: Do not enable signing, WT voting or new counter progress
+group Independent activation
+  T -> T: Bind saved activation nonce and stored key pair\nSign setup-bound replacement using imported Boomlet identity key
+  T -> S: Authenticated activation query and signed replacement proposal
+  S -> U: Review setup and replacement; show stored consent counter\nPresent fresh country query
+  U -> S: Country response
+  S -> T: Authenticated response bound to saved query
+  T -> T: Consume response durably\nunder_duress := saved_under_duress OR mismatch
+  T -> R: Saved encrypted activation placeholder through Niso\nBind setup, key pair and nonce; use imported SAR channel
+  R -> R: Apply identical safe and duress processing and acknowledgment delay
+  R -> T: Acknowledgment of exact saved placeholder through Niso
+  T -> T: Verify acknowledgment; sign inner signed message with own key\nCommit ACTIVE and exact replacement certificate before output
+  T -> N: Doubly signed key replacement certificate
+  N -> P: Saved replacement certificate
+  N -> W: Saved replacement certificate
+  N -> S: Saved replacement certificate
+  N -> R: Saved replacement certificate
+  note over P,R
+    Each recipient verifies both signatures, setup and key fields.
+    Atomically store certificate and accepted identity before acknowledgment.
+    Accept future actions for that peer only under Boomletwo's key.
+    Exact retries recover the saved result; retain historical evidence.
+  end note
 end
 
-note over B,T
-  No source retirement message or continuous ST service is assumed.
+alt Complete withdrawal state and required evidence have been recovered
+  T -> T: Bind checkpoint and attempt irreversibly\nGenerate and persist one independent draw R
+  T -> T: For unreached state use max(original mystery, R)\nor setup upper bound plus R
+  T -> T: Restore only authenticated progress and exact duties\nContinue ordinary gates under replacement identity
+else Withdrawal state or later security history is unresolved
+  T -> T: Retain accepted identity and recovered evidence\nWait before signing, WT voting or new counter progress
+end
+
+note over P,T
+  Setup ID, descriptor and peer ordering stay fixed across replacement.
   Historical pongs and ping counts cannot earn new counter increments.
-  This checkpoint mechanism alone is not a complete activation protocol.
+  Earlier rescue duties require recovery independently of the new duress check.
 end note
 @enduml

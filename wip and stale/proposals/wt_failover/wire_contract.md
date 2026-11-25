@@ -231,11 +231,33 @@ vectors, malformed-field rejection, every setup and withdrawal phase, exact
 receipt replay, and power-loss boundaries. The proposed profile is unavailable
 for deployment until those conformance and device requirements are satisfied.
 
-## Self-contained ping candidate
+## Boomletwo activation and self-contained ping candidate
+
+The [lifecycle proposal](../Cannon_boomletwo_lifecycle_proposal.md) defines the
+activation content and recipient rules. `BoomletIdentityReplacement` contains
+exactly two `bytes33` public keys in order, `boomlet_identity_pubkey` and
+`boomletwo_identity_pubkey`. The inner signed content is the canonical tuple
+`(setup_instance_id, replacement)` under
+`Boomerang/boomletwo/key_replacement`. The outer signed content is that complete
+inner `SignedMessage` under `Boomerang/boomletwo/key_acceptance`. Both use the
+selected profile version. Boomletwo produces both signatures using its imported
+key and its own key. The domains distinguish activation queries from the final
+replacement certificate.
+
+The activation SAR exchange uses the imported identity's channel with the
+setup-bound SAR. Its context binds the activation operation, setup, both keys
+and saved query nonce. It follows the base safe and duress processing contract
+and exact-placeholder acknowledgment rule. The full certificate is released
+only after that receipt and durable target activation. Each recipient recognizes
+an exact retained certificate before checking a new predecessor, and commits
+the accepted peer key and exact certificate before acknowledgment. Historical
+evidence retains its recorded key and scope; the original setup and descriptor
+stay fixed. Certificate schema allocation, activation query and SAR message
+types, exact contexts, limits and independent vectors remain conformance work.
 
 The [Boomletwo candidate](boomlet_rollover.md) requires target-encrypted checkpoint
 fields, a detached ciphertext, a five-ping pong schema and an activation handler.
-The current catalog defines none of them. Adoption requires fixed fields, padding,
-bounds, incarnation rules and version-selected dispatch; one profile cannot
+The current catalog does not allocate these extensions. Adoption requires fixed
+fields, padding, bounds, incarnation rules and version-selected dispatch; one profile cannot
 accept both four-ping and five-ping shapes. Counter freshness still uses the
 other four peers. Checkpoint evidence alone grants no progress or authority.

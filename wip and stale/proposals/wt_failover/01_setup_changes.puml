@@ -82,7 +82,10 @@ group SAR finalization and backup
     Backup choices may differ across peers.
     Any designated backup remains offline and inactive.
     Recovery checkpoint candidates bind only that target.
-    Source-loss activation needs exclusion and complete security history.
+    Activation uses an independent ST duress check, exact SAR receipt
+    and a replacement certificate signed with both stored identity keys.
+    Recipients durably select Boomletwo's key for future peer actions.
+    Withdrawal resumption requires complete recovered security history.
   end note
 end
 @enduml

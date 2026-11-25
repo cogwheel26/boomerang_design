@@ -7,8 +7,11 @@ recovery review, with no continuous recording duty.
 
 This proposal extends [SPEC.md](../../../spec/SPEC.md) and the [WT failover
 profile](README.md). Their requirements apply unless explicitly changed below.
-Source exclusion and later-state recovery remain unresolved, so the checkpoint
-does not authorize activation. Recovery assumes no source cooperation.
+After the original Boomlet becomes unavailable, Boomletwo activates through the
+[lifecycle procedure](../Cannon_boomletwo_lifecycle_proposal.md). It performs an
+independent duress check and signs a replacement certificate using the imported
+Boomlet identity key and its own identity key. Checkpoint evidence supplies
+withdrawal state for recovery.
 
 ## High-level flow
 
@@ -16,9 +19,12 @@ does not authorize activation. Recovery assumes no source cooperation.
    into an ordinary signed ping.
 2. Have Niso, WT and peers retain the ping bundle while normal DIGGING continues.
 3. After source loss, verify the checkpoint, setup binding, SAR duty and recorded WT head.
-4. Establish source exclusion and account for later security state before enabling recovery.
-5. Restore progress under a conservative threshold and resume ordinary protocol gates;
-   remain inactive if the activation safeguards are incomplete.
+4. Perform the activation duress check, obtain the exact SAR acknowledgment and
+   distribute the doubly signed key replacement certificate. Recipients durably
+   select Boomletwo's identity for future actions by that peer.
+5. Account for later security state, restore progress under a conservative
+   threshold and resume ordinary protocol gates. Incomplete recovery evidence
+   blocks withdrawal progress and signing.
 
 ## 1. Packet and setup binding
 
@@ -99,7 +105,7 @@ a new independent draw by Boomletwo. For an unreached checkpoint, `c < M`.
 Installing `R` as the threshold while restoring `c` is unsafe. With a draw from
 1 through 100 and `c = 80`, 80 percent of replacements would immediately become
 reached. Even excluding draws at or below `c` can shorten the actual remaining
-work and gives a second completion opportunity if the source still exists.
+work relative to the authenticated original threshold.
 
 There are two useful policies:
 
@@ -147,7 +153,6 @@ authority or obligation recovery. No threshold policy completes activation.
 | This packet names the WT head at that checkpoint | Yes |
 | This is the last ping or the currently installed WT head | No |
 | No later duress challenge, consent transition, placeholder, vote or signing output exists | No |
-| The source is destroyed or unable to continue | No |
 
 A signed packet authenticates one snapshot. It cannot turn missing duties,
 tombstones or votes into harmless lost progress.
@@ -185,21 +190,40 @@ choose neither the greatest claimed index nor the majority's assertion.
 A fresh challenge to all four survivors authenticates their present responses,
 not their completeness or truthfulness. When the lost device belonged to the
 only honest peer, every survivor can lie. Discovery cannot supply the missing
-source vote or establish exclusive activation.
+voting history required for a justified recovery decision.
 
-## 6. Activation requirements beyond the ping
+## 6. Activation and withdrawal recovery
 
-Source-loss handling must remain safe when the original is isolated rather than
-destroyed. A new incarnation or peer promise cannot fence it. The threshold
-floor prevents delay reduction but not concurrent authority or conflicting WT
-histories.
+The lifecycle procedure defines `BoomletIdentityReplacement` with the original
+Boomlet identity public key and Boomletwo identity public key. Boomletwo signs
+the setup-bound message using the imported Boomlet key, then signs that complete
+signed message using its own key. It takes both keys from protected state.
 
-Before enabling signing or WT voting on Boomletwo, a complete design must supply:
+Boomletwo independently performs the activation duress check through ST against
+its stored consent set. Preserve the stored consent counter and show it on the
+first activation query under ADR 0010. Combine saved duress and a mismatched
+answer using OR. Send an activation-bound SAR placeholder with identical safe
+and duress handling and verify its exact acknowledgment before committing
+activation and releasing the complete replacement certificate.
 
-- an enforceable exclusion mechanism for the old device's new authority;
-- a rule for later or concealed rescue duties, decisions and replay state;
+Each recipient verifies the setup, domains, both signatures and key fields,
+then durably records Boomletwo's key as that peer's accepted identity for future
+actions. The inner signer must match the currently accepted peer key and the
+outer signer must match the new key. Exact retained certificates return the
+saved result before the new-certificate predecessor check. Historical signatures
+retain their evidence role under their recorded keys; the setup ID, descriptor
+and peer ordering stay fixed.
+
+Installing a checkpoint preserves the committed replacement identity and
+activation records. Combine recovered and activation duress flags using OR and
+retain the greatest validated local consent counter. An older checkpoint cannot
+overwrite accepted rotation, reset or replay state.
+
+Withdrawal recovery additionally requires:
+
+- a rule for earlier or concealed rescue duties, decisions and replay state;
 - authenticated reconstruction of the selected transaction and required evidence;
-- one-time activation, replay protection and fresh local signing nonces;
+- one-time checkpoint installation, replay protection and fresh local signing nonces;
 - all inherited protocol gates, chain assumptions and a conservative progress floor.
 
 Historical pongs cannot be replayed to earn fresh progress. Recovery must not
@@ -208,8 +232,11 @@ block-height catch-up into extra counter increments. The exact fresh-progress an
 incarnation rules require specification before using the numerical delay bound
 as a claim about elapsed time. The base authenticated-chain issue remains open.
 
-The first two guarantees remain unsolved under the one-honest-peer model. No
-activation command is authorized solely by a checkpoint or peer reports.
+Recovery of state later than the available checkpoint remains unresolved under
+the one-honest-peer model. The activation duress check records a fresh signal;
+an earlier undelivered rescue duty still requires recovery or an explicit
+limitation. An installed identity certificate alone supplies no evidence that
+an interrupted withdrawal is ready for progress, WT voting or signing.
 
 ## 7. Cost and verification
 
@@ -221,12 +248,13 @@ checkpoint decryption. ST has no recurring recording role, and Boomletwo has no
 per-pong recording requirement. Configured Boomletwos still participate in
 consent rotation and reset under SPEC Section 16.7.
 
-The snapshot format, limits, retention, incarnation rules and activation
-mechanism remain unfinished. Checkpoints cannot alter immutable setup policy
-or restore secret signing nonces; SPEC confidentiality and duress-shape rules apply.
+The snapshot format, limits, retention, incarnation rules, certificate encoding
+and activation SAR dispatch need conformance definitions. Checkpoints cannot
+alter immutable setup policy or restore secret signing nonces; SPEC
+confidentiality and duress-shape rules apply.
 
 The [bounded checks](boomlet_rollover_model.md) demonstrate threshold bounds,
 redraw counterexamples and stale-checkpoint indistinguishability. They do not
-prove a complete activation protocol. The [sequence](09_boomlet_rollover.puml)
-shows packet preparation and guarded recovery, with unresolved activation
-requirements explicit.
+prove the activation implementation. The [sequence](09_boomlet_rollover.puml)
+shows packet preparation, independent activation, recipient key installation
+and guarded withdrawal recovery.

@@ -2,7 +2,7 @@
 
 The [Boomletwo candidate](boomlet_rollover.md) and WT decision profile are checked
 against the findings below. The models do not establish implementation safety,
-latest-state recovery, source exclusion or real chain progress.
+latest-state recovery, complete wire conformance or real chain progress.
 
 ## Findings
 
@@ -13,18 +13,26 @@ latest-state recovery, source exclusion or real chain progress.
 | SV-03 | High | Colluding Niso, WT and four peers can report increasing fictitious block heights | Open blocker for the real-chain delay guarantee; authenticated chain observation is required |
 | SV-04 | Medium | Honest peers can lock different five-intent combinations and prevent completion | Explicit availability and forced-fallback risk; discarding locks would weaken decision safety |
 | SV-05 | Medium | Checkpoint format, self-inclusive pong dispatch and activation safeguards are not implementation-ready | Open conformance blocker; exact schemas, rejection rules, resource costs and independent vectors are required |
-| SV-06 | Critical | A replacement path can preserve key exclusivity while weakening backup availability, private policy or coercion resistance | Preserve the designated backup and ordinary gates; independent redraw needs a conservative floor, while later-state recovery and source exclusion remain unresolved |
+| SV-06 | Critical | A replacement path can preserve key exclusivity while weakening backup availability, private policy or coercion resistance | Preserve the designated backup and ordinary gates; independently check activation duress, obtain its exact SAR receipt and durably install the replacement identity; later-state recovery remains unresolved |
 | SV-07 | Medium | A replacement WT presents an unseen pre-freeze peer ping as fresh post-activation evidence | Fixed by receiver sequence bounds in README Section 8.2; ten regression cases |
 
 ## Checkpoint security review
 
-The candidate stays within SPEC Section 18.5's designated backup boundary. The
+The candidate uses the designated setup backup from SPEC Section 13.10. The
 [finite checks](boomlet_rollover_model.md) verify both conservative threshold
 policies and reproduce the unsafe raw redraw. They also show that one authentic
-checkpoint fits histories with a later duty, consent transition, hidden COMMIT
-or usable source. Peers without backup use WT failover without these checkpoints.
-Historical pongs, ping counts and offline time earn no progress. Exclusion and
-complete-state recovery remain prerequisites for signing or WT voting.
+checkpoint fits histories with a later duty, consent transition or hidden COMMIT.
+Peers without backup use WT failover without these checkpoints. Historical
+pongs, ping counts and offline time earn no progress. Complete-state recovery
+remains a prerequisite for resuming signing or WT voting.
+
+The activation model starts from Boomletwo's stored backup and checks both
+initial duress flags and both answer results. It requires the exact activation
+SAR receipt before certificate commitment, and durable key installation before
+each of seven recipients acknowledges. Certificate replay preserves subsequent
+private state. Signatures, authenticated ST interaction and complete recovered
+withdrawal evidence are abstractions; cryptographic and device conformance need
+separate evidence.
 
 ## WT security argument
 
@@ -86,22 +94,23 @@ abstractions, not conformance of an activation implementation.
 | Decision core with three ballots | 127 states and 126 transitions | Authenticated voting abstraction |
 | Candidate-loss recovery | 305 delivery cases | Retained prepared evidence and malformed-proof guards |
 | Two competing intent combinations | 302 states and 603 transitions | No conflicting activation children; split locks can stall |
-| Experimental decision and handoff ordering | 1,790 states and 4,982 transitions | Freeze, retirement, one activation and retained public state; does not model designated backup or coercion |
+| Certificate activation and recipient installation | 1,564 states and 8,002 transitions | Independent activation duress, exact SAR gate, certificate commitment, seven durable recipient identities and replay preservation |
 | Experimental capsule processing | 22 states and 72 transitions | Same-byte authentication and bounded copying; not a proposed post-setup export path |
 | Local withdrawal lifecycle | 278 states and 750 transitions | Discharge, delay, final SAR receipt, optional paired reset, pre-approval duress retention and fragment retention |
 | Five-peer snapshot matrix | 7,776 snapshots and 241,056 honesty assignments | Finite abstract preparation guards |
 | Quiescence and acknowledgment bindings | 64 combinations and seven changed fields | Guard checks, not private-state decoding |
 | Peer ping freshness | Ten sequence and scope cases | Pre-freeze replay, initial zero, another activation and a new withdrawal |
 | Canonical WT lookup | 128 field and version variants | Matching a trusted pin, not establishing its freshness |
-| Abstract release bindings | 256 substitutions | Exact tuple binding, not current activation wire conformance |
 | Saved encoding fixtures | Two preimage hashes and schema checks | Distinct base and extension IDs; no production signatures or encryption |
 
-Eighteen negative controls expose missing prepared evidence, late COMMIT, intent
-rebinding, hidden COMMIT at freeze, premature release, repeated state import,
-source rollback, ciphertext substitution, unbounded copying, skipped discharge,
-reset delay, acknowledgment rollback, receipt-only cleanup, fragment erasure,
-skipped final receipt, skipped paired reset, cleared pre-approval duress and
-peer-only cold recovery. These checks remain useful necessary conditions.
+Twenty negative controls expose missing prepared evidence, late COMMIT, intent
+rebinding, cleared activation duress, premature certificate commitment,
+acknowledgment before recipient key storage, predecessor-key acceptance,
+recipient rollback, certificate-driven state regression, ciphertext substitution,
+unbounded copying, skipped discharge, reset delay, acknowledgment rollback,
+receipt-only cleanup, fragment erasure, skipped final receipt, skipped paired
+reset, cleared pre-approval duress and peer-only cold recovery. These checks
+remain useful necessary conditions.
 Their success cannot establish that a recovery design is no easier to attack
 than the ordinary withdrawal path.
 
@@ -120,11 +129,11 @@ honest reports, and neither intent is locally withdrawable. Lowering the report
 threshold or allowing timeout-based unlock does not preserve the safety argument.
 
 For SV-06, test target substitution, private-policy changes, old checkpoints,
-independent redraw, repeated recovery attempts, hidden obligations, hidden votes
-and concurrent use of an isolated source and its backup. The easiest route
+independent redraw, repeated recovery attempts, hidden obligations, hidden votes,
+activation duress handling and recipient certificate installation. The easiest route
 to spending, suppressing rescue, reducing uncertainty or forcing predictable
-fallback must be assessed against the base adversary. No complete lost-source
-solution or assurance result is claimed.
+fallback must be assessed against the base adversary. Full withdrawal recovery
+and implementation assurance remain unfinished.
 
 Exact checkpoint and activation schemas, combined lifecycle and coercion analysis, full signed
 and encrypted setup vectors, reorg handling, device fault tests and measured

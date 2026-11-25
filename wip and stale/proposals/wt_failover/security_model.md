@@ -1,10 +1,11 @@
 # Executable security model
 
 The current self-contained-ping checks are in
-[boomlet_rollover_model.md](boomlet_rollover_model.md). The handoff and capsule
-experiments below check general ordering hazards, not the current recovery
-candidate. Their version string is a test fixture, not an additional selected
-protocol version. No continuously online recorder is selected by the candidate.
+[boomlet_rollover_model.md](boomlet_rollover_model.md). The activation search
+checks Boomletwo's independent duress and SAR gates, certificate persistence and
+seven recipient identity updates. Signatures are authenticated abstractions.
+The capsule experiment checks general ordering hazards. Its version string is a
+test fixture, not an additional selected protocol version.
 
 This bounded model checks protocol ordering with one continuously honest logical
 peer and four adversarial cosigners. Signatures and storage protection are
@@ -31,17 +32,18 @@ allows ballot jumps as a conservative enlargement of the proposal's
 successor-only rule. It uses three ballots and every justified recovery choice.
 
 The intent search admits two competing five-intent combinations sharing the
-honest peer's intent. The combined search includes one WT decision, source
-freeze, target staging, release preparation, retirement, cancellation and one
-subsequent target progress event. That last event abstracts an independently
-validated ordinary operation and changes the head, usage and retained archive.
+honest peer's intent. The activation search starts from Boomletwo's stored
+backup and models both initial duress flags, both answer results, exact SAR
+discharge, certificate commitment and delivery to seven recipients. A later
+ordinary operation requires independently validated withdrawal history. Exact
+retries preserve that later private state.
 The capsule search permits arbitrary host substitution, interrupted copies and
 replays, with two complete copy attempts. A third copy is reachable only in its
 negative control. Six snapshot classes per peer produce 7,776 lifecycle cases;
 each is checked under all 31 nonempty sets of honest peers.
 
-These bounds do not cover all successive handoffs, arbitrary message schedules,
-the complete transaction parser or physical side channels. See the
+These bounds do not cover all successive identity replacements, arbitrary
+message schedules, the complete transaction parser or physical side channels. See the
 [verification report](security_verification.md) for the security argument,
 findings and remaining work.
 
@@ -133,97 +135,85 @@ def intent_violation(state):
 
 
 @dataclass(frozen=True)
-class Handoff:
-    vote: object = field(default_factory=Vote)
-    decision_open: bool = True
-    candidate: bool = True
-    source: str = 'ACTIVE'
-    target: int = 0  # 0 empty, 1 staged, 2 ready, 3 active
-    canceled: bool = False
-    retired: bool = False
-    private_release: bool = False
-    released: bool = False
-    imported: bool = False
-    head: int = 0
-    usage: int = 1
-    archive: tuple = ('fragment0',)
-    snapshot: tuple = ()
+class Activation:
+    phase: int = 0  # inactive, query saved, answered, placeholder saved, receipt, active
+    saved_duress: bool = False
+    duress: bool = False
+    mismatch: bool = False
+    placeholder: int = -1
+    receipt: bool = False
+    certificate: bool = False
+    published: bool = False
+    installed: int = 0  # Seven recipients: four peers, ST, WT and SAR.
+    acknowledged: int = 0
+    stale_action: bool = False
+    recovered: bool = False
     progress: bool = False
+    history: int = 0
 
 
-def handoff_steps(state, mutant=None):
-    if state.candidate:
-        yield 'candidate becomes unavailable', replace(state, candidate=False)
-    if state.source == 'ACTIVE' and state.decision_open:
-        for action, vote in vote_steps(state.vote):
-            initial_prepare = (state.vote.prepared[0] == NONE
-                               and vote.prepared[0] == ACTIVATE)
-            if initial_prepare and not state.candidate:
-                continue
-            yield action, replace(state, vote=vote)
-        for value in sorted(finals(state.vote)):
-            yield f'learn final {value}', replace(
-                state, decision_open=False, head=int(value == ACTIVATE))
-    can_freeze = not state.decision_open
-    if mutant == 'freeze_hidden_commit' and finals(state.vote):
-        can_freeze = True
-    if state.source == 'ACTIVE' and not state.snapshot and can_freeze:
-        yield 'freeze source and seal snapshot', replace(
-            state, source='FROZEN',
-            snapshot=(state.head, state.usage, state.archive))
-    if state.snapshot and state.target == 0:
-        # A host can replay an offer even after source cancellation.
-        yield 'validate and retain inactive import', replace(state, target=1)
-    if state.target == 1:
-        yield 'retain matching WT record and sign readiness', replace(state, target=2)
-    if state.source == 'FROZEN':
-        yield 'persist cancellation and resume source', replace(
-            state, source='ACTIVE', canceled=True, private_release=False)
-        if state.target == 2:
-            yield 'prepare release privately', replace(state, private_release=True)
-        if state.private_release:
-            yield 'atomic retirement and release outbox', replace(
-                state, source='RETIRED', retired=True)
-            if mutant == 'early_release':
-                yield 'export release before retirement', replace(state, released=True)
-    if state.source == 'RETIRED' and not state.released:
-        yield 'deliver saved release', replace(state, released=True)
-    if state.target == 2 and state.released:
-        head, usage, archive = state.snapshot
-        yield 'activate target once', replace(
-            state, target=3, imported=True, head=head, usage=usage, archive=archive)
-    if state.target == 3 and not state.progress:
-        yield 'target completes later ordinary operation', replace(
-            state, progress=True, head=state.head + 1, usage=state.usage + 1,
-            archive=state.archive + ('fragment1',))
-    if state.target == 3 and state.progress and mutant == 'reimport':
-        head, usage, archive = state.snapshot
-        yield 'duplicate release reinstalls capsule', replace(
-            state, head=head, usage=usage, archive=archive)
-    if state.retired and mutant == 'source_rollback':
-        yield 'restore retired source key slot', replace(state, source='ACTIVE')
-    yield 'crash or duplicate preserves durable state', state
+def activation_steps(state, mutant=None):
+    if state.phase == 0:
+        yield 'retain activation query and fixed key pair', replace(state, phase=1)
+    if state.phase == 1:
+        for mismatch in (False, True):
+            duress = mismatch if mutant == 'clear_activation_duress' else state.saved_duress or mismatch
+            yield 'consume ST answer durably', replace(
+                state, phase=2, mismatch=mismatch, duress=duress)
+    if state.phase == 2:
+        yield 'retain exact activation placeholder', replace(
+            state, phase=3, placeholder=int(state.duress))
+    if state.phase == 3:
+        yield 'verify exact activation SAR acknowledgment', replace(
+            state, phase=4, receipt=True)
+    if state.phase == 4:
+        yield 'atomically commit ACTIVE and complete certificate', replace(
+            state, phase=5, certificate=True)
+    if state.phase in (2, 3) and mutant == 'early_certificate':
+        yield 'commit certificate before SAR acknowledgment', replace(
+            state, phase=5, certificate=True)
+    if state.phase == 5 and not state.published:
+        yield 'publish retained replacement certificate', replace(state, published=True)
+    if state.published:
+        for recipient in range(7):
+            bit = 1 << recipient
+            if not state.installed & bit:
+                installed = state.installed if mutant == 'ack_before_key' else state.installed | bit
+                yield f'recipient {recipient} stores key and certificate before acknowledgment', replace(
+                    state, installed=installed, acknowledged=state.acknowledged | bit)
+            elif mutant == 'accept_predecessor':
+                yield 'authorize replayed predecessor-key action as new', replace(
+                    state, stale_action=True)
+            elif mutant == 'recipient_rollback':
+                yield 'restore predecessor recipient mapping', replace(
+                    state, installed=state.installed & ~bit)
+    if state.phase == 5 and not state.recovered:
+        # Complete withdrawal evidence is a prerequisite, not established by a certificate.
+        yield 'validate required withdrawal history and duties', replace(state, recovered=True)
+    if state.phase == 5 and state.recovered and not state.progress:
+        yield 'complete later ordinary operation', replace(state, progress=True, history=1)
+    if state.progress and mutant == 'reinstall_certificate':
+        yield 'duplicate certificate reinstalls old private state', replace(state, history=0)
+    yield 'crash or exact retry preserves activation and recipient journals', state
 
 
-def handoff_violation(state):
-    if len(finals(state.vote)) > 1:
-        return 'conflicting WT decisions'
-    if state.source in ('FROZEN', 'RETIRED') and state.decision_open:
-        return 'handoff concealed unresolved WT authority'
-    if state.retired and state.source != 'RETIRED':
-        return 'retired source resumed authority'
-    if state.target == 3 and (not state.retired or state.source != 'RETIRED'):
-        return 'target active before permanent source retirement'
-    if state.canceled and state.released:
-        return 'canceled handoff obtained a release'
-    if state.imported:
-        head, usage, archive = state.snapshot
-        delta = int(state.progress)
-        if state.head != head + delta or state.usage != usage + delta:
-            return 'capsule replay rolled back head or resource usage'
-        expected = archive + (('fragment1',) if state.progress else ())
-        if state.archive != expected:
-            return 'capsule replay lost retained fragments'
+def activation_violation(state):
+    if (state.saved_duress or state.mismatch) and not state.duress:
+        return 'activation answer cleared recorded duress'
+    if state.phase == 5 and not (state.receipt and state.certificate):
+        return 'activation committed without exact SAR receipt and certificate'
+    if state.phase >= 3 and state.placeholder != int(state.duress):
+        return 'activation placeholder lost recorded duress'
+    if state.published and not (state.phase == 5 and state.certificate):
+        return 'certificate published before durable activation'
+    if state.acknowledged & ~state.installed:
+        return 'acknowledged recipient lost its replacement identity'
+    if state.stale_action:
+        return 'recipient accepted a new action under the predecessor key'
+    if state.progress and not state.recovered:
+        return 'withdrawal progressed without recovered evidence'
+    if state.history != int(state.progress):
+        return 'duplicate certificate rolled back later private state'
 
 
 @dataclass(frozen=True)
@@ -503,28 +493,22 @@ def binding_checks():
         assert int.from_bytes(body[1:3], 'big') == schema_ids[fixture['type'].split('<', 1)[0]]
         assert preimage.endswith(body)
         assert sha256(preimage).hexdigest() == fixture['preimage_sha256']
-    expected_release = ('profile', 'setup', 'peer', 'target', 'nonce',
-                        'handoff', 'capsule', 'release_domain')
-    allowed = 0
-    for flips in product((False, True), repeat=len(expected_release)):
-        supplied = tuple(value + ('_other' if flip else '')
-                         for value, flip in zip(expected_release, flips))
-        allowed += supplied == expected_release
-    assert allowed == 1
-    print('PASS source-pinned discovery: 128 variants; release binding: 256 variants')
+    print('PASS checkpoint-pinned WT discovery: 128 variants')
     print(f'PASS saved encoding fixtures: {len(fixtures)} preimage hashes')
 
 
 def cold_recovery_counterexample():
     # Four adversaries complete every honest vote. The backup omits the
     # source's hidden ACTIVATE commitment and reports NONE in a higher ballot.
-    source = decision['Peer'](0, True)
-    peers = [source] + [decision['Peer'](i, True) for i in range(1, 5)]
+    prior_peer = decision['Peer'](0, True)
+    peers = [prior_peer] + [decision['Peer'](i, True) for i in range(1, 5)]
     for peer in peers:
         peer.prepare(ACTIVATE, peers, candidate_available=True)
     qc = decision['Certificate']('prepare', 0, ACTIVATE)
-    source.retain(qc, peers)
-    source.commit(0)
+    prior_peer.retain(qc, peers)
+    prior_peer.commit(0)
+    recorded_commit = prior_peer.committed[0]
+    del prior_peer, peers
     backup = decision['Peer'](0, True)
     recovered = [backup] + [decision['Peer'](i, True) for i in range(1, 5)]
     reports = tuple(peer.recover(1) for peer in recovered)
@@ -533,7 +517,7 @@ def cold_recovery_counterexample():
     qc_abort = decision['Certificate']('prepare', 1, ABORT)
     backup.retain(qc_abort, recovered)
     backup.commit(1)
-    assert source.committed[0] == ACTIVATE and backup.committed[1] == ABORT
+    assert recorded_commit == ACTIVATE and backup.committed[1] == ABORT
     print('NEGATIVE peer-only cold recovery: hidden source ACTIVATE and backup ABORT')
 
 
@@ -552,11 +536,13 @@ def main():
     check('competing intents', [Intents()], intent_steps, intent_violation)
     check('rebind intent', [Intents()], lambda s: intent_steps(s, 'rebind'),
           intent_violation, negative=True)
-    initial = [Handoff(), Handoff(decision_open=False)]
-    check('WT decision and handoff', initial, handoff_steps, handoff_violation)
-    for mutant in ('freeze_hidden_commit', 'early_release', 'reimport', 'source_rollback'):
-        check(mutant, initial, lambda s, m=mutant: handoff_steps(s, m),
-              handoff_violation, negative=True)
+    activations = [Activation(saved_duress=d, duress=d) for d in (False, True)]
+    check('certificate activation and recipient installation', activations,
+          activation_steps, activation_violation)
+    for mutant in ('clear_activation_duress', 'early_certificate', 'ack_before_key',
+                   'accept_predecessor', 'recipient_rollback', 'reinstall_certificate'):
+        check(mutant, activations, lambda s, m=mutant: activation_steps(s, m),
+              activation_violation, negative=True)
     check('immutable capsule and bounded copying', [Capsule()], capsule_steps,
           capsule_violation)
     for mutant in ('late_compare', 'unbounded_copy'):

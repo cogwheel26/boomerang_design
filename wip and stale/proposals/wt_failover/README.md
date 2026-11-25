@@ -29,8 +29,9 @@ The participants and their base trust roles are defined in SPEC Sections 4 and
 5. This profile adds one to five ordered WT identities and requires all five
 Boomlets for every switch decision. A one-entry roster provides no failover.
 
-Safety requires one uncloned, non-rollbackable logical peer across WT switches
-and device rollover. Completion requires all five peers; candidate preparation
+Safety requires durable accepted peer identities and non-rollbackable protocol
+journals across WT switches and device replacement. Recovery must preserve each
+logical peer's voting history. Completion requires all five peers; candidate preparation
 may also require payment, user interaction, safe chain observations and each
 fixed SAR. A prepared decision can finish from retained peer evidence without
 the candidate or SAR.
@@ -123,9 +124,15 @@ participate in consent rotation and reset under SPEC Section 16.7. The proposed
 mutable-state export cannot change immutable setup policy, select a different
 target or include secret MuSig2 nonces. Exact formats remain proposal work.
 
-Backup activation must preserve exclusive authority and state after the supplied
-checkpoint. Source exclusion and later-state recovery remain unresolved; a
-checkpoint or peer report alone cannot enable signing or WT voting.
+The [lifecycle procedure](../Cannon_boomletwo_lifecycle_proposal.md) activates
+Boomletwo after an independent ST duress check and exact SAR acknowledgment.
+Boomletwo signs a setup-bound message containing the original and replacement
+identity keys using its imported Boomlet key, then signs that complete signed
+message using its own key. Recipients atomically store the certificate and
+replacement identity and accept future actions for that peer only under the
+new key. Setup records, descriptor and peer order stay fixed; historical
+signatures retain their evidence role. Later-state recovery remains required
+before an interrupted withdrawal can resume signing or WT voting.
 
 ### 3.4 Peer WT discovery and self-inclusive pong
 

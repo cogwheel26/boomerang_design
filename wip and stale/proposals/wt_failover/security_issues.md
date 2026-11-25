@@ -9,7 +9,7 @@ authorization and setup export boundaries are inherited. Protocol and device imp
 | Finding | Severity | Required control | Proposal location |
 | --- | --- | --- | --- |
 | 1. Pre-DIGGING closure loses a rescue signal | Critical | Discharge every frozen placeholder before initial activation PREPARE; bind exact closure scope and all five obligation records; require the final SAR receipt and any paired reset for approved withdrawals | README 4.2, 5.2, 5.3, 7.3 |
-| 2. Cloned or stale backup equivocates | Critical | Preserve designated inactive backup; require exclusive authority and complete history before activation; lost-source activation remains open | README 3.3; rollover 6 |
+| 2. Cloned or stale backup equivocates | Critical | Preserve the designated setup backup; verify and durably install its doubly signed identity replacement; recover voting history before resuming decisions | README 3.3; lifecycle; rollover 6 |
 | 3. Deactivated WT retains wire authority | High | Separate setup-selected version, exact head wrapper and channel dispatch, current-index validation, explicit historical-evidence handler | Wire contract; README 3.2, 7.4 |
 | 4. Fragment export destroys recovery evidence | High | Persist exact fragment before export; keep public progress until transaction verification and cleanup under SPEC Section 16.7; retain own fragment until setup retirement | README 9 |
 | 5. Timeout races deliberate SAR delay | Medium | Both block-height silence and elapsed time exceeding SAR, processing, routing and observation budgets; exact in-flight discharge | Resource limits; README 4.1, 5.2 |
@@ -20,7 +20,7 @@ authorization and setup export boundaries are inherited. Protocol and device imp
 | 10. Oversized or repeatedly replayed checkpoints exhaust resources | Medium | Fixed schema, padding, byte limits and one-time recovery admission; exact encoding remains open | Rollover 1, 7; verification SV-02 |
 | 11. Colluding observers fabricate chain progress | High | Specify authenticated chain observation for the honest Boomlet; current real-chain delay guarantee remains blocked | README 1; verification SV-03 |
 | 12. Conflicting intent locks prevent recovery | Medium | Preserve first locks and document fallback; later cooperation alone cannot reconcile them | README 6.6; verification SV-04 |
-| 13. Independent redraw lowers delay or creates a second trial | Critical | Preserve an original-threshold floor or use upper-bound plus fresh draw; prevent parallel authority; no raw redraw against restored counter | Rollover 3, 6; verification SV-06 |
+| 13. Independent redraw lowers delay or creates a second trial | Critical | Preserve an original-threshold floor or use upper-bound plus fresh draw; persist one draw for the bound recovery attempt; no raw redraw against restored counter | Rollover 3, 6; verification SV-06 |
 | 14. Pre-freeze peer pings pass as post-activation evidence | Medium | Each Boomlet checks included ping sequences against that peer's frozen last-signed sequence in new-head pongs and reached collections | README 8.2; verification SV-07 |
 
 ## Review boundaries
